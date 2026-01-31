@@ -321,9 +321,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-2xl p-8">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 bg-black"
+      style={{
+        backgroundImage: "url(/login-bg.png)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      <div className="w-full max-w-md flex-shrink-0">
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-2xl p-8 border border-white/20">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-block bg-blue-100 rounded-lg p-3 mb-4">
@@ -382,9 +390,14 @@ export default function Login() {
                 </div>
               </div>
 
-              {telegramBotUsername && (
-                <div id="telegram-login-container" className="flex justify-center min-h-[44px]" />
-              )}
+              <div className="space-y-2">
+                <p className="text-center text-sm font-medium text-foreground">Вход через Telegram</p>
+                {telegramBotUsername ? (
+                  <div id="telegram-login-container" className="flex justify-center min-h-[44px]" />
+                ) : (
+                  <p className="text-center text-xs text-muted-foreground">(не настроен на сервере — укажите TELEGRAM_BOT_USERNAME)</p>
+                )}
+              </div>
 
               <button
                 onClick={handleYandexLogin}

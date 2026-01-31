@@ -71,6 +71,7 @@ git push -u origin main
    - `JWT_SECRET` — обязательно задать свой секрет
    - `DATABASE_URL` — если используется БД
    - `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET`, `YANDEX_REDIRECT_URI` — для OAuth
+   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` — для кнопки «Вход через Telegram»
    - `OPENAI_API_KEY`, `API_BASE_URL`, SMTP, SMS и т.д. — по необходимости
 6. Запустите сборку и деплой. Платформа соберёт образ по Dockerfile и запустит контейнер.
 
