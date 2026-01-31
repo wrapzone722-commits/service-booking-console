@@ -33,12 +33,12 @@ RUN corepack enable && corepack prepare pnpm@10.14.0 --activate && \
 RUN apk add --no-cache wget
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 
 EXPOSE 8080
 
-# Health check (default port 8080 — типично для PaaS)
+# Health check — порт должен совпадать с тем, на котором слушает приложение (8080)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${PORT:-8080}/health" || exit 1
+  CMD wget -qO- "http://127.0.0.1:8080/health" || exit 1
 
 CMD ["node", "dist/server/node-build.mjs"]
