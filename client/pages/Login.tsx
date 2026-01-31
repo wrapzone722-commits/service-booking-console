@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-type LoginStep = "method" | "register" | "login" | "verification";
+type LoginStep = "method" | "register" | "login" | "phone" | "verification";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -9,6 +9,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -156,6 +157,50 @@ export default function Login() {
     }
   };
 
+  const handleLoginByPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone || !password) {
+      setError("Введите номер телефона и пароль");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch("/api/v1/auth/login/phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.trim(), password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Ошибка входа");
+        return;
+      }
+
+      if (data.requires_verification) {
+        setSessionToken(data.session_token);
+        setStep("verification");
+        setEmail(data.email || "");
+        setPassword("");
+        setVerificationCode("");
+      } else {
+        localStorage.setItem("session_token", data.session_token);
+        localStorage.setItem("account_id", data.account_id);
+        localStorage.setItem("account_name", data.name);
+        navigate("/");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Ошибка подключения к серверу");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleYandexLogin = async () => {
     try {
       setLoading(true);
@@ -220,6 +265,17 @@ export default function Login() {
                 className="w-full py-2.5 px-4 bg-gray-100 text-foreground rounded-lg hover:bg-gray-200 transition-colors font-semibold text-sm"
               >
                 Я уже зарегистрирован
+              </button>
+
+              <button
+                onClick={() => {
+                  setStep("phone");
+                  setError(null);
+                  setPassword("230000");
+                }}
+                className="w-full py-2.5 px-4 bg-gray-100 text-foreground rounded-lg hover:bg-gray-200 transition-colors font-semibold text-sm"
+              >
+                Вход по номеру телефона
               </button>
 
               <div className="relative my-4">
@@ -302,6 +358,60 @@ export default function Login() {
                   setEmail("");
                   setPassword("");
                   setOrganizationName("");
+                }}
+                className="w-full text-sm text-primary hover:underline"
+              >
+                Вернуться назад
+              </button>
+            </form>
+          )}
+
+          {/* Phone Login Form */}
+          {step === "phone" && (
+            <form onSubmit={handleLoginByPhone} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">
+                  Номер телефона
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+7 900 123 45 67"
+                  className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">
+                  Пароль
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="По умолчанию: 230000"
+                  className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={loading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50"
+              >
+                {loading ? "Вход..." : "Войти по телефону"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("method");
+                  setError(null);
+                  setPhone("");
+                  setPassword("");
                 }}
                 className="w-full text-sm text-primary hover:underline"
               >

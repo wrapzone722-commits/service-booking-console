@@ -3,6 +3,16 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import * as db from "../db";
 
+const DEFAULT_PASSWORD = "230000";
+
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password + (process.env.JWT_SECRET || "your-secret-key-change-in-production")).digest("hex");
+}
+
+function verifyPassword(password: string, passwordHash: string): boolean {
+  return hashPassword(password) === passwordHash;
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID || "";
 const YANDEX_CLIENT_SECRET = process.env.YANDEX_CLIENT_SECRET || "";
@@ -116,8 +126,7 @@ export const register: RequestHandler = async (req, res) => {
       });
     }
 
-    // Hash password (in production, use bcrypt)
-    const passwordHash = crypto.createHash("sha256").update(password + JWT_SECRET).digest("hex");
+    const passwordHash = hashPassword(password);
 
     // Create new account with temp org_id (will be replaced with actual ID)
     const tempOrgId = `org_${Date.now()}`;
@@ -125,6 +134,7 @@ export const register: RequestHandler = async (req, res) => {
       name: organization_name,
       email: email.toLowerCase(),
       verified: false,
+      password_hash: passwordHash,
       qr_code_data: JSON.stringify({
         api_url: db.getApiBaseUrl(),
         org_id: tempOrgId,
@@ -154,6 +164,73 @@ export const register: RequestHandler = async (req, res) => {
   }
 };
 
+// Login by phone + password (default password 230000)
+export const loginByPhone: RequestHandler = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Укажите номер телефона и пароль",
+      });
+    }
+
+    const normalizedPhone = db.normalizePhone(phone);
+    if (normalizedPhone.length < 10) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Некорректный номер телефона",
+      });
+    }
+
+    let account = db.getAccountByPhone(normalizedPhone);
+
+    if (!account) {
+      // First-time login: create account with default password 230000
+      const defaultHash = hashPassword(DEFAULT_PASSWORD);
+      if (!verifyPassword(password, defaultHash)) {
+        return res.status(401).json({
+          error: "Unauthorized",
+          message: "Неверный пароль. По умолчанию: 230000",
+        });
+      }
+      account = db.createAccount({
+        name: "Организация",
+        email: `phone_${normalizedPhone}@local`,
+        phone: normalizedPhone,
+        verified: true,
+        password_hash: defaultHash,
+        qr_code_data: JSON.stringify({
+          api_url: db.getApiBaseUrl(),
+          org_id: `org_${Date.now()}`,
+        }),
+      });
+    } else {
+      if (!account.password_hash || !verifyPassword(password, account.password_hash)) {
+        return res.status(401).json({
+          error: "Unauthorized",
+          message: "Неверный пароль",
+        });
+      }
+    }
+
+    const token = generateToken(account._id, account.email);
+
+    res.json({
+      account_id: account._id,
+      email: account.email,
+      name: account.name,
+      verified: account.verified,
+      session_token: token,
+      requires_verification: !account.verified,
+    });
+  } catch (error) {
+    console.error("Login by phone error:", error);
+    res.status(500).json({ error: "Internal server error", message: "Ошибка входа" });
+  }
+};
+
 // Login with email/password
 export const login: RequestHandler = async (req, res) => {
   try {
@@ -174,10 +251,12 @@ export const login: RequestHandler = async (req, res) => {
       });
     }
 
-    // Verify password (in production, use bcrypt)
-    const passwordHash = crypto.createHash("sha256").update(password + JWT_SECRET).digest("hex");
-    // For now, we skip password verification in demo mode
-    // In production: if (account.password_hash !== passwordHash) return 401
+    if (account.password_hash && !verifyPassword(password, account.password_hash)) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Invalid email or password",
+      });
+    }
 
     const token = generateToken(account._id, account.email);
 

@@ -83,6 +83,7 @@ export function createServer() {
   app.post("/api/v1/auth/register", authRoutes.register);
   app.post("/api/v1/auth/register/yandex", authRoutes.registerWithYandex);
   app.post("/api/v1/auth/login", authRoutes.login);
+  app.post("/api/v1/auth/login/phone", authRoutes.loginByPhone);
   app.post("/api/v1/auth/verify-email", authRoutes.verifyEmail);
   app.get("/api/v1/auth/me", authRoutes.getMe);
   app.post("/api/v1/auth/logout", authRoutes.logout);

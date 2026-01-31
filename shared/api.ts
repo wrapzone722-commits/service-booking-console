@@ -139,14 +139,21 @@ export interface Account {
   verification_code?: string; // For email verification
   verification_expires?: string; // ISO 8601
   qr_code_data?: string; // JSON: { api_url, org_id }
+  password_hash?: string; // For phone/email login
   created_at: string; // ISO 8601
   updated_at: string; // ISO 8601
 }
 
 export interface LoginRequest {
-  email: string;
+  email?: string;
   password?: string;
+  phone?: string;
   yandex_code?: string;
+}
+
+export interface LoginByPhoneRequest {
+  phone: string;
+  password: string;
 }
 
 export interface LoginResponse {

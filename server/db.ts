@@ -38,6 +38,7 @@ interface Database {
   accounts: Map<string, Account>;
   accountsByEmail: Map<string, Account>;
   accountsByYandexId: Map<string, Account>;
+  accountsByPhone: Map<string, Account>;
   working_hours: { start: number; end: number };
   slot_duration: number; // in minutes
   api_base_url: string; // for QR code generation
@@ -628,7 +629,16 @@ export function createAccount(data: Omit<Account, "_id" | "created_at" | "update
     db.accountsByYandexId.set(data.yandex_id, account);
   }
 
+  if (data.phone) {
+    db.accountsByPhone.set(normalizePhone(data.phone), account);
+  }
+
   return account;
+}
+
+/** Normalize phone to digits only for lookup (e.g. +7 900 123-45-67 → 79001234567) */
+export function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, "");
 }
 
 export function getAccount(id: string): Account | null {
@@ -644,7 +654,7 @@ export function getAccountByYandexId(yandex_id: string): Account | null {
 }
 
 export function getAccountByPhone(phone: string): Account | null {
-  return db.accountsByPhone.get(phone) || null;
+  return db.accountsByPhone.get(normalizePhone(phone)) || null;
 }
 
 export function updateAccount(id: string, data: Partial<Account>): Account | null {
@@ -661,9 +671,9 @@ export function updateAccount(id: string, data: Partial<Account>): Account | nul
   }
 
   // Update phone index if changed
-  if (data.phone && data.phone !== account.phone) {
-    if (account.phone) db.accountsByPhone.delete(account.phone);
-    db.accountsByPhone.set(data.phone, updated);
+  if (data.phone !== undefined && normalizePhone(data.phone) !== (account.phone ? normalizePhone(account.phone) : "")) {
+    if (account.phone) db.accountsByPhone.delete(normalizePhone(account.phone));
+    db.accountsByPhone.set(normalizePhone(data.phone), updated);
   }
 
   // Update Yandex ID index if changed
