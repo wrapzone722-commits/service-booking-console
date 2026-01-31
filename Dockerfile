@@ -21,9 +21,11 @@ RUN pnpm run build
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Copy built artifacts
+# Copy built artifacts and run script
 COPY --from=builder /app/dist /app/dist
 COPY package.json pnpm-lock.yaml ./
+COPY deploy/run-server.sh /app/run-server.sh
+RUN chmod +x /app/run-server.sh
 
 # Production deps only (no devDependencies)
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate && \
@@ -37,8 +39,8 @@ ENV PORT=8080
 
 EXPOSE 8080
 
-# Health check — порт должен совпадать с тем, на котором слушает приложение (8080)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Долгий start-period: холодный старт Node + pnpm может занять время
+HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=5 \
   CMD wget -qO- "http://127.0.0.1:8080/health" || exit 1
 
-CMD ["node", "dist/server/node-build.mjs"]
+CMD ["sh", "/app/run-server.sh"]

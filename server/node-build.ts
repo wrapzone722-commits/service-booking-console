@@ -1,16 +1,13 @@
 import path from "path";
+import fs from "fs";
 import { createServer } from "./index";
 import * as express from "express";
 
 const app = createServer();
-// В production всегда 8080 — так ожидает Dockerfile и платформы (Timeweb). Игнорируем PORT извне.
-const port =
-  process.env.NODE_ENV === "production"
-    ? 8080
-    : Number(process.env.PORT || 8080);
-
-// In production, serve the built SPA files (path from CWD so Docker/Node resolve correctly)
-const distPath = path.join(process.cwd(), "dist", "spa");
+// Платформа (Timeweb) может задать PORT; по умолчанию 8080
+const port = Number(process.env.PORT || 8080);
+const cwdDist = path.join(process.cwd(), "dist", "spa");
+const distPath = fs.existsSync(cwdDist) ? cwdDist : path.join(path.dirname(process.argv[1] || "."), "..", "spa");
 
 // Serve static files (index.html, JS, CSS, assets)
 app.use(express.static(distPath, { index: "index.html" }));
@@ -23,14 +20,20 @@ app.get(/.*/, (req, res) => {
     return res.status(404).json({ error: "API endpoint not found" });
   }
 
-  res.sendFile(path.join(distPath, "index.html"));
+  const indexFile = path.join(distPath, "index.html");
+  if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
+  res.status(503).send("Application starting...");
 });
 
 // Слушать на 0.0.0.0, чтобы контейнер принимал запросы снаружи (Timeweb, Docker)
-app.listen(Number(port), "0.0.0.0", () => {
+const server = app.listen(port, "0.0.0.0", () => {
   console.log(`🚀 Fusion Starter server running on port ${port} (PORT from env: ${process.env.PORT ? "yes" : "default 8080"})`);
   console.log(`📱 SPA: ${distPath}`);
   console.log(`🔧 API: http://localhost:${port}/api`);
+});
+server.on("error", (err: NodeJS.ErrnoException) => {
+  console.error("Listen failed:", err.message);
+  process.exit(1);
 });
 
 // Graceful shutdown
