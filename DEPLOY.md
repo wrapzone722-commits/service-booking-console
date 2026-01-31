@@ -2,6 +2,29 @@
 
 Проект подготовлен к деплою через Git-репозиторий в **Timeweb Cloud App Platform** с использованием **Dockerfile**.
 
+## Timeweb MCP сервер
+
+В Cursor подключён **MCP сервер Timeweb** (`user-timeweb-mcp-server`). Через него можно создавать приложения в Timeweb Cloud без ручного ввода в панели.
+
+**Инструменты:**
+- **get_vcs_providers** — список подключённых VCS (GitHub, GitLab и т.д.)
+- **get_vcs_provider_repositories** (provider_id) — список репозиториев провайдера
+- **get_vcs_provider_by_repository_url** (repository_url) — найти провайдер по URL репозитория
+- **get_allowed_presets** — доступные пресеты (конфигурации сервера)
+- **get_deploy_settings** — настройки деплоя по умолчанию для фреймворков
+- **add_vcs_provider** — добавить VCS провайдер
+- **create_timeweb_app** — создать приложение (тип, репозиторий, framework: **docker**, build_cmd, run_cmd, envs и т.д.)
+
+**Для этого проекта (Docker):** при создании приложения через MCP укажите `type: backend`, `framework: docker`. Репозиторий: `https://github.com/wrapzone722-commits/service-booking-console`, ветка `main`.
+
+**Если MCP выдаёт «Не удалось найти VCS провайдер для репозитория»:** провайдер и репозиторий при этом могут быть в списке (get_vcs_providers / get_vcs_provider_repositories). Создайте приложение **вручную** в панели Timeweb (см. блок ниже «Параметры для ручного создания»).
+
+**Настройка API-токена (чтобы убрать 401):**  
+1. В Cursor откройте **Settings** → **Tools & MCP** → сервер **timeweb-mcp-server**.  
+2. В конфигурации сервера добавьте переменную окружения с API-ключом Timeweb (JWT). Обычно это `TIMEWEB_API_TOKEN` или `API_KEY` — см. документацию timeweb-mcp-server.  
+3. В значение вставьте ваш JWT-токен из панели Timeweb Cloud (раздел API / Ключи доступа).  
+4. Сохраните настройки и при необходимости перезапустите MCP-сервер. После этого вызовы `get_vcs_providers`, `create_timeweb_app` и др. будут проходить без 401.
+
 ## Что уже настроено
 
 - **Dockerfile** — мультистейдж-сборка (Node 20 Alpine): сборка клиента и сервера, затем минимальный runtime-образ.
@@ -26,6 +49,17 @@ git push -u origin main
 Убедитесь, что в репозитории **нет** файла `.env` (он в `.gitignore`).
 
 ### 2. Timeweb Cloud App Platform
+
+**Параметры для ручного создания (если MCP не сработал):**
+
+| Параметр | Значение |
+|----------|----------|
+| Репозиторий | `https://github.com/wrapzone722-commits/service-booking-console` |
+| Ветка | `main` |
+| Тип приложения | **Dockerfile** (не автоопределение) |
+| Dockerfile | в корне репозитория |
+| Пресет | любой backend (например, 2 GB RAM) |
+| Переменные | `PORT`, `JWT_SECRET`, при необходимости — из `.env.example` |
 
 1. В панели Timeweb Cloud откройте **App Platform** (или раздел деплоя приложений).
 2. Создайте новое приложение, выберите источник **Git** и укажите ваш репозиторий и ветку (например, `main`).
