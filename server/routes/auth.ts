@@ -2,6 +2,7 @@ import { RequestHandler } from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import * as db from "../db";
+import { sendVerificationEmail } from "../lib/email";
 
 const DEFAULT_PASSWORD = "230000";
 
@@ -145,8 +146,11 @@ export const register: RequestHandler = async (req, res) => {
     const verificationCode = db.generateVerificationCode();
     db.setVerificationCode(account.email, verificationCode);
 
-    // TODO: Send verification code via email service
-    console.log(`Verification code for ${email}: ${verificationCode}`);
+    // Отправка письма с кодом от wrapzone@yandex.ru (или SMTP_FROM_EMAIL из .env)
+    const sent = await sendVerificationEmail(account.email, verificationCode);
+    if (!sent) {
+      console.log(`Verification code for ${email}: ${verificationCode}`);
+    }
 
     const token = generateToken(account._id, account.email);
 
