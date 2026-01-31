@@ -35,10 +35,10 @@ RUN apk add --no-cache wget
 ENV NODE_ENV=production
 ENV PORT=3000
 
-EXPOSE 3000
+EXPOSE 8080
 
-# Health check for App Platform / load balancers (PORT from env at runtime)
+# Health check (default port 8080 — типично для PaaS)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${PORT:-3000}/health" || exit 1
+  CMD wget -qO- "http://127.0.0.1:${PORT:-8080}/health" || exit 1
 
 CMD ["node", "dist/server/node-build.mjs"]
