@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 type LoginStep = "method" | "register" | "login" | "phone" | "verification";
 
@@ -18,7 +17,6 @@ declare global {
 }
 
 export default function Login() {
-  const navigate = useNavigate();
   const [step, setStep] = useState<LoginStep>("method");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,13 +33,13 @@ export default function Login() {
     document.title = "ServiceBooking — Вход";
   }, []);
 
-  // Check if already logged in
+  // If already logged in, go to home (full reload so ProtectedRoute sees token)
   useEffect(() => {
     const token = localStorage.getItem("session_token");
     if (token) {
-      navigate("/");
+      window.location.replace("/");
     }
-  }, [navigate]);
+  }, []);
 
   // Fetch Telegram widget config and load script
   useEffect(() => {
@@ -104,7 +102,8 @@ export default function Login() {
         localStorage.setItem("session_token", data.session_token);
         localStorage.setItem("account_id", data.account_id);
         localStorage.setItem("account_name", data.name);
-        navigate("/");
+        window.location.replace("/");
+        return;
       } catch (err) {
         console.error(err);
         setError("Ошибка подключения к серверу");
@@ -112,7 +111,7 @@ export default function Login() {
         setLoading(false);
       }
     },
-    [navigate]
+    []
   );
 
   useEffect(() => {
@@ -198,11 +197,11 @@ export default function Login() {
         setPassword("");
         setVerificationCode("");
       } else {
-        // Save token and redirect
         localStorage.setItem("session_token", data.session_token);
         localStorage.setItem("account_id", data.account_id);
         localStorage.setItem("account_name", data.name);
-        navigate("/");
+        window.location.replace("/");
+        return;
       }
     } catch (err) {
       console.error(err);
@@ -239,11 +238,11 @@ export default function Login() {
         return;
       }
 
-      // Save token and redirect
       localStorage.setItem("session_token", data.session_token);
       localStorage.setItem("account_id", data.account_id);
       localStorage.setItem("account_name", data.name);
-      navigate("/");
+      window.location.replace("/");
+      return;
     } catch (err) {
       console.error(err);
       setError("Ошибка подключения к серверу");
@@ -286,7 +285,8 @@ export default function Login() {
         localStorage.setItem("session_token", data.session_token);
         localStorage.setItem("account_id", data.account_id);
         localStorage.setItem("account_name", data.name);
-        navigate("/");
+        window.location.replace("/");
+        return;
       }
     } catch (err) {
       console.error(err);
@@ -639,7 +639,8 @@ export default function Login() {
           {/* Footer */}
           <div className="mt-8 text-center text-xs text-muted-foreground">
             <p>Защищённая система авторизации</p>
-            <p className="mt-1">© 2025 ServiceBooking</p>
+            <p className="mt-1">© 2019 ServiceBooking</p>
+            <p className="mt-1 opacity-70">build 2025-02</p>
           </div>
         </div>
       </div>
