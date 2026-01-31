@@ -3,12 +3,11 @@ import { createServer } from "./index";
 import * as express from "express";
 
 const app = createServer();
-// В production при PORT=3000 принудительно 8080, чтобы health check платформы (Timeweb и др.) проходил
-const rawPort = process.env.PORT || 8080;
+// В production всегда 8080 — так ожидает Dockerfile и платформы (Timeweb). Игнорируем PORT извне.
 const port =
-  process.env.NODE_ENV === "production" && (rawPort === 3000 || rawPort === "3000")
+  process.env.NODE_ENV === "production"
     ? 8080
-    : Number(rawPort) || 8080;
+    : Number(process.env.PORT || 8080);
 
 // In production, serve the built SPA files (path from CWD so Docker/Node resolve correctly)
 const distPath = path.join(process.cwd(), "dist", "spa");
