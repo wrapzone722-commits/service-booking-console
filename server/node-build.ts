@@ -5,12 +5,11 @@ import * as express from "express";
 const app = createServer();
 const port = process.env.PORT || 3000;
 
-// In production, serve the built SPA files
-const __dirname = import.meta.dirname;
-const distPath = path.join(__dirname, "../spa");
+// In production, serve the built SPA files (path from CWD so Docker/Node resolve correctly)
+const distPath = path.join(process.cwd(), "dist", "spa");
 
-// Serve static files
-app.use(express.static(distPath));
+// Serve static files (index.html, JS, CSS, assets)
+app.use(express.static(distPath, { index: "index.html" }));
 
 // Handle React Router - serve index.html for all non-API routes
 // path-to-regexp v8 (Express 5) rejects "*" and "/(.*)"; use RegExp to match any path
@@ -25,7 +24,7 @@ app.get(/.*/, (req, res) => {
 
 app.listen(port, () => {
   console.log(`🚀 Fusion Starter server running on port ${port}`);
-  console.log(`📱 Frontend: http://localhost:${port}`);
+  console.log(`📱 SPA: ${distPath}`);
   console.log(`🔧 API: http://localhost:${port}/api`);
 });
 
