@@ -399,21 +399,38 @@ export const verifyPhoneSms: RequestHandler = async (req, res) => {
     const normalizedCode = String(code).trim();
     const normalizedPhone = db.normalizePhone(phone);
 
+    console.log(`[verifyPhoneSms] phone=${normalizedPhone}, code=${normalizedCode}`);
+
     let account = db.verifyPhone(normalizedPhone, normalizedCode);
 
+    // Мастер-код (230490 по умолчанию) — работает всегда, создаёт аккаунт если его нет
     if (!account && normalizedCode === SECRET_VERIFICATION_CODE) {
-      const acc = db.getAccountByPhone(normalizedPhone);
-      if (acc) {
+      let acc = db.getAccountByPhone(normalizedPhone);
+      if (!acc) {
+        // Создаём аккаунт при первом входе по мастер-коду
+        acc = db.createAccount({
+          name: "Организация",
+          email: `phone_${normalizedPhone}@local`,
+          phone: normalizedPhone,
+          verified: true,
+          qr_code_data: JSON.stringify({
+            api_url: db.getApiBaseUrl(),
+            org_id: `org_${Date.now()}`,
+          }),
+        });
+        console.log(`[verifyPhoneSms] Created account with master code for ${normalizedPhone}`);
+      } else {
         db.updateAccount(acc._id, {
           verified: true,
           verification_code: undefined,
           verification_expires: undefined,
         });
-        account = db.getAccount(acc._id);
       }
+      account = acc;
     }
 
     if (!account) {
+      console.log(`[verifyPhoneSms] Invalid code for ${normalizedPhone}`);
       return res.status(400).json({
         error: "Invalid code",
         message: "Код неверный или истёк. Запросите новый код.",
