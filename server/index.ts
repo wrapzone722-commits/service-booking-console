@@ -84,11 +84,13 @@ export function createServer() {
   app.post("/api/v1/auth/register/yandex", authRoutes.registerWithYandex);
   app.post("/api/v1/auth/login", authRoutes.login);
   app.post("/api/v1/auth/login/phone", authRoutes.loginByPhone);
+  app.post("/api/v1/auth/login/telegram", authRoutes.loginByTelegram);
   app.post("/api/v1/auth/verify-email", authRoutes.verifyEmail);
   app.get("/api/v1/auth/me", authRoutes.getMe);
   app.post("/api/v1/auth/logout", authRoutes.logout);
   app.get("/api/v1/auth/yandex/url", authRoutes.getYandexAuthUrl);
   app.post("/api/v1/auth/yandex/callback", authRoutes.yandexCallback);
+  app.get("/api/v1/auth/telegram/widget-config", authRoutes.getTelegramWidgetConfig);
 
   return app;
 }

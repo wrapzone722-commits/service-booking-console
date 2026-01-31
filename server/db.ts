@@ -38,6 +38,7 @@ interface Database {
   accounts: Map<string, Account>;
   accountsByEmail: Map<string, Account>;
   accountsByYandexId: Map<string, Account>;
+  accountsByTelegramId: Map<string, Account>;
   accountsByPhone: Map<string, Account>;
   working_hours: { start: number; end: number };
   slot_duration: number; // in minutes
@@ -56,6 +57,7 @@ let db: Database = {
   accounts: new Map(),
   accountsByEmail: new Map(),
   accountsByYandexId: new Map(),
+  accountsByTelegramId: new Map(),
   accountsByPhone: new Map(),
   working_hours: { start: 9, end: 18 }, // 9 AM to 6 PM
   slot_duration: 30, // 30 min slots
@@ -629,6 +631,10 @@ export function createAccount(data: Omit<Account, "_id" | "created_at" | "update
     db.accountsByYandexId.set(data.yandex_id, account);
   }
 
+  if (data.telegram_id) {
+    db.accountsByTelegramId.set(data.telegram_id, account);
+  }
+
   if (data.phone) {
     db.accountsByPhone.set(normalizePhone(data.phone), account);
   }
@@ -651,6 +657,10 @@ export function getAccountByEmail(email: string): Account | null {
 
 export function getAccountByYandexId(yandex_id: string): Account | null {
   return db.accountsByYandexId.get(yandex_id) || null;
+}
+
+export function getAccountByTelegramId(telegram_id: string): Account | null {
+  return db.accountsByTelegramId.get(telegram_id) || null;
 }
 
 export function getAccountByPhone(phone: string): Account | null {
@@ -682,6 +692,16 @@ export function updateAccount(id: string, data: Partial<Account>): Account | nul
       db.accountsByYandexId.delete(account.yandex_id);
     }
     db.accountsByYandexId.set(data.yandex_id, updated);
+  }
+
+  // Update Telegram ID index if changed
+  if (data.telegram_id !== undefined && data.telegram_id !== account.telegram_id) {
+    if (account.telegram_id) {
+      db.accountsByTelegramId.delete(account.telegram_id);
+    }
+    if (data.telegram_id) {
+      db.accountsByTelegramId.set(data.telegram_id, updated);
+    }
   }
 
   return updated;

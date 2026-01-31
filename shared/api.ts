@@ -132,6 +132,7 @@ export interface Account {
   name: string; // Organization name
   email: string; // Admin email
   yandex_id?: string; // Yandex OAuth ID
+  telegram_id?: string; // Telegram user ID (Login Widget)
   phone?: string;
   website?: string;
   logo_url?: string | null;

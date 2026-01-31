@@ -1,7 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 type LoginStep = "method" | "register" | "login" | "phone" | "verification";
+
+declare global {
+  interface Window {
+    onTelegramAuth?: (user: {
+      id: number;
+      first_name: string;
+      last_name?: string;
+      username?: string;
+      photo_url?: string;
+      auth_date: number;
+      hash: string;
+    }) => void;
+  }
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,6 +28,8 @@ export default function Login() {
   const [organizationName, setOrganizationName] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const telegramScriptLoaded = useRef(false);
 
   useEffect(() => {
     document.title = "ServiceBooking — Вход";
@@ -26,6 +42,85 @@ export default function Login() {
       navigate("/");
     }
   }, [navigate]);
+
+  // Fetch Telegram widget config and load script
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/v1/auth/telegram/widget-config");
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setTelegramBotUsername(data.bot_username || null);
+      } catch {
+        if (!cancelled) setTelegramBotUsername(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load Telegram Login Widget: script tag with data-telegram-login replaces itself with the button
+  useEffect(() => {
+    if (!telegramBotUsername || telegramScriptLoaded.current) return;
+    const container = document.getElementById("telegram-login-container");
+    if (!container) return;
+    const script = document.createElement("script");
+    script.src = "https://telegram.org/js/telegram-widget.js?22";
+    script.async = true;
+    script.setAttribute("data-telegram-login", telegramBotUsername);
+    script.setAttribute("data-size", "large");
+    script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    script.setAttribute("data-request-access", "write");
+    container.appendChild(script);
+    telegramScriptLoaded.current = true;
+  }, [telegramBotUsername]);
+
+  const handleTelegramAuth = useCallback(
+    async (user: {
+      id: number;
+      first_name: string;
+      last_name?: string;
+      username?: string;
+      photo_url?: string;
+      auth_date: number;
+      hash: string;
+    }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch("/api/v1/auth/login/telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(user),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.message || "Ошибка входа через Telegram");
+          return;
+        }
+        localStorage.setItem("session_token", data.session_token);
+        localStorage.setItem("account_id", data.account_id);
+        localStorage.setItem("account_name", data.name);
+        navigate("/");
+      } catch (err) {
+        console.error(err);
+        setError("Ошибка подключения к серверу");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [navigate]
+  );
+
+  useEffect(() => {
+    window.onTelegramAuth = handleTelegramAuth;
+    return () => {
+      window.onTelegramAuth = undefined;
+    };
+  }, [handleTelegramAuth]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +381,10 @@ export default function Login() {
                   <span className="px-2 bg-white text-muted-foreground">или</span>
                 </div>
               </div>
+
+              {telegramBotUsername && (
+                <div id="telegram-login-container" className="flex justify-center min-h-[44px]" />
+              )}
 
               <button
                 onClick={handleYandexLogin}

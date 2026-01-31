@@ -20,6 +20,30 @@ const SECRET_VERIFICATION_CODE = process.env.SECRET_VERIFICATION_CODE || "230490
 const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID || "";
 const YANDEX_CLIENT_SECRET = process.env.YANDEX_CLIENT_SECRET || "";
 const YANDEX_REDIRECT_URI = process.env.YANDEX_REDIRECT_URI || "http://localhost:5173/auth/yandex/callback";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "";
+
+/** Get Telegram bot username for Login Widget (client needs it for data-telegram-login) */
+export const getTelegramWidgetConfig: RequestHandler = (_req, res) => {
+  if (!TELEGRAM_BOT_USERNAME) {
+    return res.status(503).json({
+      error: "Configuration error",
+      message: "Telegram Login не настроен (TELEGRAM_BOT_USERNAME)",
+    });
+  }
+  res.json({ bot_username: TELEGRAM_BOT_USERNAME });
+};
+
+/** Verify Telegram Login Widget data: HMAC-SHA256(data_check_string, SHA256(bot_token)) === hash. data_check_string = sorted key=value (only keys present in payload, excluding hash). */
+function verifyTelegramAuth(payload: Record<string, unknown>, receivedHash: string): boolean {
+  if (!TELEGRAM_BOT_TOKEN || !receivedHash) return false;
+  const { hash: _h, ...rest } = payload;
+  const secretKey = crypto.createHash("sha256").update(TELEGRAM_BOT_TOKEN).digest();
+  const keys = Object.keys(rest).sort();
+  const dataCheckString = keys.map((k) => `${k}=${rest[k]}`).join("\n");
+  const computedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  return computedHash === receivedHash;
+}
 
 export interface TokenPayload {
   account_id: string;
@@ -167,6 +191,69 @@ export const register: RequestHandler = async (req, res) => {
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({ error: "Internal server error", message: "Registration failed" });
+  }
+};
+
+// Login via Telegram Login Widget
+export const loginByTelegram: RequestHandler = async (req, res) => {
+  try {
+    const { id, first_name, last_name, username, photo_url, auth_date, hash: receivedHash } = req.body;
+
+    if (!id || !auth_date || !receivedHash) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Отсутствуют данные авторизации Telegram",
+      });
+    }
+
+    // Build payload as received (Telegram hash is over exact key=value pairs sent)
+    const payload: Record<string, unknown> = { ...req.body };
+    if (!verifyTelegramAuth(payload, receivedHash)) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Неверная подпись данных Telegram",
+      });
+    }
+
+    // Optional: reject if auth_date is too old (e.g. > 1 hour)
+    const authDate = parseInt(String(auth_date), 10);
+    if (authDate && Date.now() / 1000 - authDate > 3600) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Данные авторизации устарели",
+      });
+    }
+
+    const telegramId = String(id);
+    let account = db.getAccountByTelegramId(telegramId);
+
+    if (!account) {
+      const displayName = [first_name, last_name].filter(Boolean).join(" ") || username || `User ${telegramId}`;
+      account = db.createAccount({
+        name: displayName,
+        email: `telegram_${telegramId}@local`,
+        telegram_id: telegramId,
+        verified: true,
+        qr_code_data: JSON.stringify({
+          api_url: db.getApiBaseUrl(),
+          org_id: `org_${Date.now()}`,
+        }),
+      });
+    }
+
+    const token = generateToken(account._id, account.email);
+
+    res.json({
+      account_id: account._id,
+      email: account.email,
+      name: account.name,
+      verified: account.verified,
+      session_token: token,
+      requires_verification: false,
+    });
+  } catch (error) {
+    console.error("Login by Telegram error:", error);
+    res.status(500).json({ error: "Internal server error", message: "Ошибка входа через Telegram" });
   }
 };
 
