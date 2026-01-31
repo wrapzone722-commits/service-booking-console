@@ -7,9 +7,9 @@ WORKDIR /app
 # Enable pnpm via corepack (project uses pnpm)
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
 
-# Install dependencies from lockfile
+# Install dependencies (--no-frozen-lockfile: lockfile может отставать от package.json после добавления nodemailer и др.)
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source (client, server, shared, configs)
 COPY . .
@@ -27,7 +27,7 @@ COPY package.json pnpm-lock.yaml ./
 
 # Production deps only (no devDependencies)
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate && \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --no-frozen-lockfile --prod
 
 # Optional: for HEALTHCHECK (Alpine has no wget by default)
 RUN apk add --no-cache wget
