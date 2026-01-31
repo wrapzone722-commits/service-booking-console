@@ -1,0 +1,18 @@
+[Unit]
+Description=ServiceBooking Node App
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/servicebooking
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Add other environment variables in /etc/default/servicebooking or systemd drop-in
+ExecStart=/usr/bin/node dist/server/node-build.mjs
+Restart=always
+RestartSec=5
+LimitNOFILE=10000
+
+[Install]
+WantedBy=multi-user.target

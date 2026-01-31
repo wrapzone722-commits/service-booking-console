@@ -1,0 +1,274 @@
+import { useEffect, useMemo, useState } from "react";
+import { Service, Booking, User } from "@shared/api";
+
+export default function Index() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [clients, setClients] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const apiConfig = useMemo(
+    () => ({ base_url: "https://example.com/api/v1", token: "optional_token" }),
+    []
+  );
+
+  const qrData = useMemo(() => JSON.stringify(apiConfig), [apiConfig]);
+  const qrUrl = useMemo(
+    () => `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}`,
+    [qrData]
+  );
+
+  useEffect(() => {
+    document.title = "ServiceBooking — Админ-панель";
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [servicesRes, bookingsRes, usersRes] = await Promise.all([
+          fetch("/api/v1/services"),
+          fetch("/api/v1/bookings"),
+          fetch("/api/v1/users"),
+        ]);
+
+        if (!servicesRes.ok || !bookingsRes.ok || !usersRes.ok) {
+          throw new Error("Failed to fetch data");
+        }
+
+        const [servicesData, bookingsData, usersData] = await Promise.all([
+          servicesRes.json(),
+          bookingsRes.json(),
+          usersRes.json(),
+        ]);
+
+        setServices(servicesData);
+        setBookings(bookingsData);
+        setClients(usersData);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Ошибка загрузки данных");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const copyConfig = async () => {
+    try {
+      await navigator.clipboard.writeText(qrData);
+      alert("Конфигурация скопирована");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const statusLabel = (s: string) => {
+    const labels: Record<string, string> = {
+      pending: "ожидает",
+      confirmed: "подтверждена",
+      in_progress: "процесс",
+      completed: "завершена",
+      cancelled: "отменена",
+    };
+    return labels[s] || s;
+  };
+
+  const statusEmoji = (s: string) => {
+    const emojis: Record<string, string> = {
+      pending: "⏳",
+      confirmed: "✓",
+      in_progress: "▶",
+      completed: "✓✓",
+      cancelled: "✕",
+    };
+    return emojis[s] || "•";
+  };
+
+  const totalRevenue = bookings.reduce((sum, b) => sum + b.price, 0);
+  const completedBookings = bookings.filter((b) => b.status === "completed").length;
+  const pendingBookings = bookings.filter((b) => b.status === "pending").length;
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-2">Ошибка</h2>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Панель управления</h1>
+            <p className="text-xs text-muted-foreground">Обзор сервиса бронирования</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors">
+              🔔
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-6 space-y-4">
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm animate-pulse">
+            Загрузка данных...
+          </div>
+        ) : (
+          <>
+            {/* Key Stats Grid - 6 metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { label: "Услуг", value: services.length, icon: "💼", color: "blue" },
+                { label: "Записей", value: bookings.length, icon: "📅", color: "green" },
+                { label: "Клиентов", value: clients.length, icon: "👥", color: "purple" },
+                { label: "Выручка", value: `${(totalRevenue / 1000).toFixed(1)}k ₽`, icon: "💰", color: "yellow" },
+                { label: "Завершено", value: completedBookings, icon: "✓", color: "emerald" },
+                { label: "Ожидает", value: pendingBookings, icon: "⏳", color: "orange" },
+              ].map((stat, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-lg p-3 border border-border hover:shadow-md transition-all duration-300 animate-slide-in"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <p className="text-xs text-muted-foreground mb-1">{stat.label}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xl font-bold text-foreground">{stat.value}</p>
+                    <span className="text-2xl">{stat.icon}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Services - Compact List */}
+              <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-border animate-slide-in">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-foreground">Услуги ({services.length})</h2>
+                  <button className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-blue-600 transition-colors">
+                    + Новая
+                  </button>
+                </div>
+                <div className="divide-y divide-border max-h-64 overflow-y-auto">
+                  {services.map((s, idx) => (
+                    <div
+                      key={s._id}
+                      className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors hover:translate-x-1 duration-200"
+                      style={{ animationDelay: `${idx * 30}ms` }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
+                        <p className="text-xs text-muted-foreground">{s.category} • {s.duration} мин</p>
+                      </div>
+                      <span className="text-sm font-bold text-primary ml-2 flex-shrink-0">{s.price.toFixed(0)} ₽</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* QR & Stats */}
+              <div className="space-y-4">
+                {/* QR Code */}
+                <div className="bg-white rounded-lg p-3 shadow-sm border border-border flex flex-col items-center animate-slide-in">
+                  <h3 className="text-xs font-bold text-foreground mb-2">iOS подключение</h3>
+                  <img src={qrUrl} alt="QR" className="w-32 h-32 border-2 border-primary rounded-lg" />
+                  <button
+                    onClick={copyConfig}
+                    className="mt-2 w-full text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-blue-600 transition-colors"
+                  >
+                    Скопировать
+                  </button>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
+                    <p className="text-xs text-blue-700 font-semibold">Активных</p>
+                    <p className="text-lg font-bold text-blue-900">{services.filter((s) => s.is_active).length}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 border border-purple-200">
+                    <p className="text-xs text-purple-700 font-semibold">Новых</p>
+                    <p className="text-lg font-bold text-purple-900">{bookings.filter((b) => b.status === "pending").length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bookings - Compact Table */}
+            <div className="bg-white rounded-lg shadow-sm border border-border animate-slide-in">
+              <div className="px-4 py-3 border-b border-border">
+                <h2 className="text-sm font-bold text-foreground">Последние записи</h2>
+              </div>
+              <div className="divide-y divide-border max-h-56 overflow-y-auto">
+                {bookings.slice(0, 10).map((b, idx) => (
+                  <div
+                    key={b._id}
+                    className="px-4 py-2 flex items-center gap-3 hover:bg-gray-50 transition-colors text-xs"
+                    style={{ animationDelay: `${idx * 20}ms` }}
+                  >
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700">
+                      {b.user_name[0]}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground truncate">{b.service_name}</p>
+                      <p className="text-muted-foreground truncate">{b.user_name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100">
+                        {statusEmoji(b.status)} {statusLabel(b.status)}
+                      </span>
+                      <span className="font-bold text-primary">{b.price.toFixed(0)} ₽</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Clients - Compact Cards */}
+            <div className="bg-white rounded-lg shadow-sm border border-border animate-slide-in">
+              <div className="px-4 py-3 border-b border-border">
+                <h2 className="text-sm font-bold text-foreground">Клиенты ({clients.length})</h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 p-3">
+                {clients.map((c, idx) => (
+                  <div
+                    key={c._id}
+                    className="p-2 rounded-lg border border-border hover:border-primary hover:shadow-md transition-all duration-300"
+                    style={{ animationDelay: `${idx * 40}ms` }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        {c.first_name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">{c.first_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{c.phone.slice(0, 8)}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(c.created_at).toLocaleDateString("ru-RU", { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
