@@ -42,6 +42,57 @@ export default function Login() {
     }
   }, []);
 
+  // Handle Telegram redirect auth (params in URL after redirect from Telegram)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    const hash = params.get("hash");
+    const auth_date = params.get("auth_date");
+    
+    if (id && hash && auth_date) {
+      // Clear URL params
+      window.history.replaceState({}, "", "/login");
+      
+      // Build Telegram user object from URL params
+      const telegramUser = {
+        id: parseInt(id, 10),
+        first_name: params.get("first_name") || "",
+        last_name: params.get("last_name") || undefined,
+        username: params.get("username") || undefined,
+        photo_url: params.get("photo_url") || undefined,
+        auth_date: parseInt(auth_date, 10),
+        hash: hash,
+      };
+      
+      // Call Telegram auth handler
+      (async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          const res = await fetch("/api/v1/auth/login/telegram", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(telegramUser),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            setError(data.message || "Ошибка входа через Telegram");
+            return;
+          }
+          localStorage.setItem("session_token", data.session_token);
+          localStorage.setItem("account_id", data.account_id);
+          localStorage.setItem("account_name", data.name);
+          window.location.replace("/");
+        } catch (err) {
+          console.error(err);
+          setError("Ошибка подключения к серверу");
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+  }, []);
+
   // Fetch Telegram widget config and load script
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +112,7 @@ export default function Login() {
     };
   }, []);
 
-  // Load Telegram Login Widget: script tag with data-telegram-login replaces itself with the button
+  // Load Telegram Login Widget with redirect mode (more reliable than callback)
   useEffect(() => {
     if (!telegramBotUsername || telegramScriptLoaded.current) return;
     const container = document.getElementById("telegram-login-container");
@@ -71,7 +122,8 @@ export default function Login() {
     script.async = true;
     script.setAttribute("data-telegram-login", telegramBotUsername);
     script.setAttribute("data-size", "large");
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    // Redirect mode: после авторизации Telegram редиректит на /login с параметрами в URL
+    script.setAttribute("data-auth-url", window.location.origin + "/login");
     script.setAttribute("data-request-access", "write");
     container.appendChild(script);
     telegramScriptLoaded.current = true;
