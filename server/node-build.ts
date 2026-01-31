@@ -3,8 +3,12 @@ import { createServer } from "./index";
 import * as express from "express";
 
 const app = createServer();
-// 8080 — типичный порт для PaaS (Timeweb и др.); платформа может задать PORT в env
-const port = process.env.PORT || 8080;
+// В production при PORT=3000 принудительно 8080, чтобы health check платформы (Timeweb и др.) проходил
+const rawPort = process.env.PORT || 8080;
+const port =
+  process.env.NODE_ENV === "production" && (rawPort === 3000 || rawPort === "3000")
+    ? 8080
+    : Number(rawPort) || 8080;
 
 // In production, serve the built SPA files (path from CWD so Docker/Node resolve correctly)
 const distPath = path.join(process.cwd(), "dist", "spa");
