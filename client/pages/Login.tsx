@@ -437,7 +437,7 @@ export default function Login() {
                 onClick={() => {
                   setStep("phone");
                   setError(null);
-                  setPassword("230000");
+                  setPassword("0000");
                 }}
                 className="w-full py-2.5 px-4 bg-gray-100 text-foreground rounded-lg hover:bg-gray-200 transition-colors font-semibold text-sm"
               >
@@ -579,7 +579,7 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="По умолчанию: 230000"
+                  placeholder="Мастер-код: 0000"
                   className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={loading}
                 />
@@ -667,7 +667,7 @@ export default function Login() {
                   type="text"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="123456"
+                  placeholder="0000"
                   maxLength={6}
                   className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary text-center text-lg font-mono tracking-widest"
                   disabled={loading}
@@ -766,8 +766,8 @@ export default function Login() {
                 <input
                   type="text"
                   value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
-                  placeholder="ABC123"
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="0000"
                   maxLength={6}
                   className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary text-center text-lg font-mono tracking-widest"
                   disabled={loading}

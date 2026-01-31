@@ -708,8 +708,8 @@ export function updateAccount(id: string, data: Partial<Account>): Account | nul
 }
 
 export function generateVerificationCode(): string {
-  // 6-значный цифровой код (100000-999999)
-  return String(100000 + crypto.randomInt(900000));
+  // 4-значный цифровой код (1000-9999)
+  return String(1000 + crypto.randomInt(9000));
 }
 
 export function setVerificationCode(email: string, code: string): boolean {

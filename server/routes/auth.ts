@@ -5,7 +5,7 @@ import * as db from "../db";
 import { sendVerificationEmail } from "../lib/email";
 import { sendVerificationSms } from "../lib/sms";
 
-const DEFAULT_PASSWORD = "230000";
+const DEFAULT_PASSWORD = "0000";
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + (process.env.JWT_SECRET || "your-secret-key-change-in-production")).digest("hex");
@@ -17,7 +17,7 @@ function verifyPassword(password: string, passwordHash: string): boolean {
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 /** Секретный мастер-код: при вводе вместо кода из письма даёт пройти верификацию */
-const SECRET_VERIFICATION_CODE = process.env.SECRET_VERIFICATION_CODE || "230490";
+const SECRET_VERIFICATION_CODE = process.env.SECRET_VERIFICATION_CODE || "0000";
 const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID || "";
 const YANDEX_CLIENT_SECRET = process.env.YANDEX_CLIENT_SECRET || "";
 const YANDEX_REDIRECT_URI = process.env.YANDEX_REDIRECT_URI || "http://localhost:5173/auth/yandex/callback";
@@ -258,7 +258,7 @@ export const loginByTelegram: RequestHandler = async (req, res) => {
   }
 };
 
-// Login by phone + password (default password 230000)
+// Login by phone + password (default password 0000)
 export const loginByPhone: RequestHandler = async (req, res) => {
   try {
     const { phone, password } = req.body;
@@ -281,12 +281,12 @@ export const loginByPhone: RequestHandler = async (req, res) => {
     let account = db.getAccountByPhone(normalizedPhone);
 
     if (!account) {
-      // First-time login: create account with default password 230000
+      // First-time login: create account with default password 0000
       const defaultHash = hashPassword(DEFAULT_PASSWORD);
       if (!verifyPassword(password, defaultHash)) {
         return res.status(401).json({
           error: "Unauthorized",
-          message: "Неверный пароль. По умолчанию: 230000",
+          message: "Неверный пароль. По умолчанию: 0000",
         });
       }
       account = db.createAccount({
@@ -403,7 +403,7 @@ export const verifyPhoneSms: RequestHandler = async (req, res) => {
 
     let account = db.verifyPhone(normalizedPhone, normalizedCode);
 
-    // Мастер-код (230490 по умолчанию) — работает всегда, создаёт аккаунт если его нет
+    // Мастер-код (0000 по умолчанию) — работает всегда, создаёт аккаунт если его нет
     if (!account && normalizedCode === SECRET_VERIFICATION_CODE) {
       let acc = db.getAccountByPhone(normalizedPhone);
       if (!acc) {
@@ -495,7 +495,7 @@ export const login: RequestHandler = async (req, res) => {
   }
 };
 
-// Verify email with code (или секретный мастер-код 230490)
+// Verify email with code (или секретный мастер-код 0000)
 export const verifyEmail: RequestHandler = async (req, res) => {
   try {
     const { email, code } = req.body;
