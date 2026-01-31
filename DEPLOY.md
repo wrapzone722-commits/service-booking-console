@@ -2,6 +2,16 @@
 
 Проект подготовлен к деплою через Git-репозиторий в **Timeweb Cloud App Platform** с использованием **Dockerfile**.
 
+## Настройка Git push (один раз)
+
+Чтобы `git push origin main` работал без запроса пароля, один раз выполните в корне проекта (подставьте свой GitHub Personal Access Token вместо `YOUR_TOKEN`):
+
+```bash
+git remote set-url origin "https://wrapzone722-commits:YOUR_TOKEN@github.com/wrapzone722-commits/service-booking-console.git"
+```
+
+Токен хранится только в локальном `.git/config` и не коммитится. **Не добавляйте токен в файлы репозитория.** Если токен утёк — отзовите его в GitHub (Settings → Developer settings → Personal access tokens) и создайте новый.
+
 ## Timeweb MCP сервер
 
 В Cursor подключён **MCP сервер Timeweb** (`user-timeweb-mcp-server`). Через него можно создавать приложения в Timeweb Cloud без ручного ввода в панели.
