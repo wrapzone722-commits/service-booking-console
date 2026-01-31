@@ -11,7 +11,7 @@ export default defineConfig({
       formats: ["es"],
     },
     outDir: "dist/server",
-    target: "node22",
+    target: "node20",
     ssr: true,
     rollupOptions: {
       external: [
@@ -29,10 +29,20 @@ export default defineConfig({
         "buffer",
         "querystring",
         "child_process",
-        // External dependencies that should not be bundled
+        "net",
+        "tls",
+        "dns",
+        "tty",
+        "zlib",
+        "assert",
+        // External dependencies (installed in production)
         "express",
         "cors",
         "nodemailer",
+        "jsonwebtoken",
+        "dotenv",
+        "dotenv/config",
+        "zod",
       ],
       output: {
         format: "es",

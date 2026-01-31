@@ -4,43 +4,40 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Enable pnpm via corepack (project uses pnpm)
+# Enable pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
 
-# Install dependencies (--no-frozen-lockfile: lockfile может отставать от package.json после добавления nodemailer и др.)
+# Install ALL dependencies (need dev deps for build)
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --no-frozen-lockfile
 
-# Copy source (client, server, shared, configs)
+# Copy source and build
 COPY . .
-
-# Build client (SPA) and server
 RUN pnpm run build
 
-# Runtime image
+# ---- Runtime ----
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Copy built artifacts and run script
+# Copy built artifacts
 COPY --from=builder /app/dist /app/dist
-COPY package.json pnpm-lock.yaml ./
-COPY deploy/run-server.sh /app/run-server.sh
-RUN chmod +x /app/run-server.sh
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml ./
 
-# Production deps only (no devDependencies)
+# Install ONLY production dependencies
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate && \
     pnpm install --no-frozen-lockfile --prod
 
-# Optional: for HEALTHCHECK (Alpine has no wget by default)
-RUN apk add --no-cache wget
+# For health check
+RUN apk add --no-cache curl
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
 EXPOSE 8080
 
-# Долгий start-period: холодный старт Node + pnpm может занять время
-HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=5 \
-  CMD wget -qO- "http://127.0.0.1:8080/health" || exit 1
+# Health check: 60s start period for slow cold starts
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=6 \
+  CMD curl -sf http://127.0.0.1:8080/health || exit 1
 
-CMD ["sh", "/app/run-server.sh"]
+# Run directly with node
+CMD ["node", "dist/server/node-build.mjs"]
