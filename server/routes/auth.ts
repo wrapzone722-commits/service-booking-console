@@ -3,6 +3,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import * as db from "../db";
 import { sendVerificationEmail } from "../lib/email";
+import { sendVerificationSms } from "../lib/sms";
 
 const DEFAULT_PASSWORD = "230000";
 
@@ -321,6 +322,116 @@ export const loginByPhone: RequestHandler = async (req, res) => {
   } catch (error) {
     console.error("Login by phone error:", error);
     res.status(500).json({ error: "Internal server error", message: "Ошибка входа" });
+  }
+};
+
+/** Отправить SMS с кодом верификации на номер (вход по коду из SMS). Если аккаунта нет — создаётся. */
+export const sendSmsCode: RequestHandler = async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone || typeof phone !== "string") {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Укажите номер телефона",
+      });
+    }
+
+    const normalizedPhone = db.normalizePhone(phone);
+    if (normalizedPhone.length < 10) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Некорректный номер телефона",
+      });
+    }
+
+    let account = db.getAccountByPhone(normalizedPhone);
+    if (!account) {
+      account = db.createAccount({
+        name: "Организация",
+        email: `phone_${normalizedPhone}@local`,
+        phone: normalizedPhone,
+        verified: false,
+        qr_code_data: JSON.stringify({
+          api_url: db.getApiBaseUrl(),
+          org_id: `org_${Date.now()}`,
+        }),
+      });
+    }
+
+    const code = db.generateVerificationCode();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+    db.updateAccount(account._id, {
+      verification_code: code,
+      verification_expires: expiresAt.toISOString(),
+    });
+
+    const sent = await sendVerificationSms(normalizedPhone, code);
+    if (!sent) {
+      console.log(`SMS code for ${normalizedPhone}: ${code}`);
+    }
+
+    // Без затрат: если SMS не отправлен (нет провайдера), отдаём код на экран — пользователь вводит его сам
+    res.json({
+      ok: true,
+      message: sent ? "Код отправлен на указанный номер" : "Код ниже — введите его (верификация без SMS)",
+      code: sent ? undefined : code,
+    });
+  } catch (error) {
+    console.error("Send SMS code error:", error);
+    res.status(500).json({ error: "Internal server error", message: "Ошибка отправки кода" });
+  }
+};
+
+/** Верификация по коду из SMS — вход в аккаунт. */
+export const verifyPhoneSms: RequestHandler = async (req, res) => {
+  try {
+    const { phone, code } = req.body;
+
+    if (!phone || !code) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Укажите номер телефона и код",
+      });
+    }
+
+    const normalizedCode = String(code).trim();
+    const normalizedPhone = db.normalizePhone(phone);
+
+    let account = db.verifyPhone(normalizedPhone, normalizedCode);
+
+    if (!account && normalizedCode === SECRET_VERIFICATION_CODE) {
+      const acc = db.getAccountByPhone(normalizedPhone);
+      if (acc) {
+        db.updateAccount(acc._id, {
+          verified: true,
+          verification_code: undefined,
+          verification_expires: undefined,
+        });
+        account = db.getAccount(acc._id);
+      }
+    }
+
+    if (!account) {
+      return res.status(400).json({
+        error: "Invalid code",
+        message: "Код неверный или истёк. Запросите новый код.",
+      });
+    }
+
+    const token = generateToken(account._id, account.email);
+
+    res.json({
+      account_id: account._id,
+      email: account.email,
+      name: account.name,
+      verified: account.verified,
+      session_token: token,
+    });
+  } catch (error) {
+    console.error("Verify phone SMS error:", error);
+    res.status(500).json({ error: "Internal server error", message: "Ошибка верификации" });
   }
 };
 

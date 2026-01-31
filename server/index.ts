@@ -85,6 +85,8 @@ export function createServer() {
   app.post("/api/v1/auth/login", authRoutes.login);
   app.post("/api/v1/auth/login/phone", authRoutes.loginByPhone);
   app.post("/api/v1/auth/login/telegram", authRoutes.loginByTelegram);
+  app.post("/api/v1/auth/send-sms-code", authRoutes.sendSmsCode);
+  app.post("/api/v1/auth/verify-phone", authRoutes.verifyPhoneSms);
   app.post("/api/v1/auth/verify-email", authRoutes.verifyEmail);
   app.get("/api/v1/auth/me", authRoutes.getMe);
   app.post("/api/v1/auth/logout", authRoutes.logout);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type LoginStep = "method" | "register" | "login" | "phone" | "verification";
+type LoginStep = "method" | "register" | "login" | "phone" | "phone_sms" | "phone_sms_verify" | "verification";
 
 declare global {
   interface Window {
@@ -27,6 +27,7 @@ export default function Login() {
   const [verificationCode, setVerificationCode] = useState("");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [smsCodeDisplay, setSmsCodeDisplay] = useState<string | null>(null); // код на экране (без затрат на SMS)
   const telegramScriptLoaded = useRef(false);
 
   useEffect(() => {
@@ -296,6 +297,68 @@ export default function Login() {
     }
   };
 
+  const handleSendSmsCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone.trim()) {
+      setError("Введите номер телефона");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch("/api/v1/auth/send-sms-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Ошибка отправки кода");
+        return;
+      }
+      setSmsCodeDisplay(data.code ?? null);
+      setStep("phone_sms_verify");
+      setVerificationCode("");
+    } catch (err) {
+      console.error(err);
+      setError("Ошибка подключения к серверу");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneSms = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode.trim()) {
+      setError("Введите код из SMS");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch("/api/v1/auth/verify-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.trim(), code: verificationCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Неверный или истёкший код");
+        return;
+      }
+      localStorage.setItem("session_token", data.session_token);
+      localStorage.setItem("account_id", data.account_id);
+      localStorage.setItem("account_name", data.name);
+      window.location.replace("/");
+      return;
+    } catch (err) {
+      console.error(err);
+      setError("Ошибка подключения к серверу");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleYandexLogin = async () => {
     try {
       setLoading(true);
@@ -379,6 +442,19 @@ export default function Login() {
                 className="w-full py-2.5 px-4 bg-gray-100 text-foreground rounded-lg hover:bg-gray-200 transition-colors font-semibold text-sm"
               >
                 Вход по номеру телефона
+              </button>
+
+              <button
+                onClick={() => {
+                  setStep("phone_sms");
+                  setError(null);
+                  setPhone("");
+                  setVerificationCode("");
+                  setSmsCodeDisplay(null);
+                }}
+                className="w-full py-2.5 px-4 bg-gray-100 text-foreground rounded-lg hover:bg-gray-200 transition-colors font-semibold text-sm"
+              >
+                Вход по коду (без SMS — код на экране)
               </button>
 
               <div className="relative my-4">
@@ -528,6 +604,94 @@ export default function Login() {
                 className="w-full text-sm text-primary hover:underline"
               >
                 Вернуться назад
+              </button>
+            </form>
+          )}
+
+          {/* Вход по SMS: ввод телефона */}
+          {step === "phone_sms" && (
+            <form onSubmit={handleSendSmsCode} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">
+                  Номер телефона
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+7 900 123 45 67"
+                  className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={loading}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50"
+              >
+                {loading ? "Отправка..." : "Отправить код в SMS"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("method");
+                  setError(null);
+                  setPhone("");
+                }}
+                className="w-full text-sm text-primary hover:underline"
+              >
+                Вернуться назад
+              </button>
+            </form>
+          )}
+
+          {/* Вход по SMS: ввод кода */}
+          {step === "phone_sms_verify" && (
+            <form onSubmit={handleVerifyPhoneSms} className="space-y-4">
+              {smsCodeDisplay ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                  <p className="font-medium">Верификация без SMS (бесплатно)</p>
+                  <p className="mt-1">Ваш код: <strong className="text-lg font-mono tracking-wider">{smsCodeDisplay}</strong></p>
+                  <p className="mt-1 text-amber-700">Введите его ниже.</p>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+                  Код отправлен на номер <strong>{phone}</strong>. Введите его ниже.
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1">
+                  Код из SMS
+                </label>
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  maxLength={6}
+                  className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary text-center text-lg font-mono tracking-widest"
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50"
+              >
+                {loading ? "Проверка..." : "Войти"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("phone_sms");
+                  setError(null);
+                  setVerificationCode("");
+                  setSmsCodeDisplay(null);
+                }}
+                className="w-full text-sm text-primary hover:underline"
+              >
+                Другой номер
               </button>
             </form>
           )}
