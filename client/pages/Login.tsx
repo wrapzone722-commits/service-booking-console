@@ -804,7 +804,7 @@ export default function Login() {
           <div className="mt-8 text-center text-xs text-muted-foreground">
             <p>Защищённая система авторизации</p>
             <p className="mt-1">© 2019 ServiceBooking</p>
-            <p className="mt-1 opacity-70">build 2025-02</p>
+            <p className="mt-1 opacity-70">v2.1 • build 2025-02</p>
           </div>
         </div>
       </div>
