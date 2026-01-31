@@ -22,7 +22,8 @@ app.get(/.*/, (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
-app.listen(port, () => {
+// Слушать на 0.0.0.0, чтобы контейнер принимал запросы снаружи (Timeweb, Docker)
+app.listen(Number(port), "0.0.0.0", () => {
   console.log(`🚀 Fusion Starter server running on port ${port}`);
   console.log(`📱 SPA: ${distPath}`);
   console.log(`🔧 API: http://localhost:${port}/api`);
