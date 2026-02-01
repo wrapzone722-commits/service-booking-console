@@ -9,8 +9,21 @@ type AssistantOk =
 
 type AssistantErr = { type: "error"; message: string };
 
+// Timeweb Cloud AI по умолчанию (можно заменить на OpenAI через переменные окружения)
+const DEFAULT_AI_ENDPOINT = "https://agent.timeweb.cloud/api/v1/cloud-ai/agents/bb83069e-f7de-48ac-adf5-5d804ce47381/v1";
+const DEFAULT_AI_TOKEN = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjFrYnhacFJNQGJSI0tSbE1xS1lqIn0.eyJ1c2VyIjoicHo1NzQ5OCIsInR5cGUiOiJhcGlfa2V5IiwiYXBpX2tleV9pZCI6IjM0NWU4OTFkLTcyMjYtNDM0Yi04Y2I4LWZkMTNmYTI4ZjE1OSIsImlhdCI6MTc2OTkwNTA0NX0.zDb65ntu2TPxIO0vPthT_M4MeH-qYSHYZ6dnu8k6Zj4tC5O54hXEWlPSNymirVmKGj0qyVk8vIy2b_aeS3GdudN671btxQ5PodnYGrHv1BOYNpm8TT7CU5BFIwgdTekXzbyzqIs6tV5m05QXru9BuuI0bxmCAJIVoK_qmY3OOI4fEWdesIMZ30uQz3jUkK9_-9xrnK8LnUstliZFHYEiHxXjhRA7eay7LfV4BLW2sLvTmCAK61cN85eDmpuvBBEh8flgsd6XyfhkQwCnS8A3z5uJNJAqjKgOp7Zd3R6qITNlSuYERI0mvdU-4w2kTmYWYujZbowELvNyKTMvlUKJKLLGWXM8j2IrnKNHYMa4xuxjPC3H-x5R_XIYxnbWRIHGoADJqfDHfemiaxQFIjNTjuOz_-hdfq4OwN9L-5GNxwadOMfLm8Gt8zSeYS6mpC5w2KNn8k6N9tjaQWV7nHyzxEy3mwdQaXEZB4PMto-qNqPqK94xS1HObOx5utBEUJar";
+const DEFAULT_MODEL = ""; // Timeweb Cloud AI не требует model
+
 function getEnvKey() {
-  return process.env.OPENAI_API_KEY || "";
+  return process.env.AI_API_KEY || process.env.OPENAI_API_KEY || DEFAULT_AI_TOKEN;
+}
+
+function getEnvEndpoint() {
+  return process.env.AI_API_ENDPOINT || process.env.OPENAI_API_ENDPOINT || DEFAULT_AI_ENDPOINT;
+}
+
+function getEnvModel() {
+  return process.env.AI_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
 }
 
 const SYSTEM_PROMPT = `Ты — ассистент админ‑панели сервиса записи/автомойки.
@@ -28,15 +41,15 @@ export const chat: RequestHandler = async (req, res) => {
     const incoming = (req.body?.messages ?? []) as OpenAiMsg[];
     const config = req.body?.config ?? {};
 
-    // Use provided config or fallback to env
+    // Use provided config or fallback to env (Timeweb Cloud AI по умолчанию)
     const apiKey = config.apiKey || getEnvKey();
-    const apiEndpoint = config.apiEndpoint || "https://api.openai.com/v1";
-    const model = config.model || "gpt-4o-mini";
+    const apiEndpoint = config.apiEndpoint || getEnvEndpoint();
+    const model = config.model || getEnvModel();
 
     if (!apiKey) {
       const out: AssistantErr = {
         type: "error",
-        message: "OPENAI_API_KEY не настроен. Пожалуйста, добавьте API ключ в настройки ассистента.",
+        message: "AI API ключ не настроен.",
       };
       return res.status(500).json(out);
     }
@@ -45,17 +58,22 @@ export const chat: RequestHandler = async (req, res) => {
 
     const chatEndpoint = `${apiEndpoint.replace(/\/$/, "")}/chat/completions`;
 
+    // Формируем тело запроса (model опционален для Timeweb Cloud AI)
+    const requestBody: Record<string, unknown> = {
+      temperature: 0.2,
+      messages,
+    };
+    if (model) {
+      requestBody.model = model;
+    }
+
     const r = await fetch(chatEndpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        temperature: 0.2,
-        messages,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const json = await r.json();

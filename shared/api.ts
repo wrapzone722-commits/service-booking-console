@@ -143,6 +143,35 @@ export interface Account {
   password_hash?: string; // For phone/email login
   created_at: string; // ISO 8601
   updated_at: string; // ISO 8601
+
+  // Организация — данные для документов (заполняются вручную)
+  address?: string; // Адрес (фактический/юридический)
+  phone_extra?: string; // Доп. телефон
+  inn?: string; // ИНН
+  ogrn?: string; // ОГРН/ОГРНИП
+  kpp?: string; // КПП
+  legal_address?: string; // Юридический адрес
+  bank_name?: string; // Название банка
+  bank_bik?: string; // БИК
+  bank_account?: string; // Расчётный счёт
+  director_name?: string; // Директор/руководитель
+}
+
+export interface OrganizationUpdateRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+  phone_extra?: string;
+  website?: string;
+  address?: string;
+  legal_address?: string;
+  inn?: string;
+  ogrn?: string;
+  kpp?: string;
+  bank_name?: string;
+  bank_bik?: string;
+  bank_account?: string;
+  director_name?: string;
 }
 
 export interface LoginRequest {

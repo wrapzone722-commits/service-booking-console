@@ -89,6 +89,7 @@ export function createServer() {
   app.post("/api/v1/auth/verify-phone", authRoutes.verifyPhoneSms);
   app.post("/api/v1/auth/verify-email", authRoutes.verifyEmail);
   app.get("/api/v1/auth/me", authRoutes.getMe);
+  app.put("/api/v1/auth/organization", authRoutes.updateOrganization);
   app.post("/api/v1/auth/logout", authRoutes.logout);
   app.get("/api/v1/auth/yandex/url", authRoutes.getYandexAuthUrl);
   app.post("/api/v1/auth/yandex/callback", authRoutes.yandexCallback);

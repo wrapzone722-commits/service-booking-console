@@ -573,10 +573,103 @@ export const getMe: RequestHandler = (req, res) => {
       name: account.name,
       verified: account.verified,
       qr_code_data: account.qr_code_data,
+      phone: account.phone,
+      phone_extra: account.phone_extra,
+      website: account.website,
+      address: account.address,
+      legal_address: account.legal_address,
+      inn: account.inn,
+      ogrn: account.ogrn,
+      kpp: account.kpp,
+      bank_name: account.bank_name,
+      bank_bik: account.bank_bik,
+      bank_account: account.bank_account,
+      director_name: account.director_name,
     });
   } catch (error) {
     console.error("Get me error:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to get account" });
+  }
+};
+
+/** Обновление данных организации (адрес, телефоны, реквизиты) */
+export const updateOrganization: RequestHandler = (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
+    if (!token) {
+      return res.status(401).json({ error: "Unauthorized", message: "Требуется авторизация" });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload) {
+      return res.status(401).json({ error: "Unauthorized", message: "Неверный токен" });
+    }
+
+    const account = db.getAccount(payload.account_id);
+    if (!account) {
+      return res.status(404).json({ error: "Not found", message: "Аккаунт не найден" });
+    }
+
+    const {
+      name,
+      email,
+      phone,
+      phone_extra,
+      website,
+      address,
+      legal_address,
+      inn,
+      ogrn,
+      kpp,
+      bank_name,
+      bank_bik,
+      bank_account,
+      director_name,
+    } = req.body || {};
+
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = String(name ?? "").trim() || account.name;
+    if (email !== undefined) updates.email = String(email ?? "").trim() || account.email;
+    if (phone !== undefined) updates.phone = phone ? String(phone).trim() : undefined;
+    if (phone_extra !== undefined) updates.phone_extra = phone_extra ? String(phone_extra).trim() : undefined;
+    if (website !== undefined) updates.website = website ? String(website).trim() : undefined;
+    if (address !== undefined) updates.address = address ? String(address).trim() : undefined;
+    if (legal_address !== undefined) updates.legal_address = legal_address ? String(legal_address).trim() : undefined;
+    if (inn !== undefined) updates.inn = inn ? String(inn).trim() : undefined;
+    if (ogrn !== undefined) updates.ogrn = ogrn ? String(ogrn).trim() : undefined;
+    if (kpp !== undefined) updates.kpp = kpp ? String(kpp).trim() : undefined;
+    if (bank_name !== undefined) updates.bank_name = bank_name ? String(bank_name).trim() : undefined;
+    if (bank_bik !== undefined) updates.bank_bik = bank_bik ? String(bank_bik).trim() : undefined;
+    if (bank_account !== undefined) updates.bank_account = bank_account ? String(bank_account).trim() : undefined;
+    if (director_name !== undefined) updates.director_name = director_name ? String(director_name).trim() : undefined;
+
+    const updated = db.updateAccount(account._id, updates);
+    if (!updated) {
+      return res.status(500).json({ error: "Internal server error", message: "Ошибка обновления" });
+    }
+
+    res.json({
+      account_id: updated._id,
+      email: updated.email,
+      name: updated.name,
+      verified: updated.verified,
+      qr_code_data: updated.qr_code_data,
+      phone: updated.phone,
+      phone_extra: updated.phone_extra,
+      website: updated.website,
+      address: updated.address,
+      legal_address: updated.legal_address,
+      inn: updated.inn,
+      ogrn: updated.ogrn,
+      kpp: updated.kpp,
+      bank_name: updated.bank_name,
+      bank_bik: updated.bank_bik,
+      bank_account: updated.bank_account,
+      director_name: updated.director_name,
+    });
+  } catch (error) {
+    console.error("Update organization error:", error);
+    res.status(500).json({ error: "Internal server error", message: "Ошибка обновления" });
   }
 };
 
