@@ -61,7 +61,7 @@ let db: Database = {
   accountsByPhone: new Map(),
   working_hours: { start: 9, end: 18 }, // 9 AM to 6 PM
   slot_duration: 30, // 30 min slots
-  api_base_url: "https://example.com/api/v1",
+  api_base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
 };
 
 // ... later in file, add helper functions (insert after existing getAccountByYandexId)
