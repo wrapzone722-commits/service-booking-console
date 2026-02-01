@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Service, Booking, User } from "@shared/api";
 
 export default function Index() {
@@ -7,17 +7,6 @@ export default function Index() {
   const [clients, setClients] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const apiConfig = useMemo(
-    () => ({ base_url: "https://example.com/api/v1", token: "optional_token" }),
-    []
-  );
-
-  const qrData = useMemo(() => JSON.stringify(apiConfig), [apiConfig]);
-  const qrUrl = useMemo(
-    () => `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}`,
-    [qrData]
-  );
 
   useEffect(() => {
     document.title = "ServiceBooking — Админ-панель";
@@ -57,15 +46,6 @@ export default function Index() {
 
     fetchData();
   }, []);
-
-  const copyConfig = async () => {
-    try {
-      await navigator.clipboard.writeText(qrData);
-      alert("Конфигурация скопирована");
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const statusLabel = (s: string) => {
     const labels: Record<string, string> = {
@@ -180,21 +160,8 @@ export default function Index() {
                 </div>
               </div>
 
-              {/* QR & Stats */}
+              {/* Quick Stats */}
               <div className="space-y-4">
-                {/* QR Code */}
-                <div className="bg-white rounded-lg p-3 shadow-sm border border-border flex flex-col items-center animate-slide-in">
-                  <h3 className="text-xs font-bold text-foreground mb-2">iOS подключение</h3>
-                  <img src={qrUrl} alt="QR" className="w-32 h-32 border-2 border-primary rounded-lg" />
-                  <button
-                    onClick={copyConfig}
-                    className="mt-2 w-full text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-blue-600 transition-colors"
-                  >
-                    Скопировать
-                  </button>
-                </div>
-
-                {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
                     <p className="text-xs text-blue-700 font-semibold">Активных</p>
