@@ -213,7 +213,7 @@ function initDb() {
       client_id: "usr_1",
       api_token: "dev_1704067200000_abc123def",
       qr_code_data: JSON.stringify({
-        base_url: "https://api.example.com/v1",
+        base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
         token: "dev_1704067200000_abc123def",
       }),
       status: "connected",
@@ -227,7 +227,7 @@ function initDb() {
       client_id: "usr_2",
       api_token: "dev_1704153600000_def456ghi",
       qr_code_data: JSON.stringify({
-        base_url: "https://api.example.com/v1",
+        base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
         token: "dev_1704153600000_def456ghi",
       }),
       status: "connected",
@@ -240,7 +240,7 @@ function initDb() {
       device_name: "iPhone 14 (Иван)",
       api_token: "dev_1704240000000_ghi789jkl",
       qr_code_data: JSON.stringify({
-        base_url: "https://api.example.com/v1",
+        base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
         token: "dev_1704240000000_ghi789jkl",
       }),
       status: "pending",
@@ -253,7 +253,7 @@ function initDb() {
       device_name: "Test Device",
       api_token: "dev_1704326400000_jkl012mno",
       qr_code_data: JSON.stringify({
-        base_url: "https://api.example.com/v1",
+        base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
         token: "dev_1704326400000_jkl012mno",
       }),
       status: "inactive",
@@ -609,6 +609,20 @@ export function getApiBaseUrl(): string {
 
 export function setApiBaseUrl(url: string): void {
   db.api_base_url = url;
+}
+
+/** Получить API URL динамически из запроса (host header) */
+export function getApiUrlFromRequest(req: { headers: { host?: string }; protocol?: string; get?: (name: string) => string | undefined }): string {
+  // Получаем host из заголовков
+  const host = req.get?.("host") || req.headers?.host || "";
+  // Определяем протокол (за reverse proxy обычно https)
+  const proto = req.get?.("x-forwarded-proto") || req.protocol || "https";
+  
+  if (host) {
+    return `${proto}://${host}/api/v1`;
+  }
+  // Fallback на статический URL
+  return db.api_base_url;
 }
 
 // Account/Organization Functions

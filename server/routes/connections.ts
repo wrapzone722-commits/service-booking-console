@@ -42,7 +42,7 @@ export const createConnection: RequestHandler = (req, res) => {
       device_id,
       device_name,
       api_token,
-      qr_code_data: qr_code_data || JSON.stringify({ base_url: db.getApiBaseUrl(), token: api_token }),
+      qr_code_data: qr_code_data || JSON.stringify({ base_url: db.getApiUrlFromRequest(req), token: api_token }),
       last_seen: new Date().toISOString(),
       status: "pending",
     });

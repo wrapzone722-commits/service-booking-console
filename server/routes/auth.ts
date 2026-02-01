@@ -108,7 +108,7 @@ export const registerWithYandex: RequestHandler = async (req, res) => {
       yandex_id,
       verified: false,
       qr_code_data: JSON.stringify({
-        api_url: db.getApiBaseUrl(),
+        api_url: db.getApiUrlFromRequest(req),
         org_id: `org_${Date.now()}`,
       }),
     });
@@ -164,7 +164,7 @@ export const register: RequestHandler = async (req, res) => {
       verified: false,
       password_hash: passwordHash,
       qr_code_data: JSON.stringify({
-        api_url: db.getApiBaseUrl(),
+        api_url: db.getApiUrlFromRequest(req),
         org_id: tempOrgId,
       }),
     });
@@ -236,7 +236,7 @@ export const loginByTelegram: RequestHandler = async (req, res) => {
         telegram_id: telegramId,
         verified: true,
         qr_code_data: JSON.stringify({
-          api_url: db.getApiBaseUrl(),
+          api_url: db.getApiUrlFromRequest(req),
           org_id: `org_${Date.now()}`,
         }),
       });
@@ -296,7 +296,7 @@ export const loginByPhone: RequestHandler = async (req, res) => {
         verified: true,
         password_hash: defaultHash,
         qr_code_data: JSON.stringify({
-          api_url: db.getApiBaseUrl(),
+          api_url: db.getApiUrlFromRequest(req),
           org_id: `org_${Date.now()}`,
         }),
       });
@@ -353,7 +353,7 @@ export const sendSmsCode: RequestHandler = async (req, res) => {
         phone: normalizedPhone,
         verified: false,
         qr_code_data: JSON.stringify({
-          api_url: db.getApiBaseUrl(),
+          api_url: db.getApiUrlFromRequest(req),
           org_id: `org_${Date.now()}`,
         }),
       });
@@ -414,7 +414,7 @@ export const verifyPhoneSms: RequestHandler = async (req, res) => {
           phone: normalizedPhone,
           verified: true,
           qr_code_data: JSON.stringify({
-            api_url: db.getApiBaseUrl(),
+            api_url: db.getApiUrlFromRequest(req),
             org_id: `org_${Date.now()}`,
           }),
         });
@@ -690,7 +690,7 @@ export const yandexCallback: RequestHandler = async (req, res) => {
         yandex_id: String(userData.id),
         verified: true, // Yandex already verified the email
         qr_code_data: JSON.stringify({
-          api_url: db.getApiBaseUrl(),
+          api_url: db.getApiUrlFromRequest(req),
           org_id: `org_${Date.now()}`,
         }),
       });
