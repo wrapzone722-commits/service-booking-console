@@ -22,7 +22,7 @@ function Clock() {
 
 const navItems = [
   { path: "/", label: "Главная", icon: "📊" },
-  { path: "/organization", label: "Организация", icon: "🏢" },
+  { path: "/company", label: "Компания", icon: "🏢" },
   { path: "/services", label: "Услуги", icon: "💼" },
   { path: "/bookings", label: "Записи", icon: "📅" },
   { path: "/posts", label: "Посты", icon: "🚿" },
@@ -76,7 +76,7 @@ export default function Layout({ children }: LayoutProps) {
   const SidebarContent = () => (
     <>
       <div className="p-3 border-b border-sidebar-border/50">
-        <Link to="/organization" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+        <Link to="/company" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="w-10 h-10 rounded-lg bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-bold text-sm flex-shrink-0">
             SB
           </div>

@@ -17,7 +17,7 @@ import Settings from "./pages/Settings";
 import Cars from "./pages/Cars";
 import Login from "./pages/Login";
 import YandexCallback from "./pages/YandexCallback";
-import Organization from "./pages/Organization";
+import Company from "./pages/Company";
 import TelegramBot from "./pages/TelegramBot";
 import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
@@ -63,7 +63,8 @@ const AppContent = () => (
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Index />} />
-                    <Route path="/organization" element={<Organization />} />
+                    <Route path="/organization" element={<Navigate to="/company" replace />} />
+                    <Route path="/company" element={<Company />} />
                     <Route path="/services" element={<Services />} />
                     <Route path="/bookings" element={<Bookings />} />
                     <Route path="/clients" element={<Clients />} />

@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { CarFolder, CarImage } from "@shared/api";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-const THUMB_SIZE = 80;
-const PREVIEW_SIZE = 300;
+const THUMB_SIZE = 200;
+const PREVIEW_SIZE = 800;
 
 function resizeImage(file: File, maxSize: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -46,6 +47,7 @@ export default function Cars() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<CarFolder | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<CarImage | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -76,29 +78,40 @@ export default function Cars() {
       e.target.value = "";
       return;
     }
-    const folderName = files[0].webkitRelativePath.split("/")[0] || "Новая папка";
     setUploading(true);
     setError(null);
     try {
-      const images: CarImage[] = [];
-      for (const file of files) {
-        const filename = file.name;
-        const [url, thumbnail_url] = await Promise.all([
-          resizeImage(file, PREVIEW_SIZE, 0.75),
-          resizeImage(file, THUMB_SIZE, 0.5),
-        ]);
-        images.push({ name: filename, url, thumbnail_url });
-      }
       const token = localStorage.getItem("session_token");
-      const res = await fetch("/api/v1/cars/folders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ name: folderName, images }),
-      });
-      if (!res.ok) throw new Error("Ошибка загрузки");
+      const headers = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      const grouped = new Map<string, File[]>();
+      for (const file of files) {
+        const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+        const parts = path.split("/");
+        const folderKey =
+          parts.length > 1 ? parts[0] : `Новая папка ${Date.now().toString().slice(-6)}`;
+        if (!grouped.has(folderKey)) grouped.set(folderKey, []);
+        grouped.get(folderKey)!.push(file);
+      }
+      for (const [folderName, folderFiles] of grouped) {
+        const images: CarImage[] = [];
+        for (const file of folderFiles) {
+          const filename = file.name;
+          const [url, thumbnail_url] = await Promise.all([
+            resizeImage(file, PREVIEW_SIZE, 0.88),
+            resizeImage(file, THUMB_SIZE, 0.82),
+          ]);
+          images.push({ name: filename, url, thumbnail_url });
+        }
+        const res = await fetch("/api/v1/cars/folders", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ name: folderName, images }),
+        });
+        if (!res.ok) throw new Error("Ошибка загрузки");
+      }
       await fetchFolders();
     } catch (err) {
       setError("Ошибка загрузки папки");
@@ -163,8 +176,11 @@ export default function Cars() {
             disabled={uploading}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
           >
-            {uploading ? "Загрузка..." : "📁 Загрузить папку"}
+            {uploading ? "Загрузка..." : "📁 Загрузить папку / папки"}
           </button>
+          <span className="text-xs text-muted-foreground self-center">
+            Выберите папку или папку с подпапками — загрузятся все подпапки
+          </span>
         </div>
 
         {loading ? (
@@ -226,11 +242,13 @@ export default function Cars() {
             </p>
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
               {selectedFolder.images.map((img) => (
-                <div
+                <button
                   key={img.name}
-                  className={`aspect-square rounded-lg overflow-hidden border-2 ${
+                  type="button"
+                  onClick={() => setPreviewImage(img)}
+                  className={`aspect-square rounded-lg overflow-hidden border-2 text-left ${
                     getBaseName(img.name) === "01" ? "border-primary ring-2 ring-primary/30" : "border-border"
-                  }`}
+                  } hover:ring-2 hover:ring-primary/50 transition-all`}
                 >
                   <img
                     src={img.thumbnail_url}
@@ -239,11 +257,26 @@ export default function Cars() {
                     loading="lazy"
                   />
                   <p className="text-[10px] text-center truncate px-0.5">{img.name}</p>
-                </div>
+                </button>
               ))}
             </div>
           </div>
         )}
+
+        <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 overflow-auto">
+            {previewImage && (
+              <div className="space-y-2">
+                <img
+                  src={previewImage.url}
+                  alt={previewImage.name}
+                  className="max-w-full max-h-[85vh] w-auto h-auto object-contain mx-auto rounded"
+                />
+                <p className="text-center text-sm text-muted-foreground">{previewImage.name}</p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
