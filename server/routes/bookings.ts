@@ -1,11 +1,26 @@
 import { RequestHandler } from "express";
-import { CreateBookingRequest, UpdateBookingStatusRequest } from "@shared/api";
+import { Booking, CreateBookingRequest, UpdateBookingStatusRequest } from "@shared/api";
 import * as db from "../db";
 import { notifyNewBooking, notifyBookingCancelled, notifyBookingConfirmed } from "../lib/telegram";
+import { verifyToken } from "./auth";
 
 export const getBookings: RequestHandler = (req, res) => {
   try {
-    const bookings = db.getBookings();
+    const authHeader = req.headers.authorization;
+    let clientId: string | null = null;
+
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (clientAuth) {
+        clientId = clientAuth.client_id;
+      }
+    }
+
+    let bookings = db.getBookings();
+    if (clientId) {
+      bookings = bookings.filter((b) => b.user_id === clientId);
+    }
     res.json(bookings);
   } catch (error) {
     console.error("Error fetching bookings:", error);
@@ -51,8 +66,35 @@ export const createBooking: RequestHandler = (req, res) => {
       return res.status(409).json({ error: "Conflict", message: "Post is disabled" });
     }
 
-    // For demo: use first user or create one
-    let user = db.getUsers()[0];
+    // Resolve user: from api_key (iOS client) or JWT (admin) or fallback to first user (no auth)
+    let user: { _id: string; first_name: string; last_name: string } | null = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (clientAuth) {
+        user = db.getUser(clientAuth.client_id);
+        if (!user) {
+          return res.status(401).json({
+            error: "Unauthorized",
+            message: "Client not found. Re-register the device.",
+          });
+        }
+      } else {
+        const jwtPayload = verifyToken(token);
+        if (jwtPayload) {
+          user = db.getUsers()[0];
+        } else {
+          return res.status(401).json({
+            error: "Unauthorized",
+            message: "Invalid or expired token. Use api_key from POST /clients/register",
+          });
+        }
+      }
+    }
+    if (!user) {
+      user = db.getUsers()[0];
+    }
     if (!user) {
       user = db.createUser({
         first_name: "Guest",
@@ -106,7 +148,13 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
     }
 
     const prev = db.getBooking(req.params.id);
-    const booking = db.updateBooking(req.params.id, { status });
+    const updates: Partial<Booking> = { status };
+
+    if (status === "in_progress") {
+      updates.in_progress_started_at = new Date().toISOString();
+    }
+
+    const booking = db.updateBooking(req.params.id, updates);
 
     if (!booking) {
       return res.status(404).json({ error: "Not found", message: "Booking not found" });
@@ -114,7 +162,23 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
 
     if (prev && prev.status !== status) {
       if (status === "cancelled") notifyBookingCancelled(booking).catch((e) => console.error("Telegram notify:", e));
-      if (status === "confirmed") notifyBookingConfirmed(booking).catch((e) => console.error("Telegram notify:", e));
+      if (status === "confirmed") {
+        notifyBookingConfirmed(booking).catch((e) => console.error("Telegram notify:", e));
+        db.createNotification({
+          client_id: booking.user_id,
+          body: `Запись на "${booking.service_name}" подтверждена на ${new Date(booking.date_time).toLocaleString("ru-RU")}.`,
+          type: "service",
+          title: "Запись подтверждена",
+        });
+      }
+      if (status === "completed") {
+        db.createNotification({
+          client_id: booking.user_id,
+          body: "Ваш авто готов. Администратор подтвердил завершение услуги.",
+          type: "service",
+          title: "Услуга завершена",
+        });
+      }
     }
 
     res.json(booking);
@@ -126,6 +190,23 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
 
 export const deleteBooking: RequestHandler<{ id: string }> = (req, res) => {
   try {
+    const booking = db.getBooking(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ error: "Not found", message: "Booking not found" });
+    }
+
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (clientAuth && booking.user_id !== clientAuth.client_id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You can only cancel your own bookings",
+        });
+      }
+    }
+
     const deleted = db.deleteBooking(req.params.id);
 
     if (!deleted) {

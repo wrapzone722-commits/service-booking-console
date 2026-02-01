@@ -25,20 +25,42 @@ export default function Services() {
     fetchServices();
   }, []);
 
-  const fetchServices = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/v1/services?all=true");
-      if (!res.ok) throw new Error("Failed to fetch services");
-      const data = await res.json();
-      setServices(data);
-      setError(null);
-    } catch (err) {
-      console.error("Error:", err);
-      setError("Ошибка загрузки услуг");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchServices(false);
+    };
+    const onOnline = () => fetchServices(false);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
+
+  const fetchServices = async (showLoading = true) => {
+    const maxRetries = 3;
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        if (showLoading) setLoading(true);
+        const res = await fetch("/api/v1/services?all=true");
+        if (!res.ok) throw new Error("Failed to fetch services");
+        const data = await res.json();
+        setServices(data);
+        setError(null);
+        return;
+      } catch (err) {
+        lastErr = err instanceof Error ? err : new Error("Ошибка загрузки");
+        console.error("Fetch services attempt", attempt + 1, lastErr);
+        if (attempt < maxRetries - 1) {
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        }
+      } finally {
+        if (showLoading) setLoading(false);
+      }
     }
+    setError(lastErr?.message ?? "Ошибка загрузки услуг");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -195,8 +217,14 @@ export default function Services() {
       {/* Content */}
       <div className="p-4 md:p-6 space-y-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm animate-slide-in">
-            {error}
+          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm flex items-center justify-between gap-3">
+            <span>{error}</span>
+            <button
+              onClick={() => fetchServices()}
+              className="px-3 py-1.5 bg-amber-600 text-white rounded-lg font-semibold shrink-0"
+            >
+              Повторить
+            </button>
           </div>
         )}
 

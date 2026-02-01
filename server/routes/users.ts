@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
 import { UpdateUserRequest } from "@shared/api";
 import * as db from "../db";
+import { verifyToken } from "./auth";
 
 export const getUsers: RequestHandler = (req, res) => {
   try {
@@ -27,13 +28,30 @@ export const getUser: RequestHandler<{ id: string }> = (req, res) => {
 
 export const getProfile: RequestHandler = (req, res) => {
   try {
-    // In a real app, this would use the authenticated user from the session/JWT
-    // For demo, we'll return the first user
-    const users = db.getUsers();
-    if (users.length === 0) {
-      return res.status(404).json({ error: "Not found", message: "No users found" });
+    let user = null;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (clientAuth) {
+        user = db.getUser(clientAuth.client_id);
+      } else if (verifyToken(token)) {
+        const users = db.getUsers();
+        user = users[0] ?? null;
+      }
     }
-    res.json(users[0]);
+
+    if (!user) {
+      const users = db.getUsers();
+      user = users[0] ?? null;
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "Not found", message: "Profile not found" });
+    }
+
+    res.json(user);
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to fetch profile" });
@@ -43,14 +61,30 @@ export const getProfile: RequestHandler = (req, res) => {
 export const updateProfile: RequestHandler = (req, res) => {
   try {
     const updates = req.body as UpdateUserRequest;
+    let userId: string | null = null;
+    const authHeader = req.headers.authorization;
 
-    // In a real app, this would use the authenticated user from the session/JWT
-    const users = db.getUsers();
-    if (users.length === 0) {
-      return res.status(404).json({ error: "Not found", message: "No users found" });
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (clientAuth) {
+        userId = clientAuth.client_id;
+      } else if (verifyToken(token)) {
+        const users = db.getUsers();
+        userId = users[0]?._id ?? null;
+      }
     }
 
-    const user = db.updateUser(users[0]._id, updates);
+    if (!userId) {
+      const users = db.getUsers();
+      userId = users[0]?._id ?? null;
+    }
+
+    if (!userId) {
+      return res.status(404).json({ error: "Not found", message: "Profile not found" });
+    }
+
+    const user = db.updateUser(userId, updates);
     if (!user) {
       return res.status(404).json({ error: "Not found", message: "User not found" });
     }

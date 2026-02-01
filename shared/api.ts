@@ -59,6 +59,8 @@ export interface Booking {
   duration: number;
   notes: string | null;
   created_at: string; // ISO 8601
+  /** ISO 8601, когда статус переведён в in_progress (для Live Activity таймера) */
+  in_progress_started_at?: string | null;
 }
 
 export interface CreateBookingRequest {
@@ -211,6 +213,19 @@ export interface TelegramBotSettings {
   admin_chat_ids: string[];
   reminders_enabled: boolean;
   reminder_hours_before: number[];
+}
+
+// ====== NOTIFICATIONS ======
+export type NotificationType = "service" | "admin";
+
+export interface Notification {
+  _id: string;
+  client_id: string; // user_id клиента
+  body: string;
+  created_at: string; // ISO 8601
+  type: NotificationType;
+  title: string | null;
+  read: boolean;
 }
 
 // ====== ERROR RESPONSE ======

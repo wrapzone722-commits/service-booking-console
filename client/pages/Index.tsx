@@ -13,39 +13,58 @@ export default function Index() {
     document.title = "ServiceBooking — Админ-панель";
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = async (showLoading = true) => {
+    const maxRetries = 3;
+    let lastErr: Error | null = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         const [servicesRes, bookingsRes, usersRes] = await Promise.all([
           fetch("/api/v1/services"),
           fetch("/api/v1/bookings"),
           fetch("/api/v1/users"),
         ]);
-
         if (!servicesRes.ok || !bookingsRes.ok || !usersRes.ok) {
           throw new Error("Failed to fetch data");
         }
-
         const [servicesData, bookingsData, usersData] = await Promise.all([
           servicesRes.json(),
           bookingsRes.json(),
           usersRes.json(),
         ]);
-
         setServices(servicesData);
         setBookings(bookingsData);
         setClients(usersData);
         setError(null);
+        return;
       } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("Ошибка загрузки данных");
+        lastErr = err instanceof Error ? err : new Error("Ошибка загрузки");
+        console.error("Fetch data attempt", attempt + 1, lastErr);
+        if (attempt < maxRetries - 1) {
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        }
       } finally {
-        setLoading(false);
+        if (showLoading) setLoading(false);
       }
-    };
+    }
+    setError(lastErr?.message ?? "Ошибка загрузки данных");
+  };
 
+  useEffect(() => {
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchData(false);
+    };
+    const onOnline = () => fetchData(false);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+    };
   }, []);
 
   const statusLabel = (s: string) => {
@@ -74,12 +93,18 @@ export default function Index() {
   const completedBookings = bookings.filter((b) => b.status === "completed").length;
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
 
-  if (error) {
+  if (error && services.length === 0 && bookings.length === 0 && clients.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-xl font-bold mb-2">Ошибка</h2>
-          <p className="text-muted-foreground">{error}</p>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <button
+            onClick={() => fetchData()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold"
+          >
+            Повторить
+          </button>
         </div>
       </div>
     );
@@ -87,6 +112,17 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {error && (services.length > 0 || bookings.length > 0 || clients.length > 0) && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-2">
+          <span className="text-sm text-amber-800">{error}</span>
+          <button
+            onClick={() => fetchData()}
+            className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg font-semibold shrink-0"
+          >
+            Обновить
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3 flex items-center justify-between">

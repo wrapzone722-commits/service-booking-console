@@ -1,4 +1,4 @@
-import { Service, Booking, User, Post, PostIntervalMinutes, Account } from "@shared/api";
+import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification } from "@shared/api";
 import crypto from "crypto";
 
 // Device Connection interface
@@ -44,6 +44,7 @@ interface Database {
   slot_duration: number; // in minutes
   api_base_url: string; // for QR code generation
   telegram_bot_settings: TelegramBotSettings;
+  notifications: Map<string, Notification>;
 }
 
 export interface TelegramBotSettings {
@@ -75,6 +76,7 @@ let db: Database = {
   working_hours: { start: 9, end: 18 },
   slot_duration: 30,
   api_base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
+  notifications: new Map(),
   telegram_bot_settings: {
     enabled: false,
     notify_new_booking: true,
@@ -247,11 +249,27 @@ function hhmmToMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
+function ensureDefaultPost(): void {
+  if (db.posts.has("post_1")) return;
+  const post: Post = {
+    _id: "post_1",
+    name: "Пост 1",
+    is_enabled: true,
+    use_custom_hours: false,
+    start_time: "09:00",
+    end_time: "18:00",
+    interval_minutes: 30,
+  };
+  db.posts.set("post_1", post);
+}
+
 export function getPosts(): Post[] {
+  ensureDefaultPost();
   return Array.from(db.posts.values()).sort((a, b) => a._id.localeCompare(b._id));
 }
 
 export function getPost(id: string): Post | null {
+  ensureDefaultPost();
   return db.posts.get(id) || null;
 }
 
@@ -441,6 +459,46 @@ export function linkClientToDevice(deviceId: string, clientId: string): DeviceCo
     status: "connected",
     last_seen: new Date().toISOString(),
   });
+}
+
+// Notifications
+export function getNotificationsByClientId(clientId: string): Notification[] {
+  return Array.from(db.notifications.values())
+    .filter((n) => n.client_id === clientId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export function createNotification(data: {
+  client_id: string;
+  body: string;
+  type: Notification["type"];
+  title?: string | null;
+  read?: boolean;
+}): Notification {
+  const id = `ntf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const notification: Notification = {
+    client_id: data.client_id,
+    body: data.body,
+    type: data.type,
+    title: data.title ?? null,
+    read: data.read ?? false,
+    _id: id,
+    created_at: new Date().toISOString(),
+  };
+  db.notifications.set(id, notification);
+  return notification;
+}
+
+export function getNotification(id: string): Notification | null {
+  return db.notifications.get(id) || null;
+}
+
+export function markNotificationRead(id: string): Notification | null {
+  const n = db.notifications.get(id);
+  if (!n) return null;
+  const updated = { ...n, read: true, _id: id };
+  db.notifications.set(id, updated);
+  return updated;
 }
 
 export function getWorkingHours(): { start: number; end: number } {

@@ -12,6 +12,7 @@ import * as assistantRoutes from "./routes/assistant";
 import * as telegramRoutes from "./routes/telegram";
 import * as connectionsRoutes from "./routes/connections";
 import * as authRoutes from "./routes/auth";
+import * as notificationsRoutes from "./routes/notifications";
 import { requireAuth } from "./middleware/auth";
 
 export function createServer() {
@@ -61,6 +62,11 @@ export function createServer() {
 
   // API v1 routes (Clients Registration)
   app.post("/api/v1/clients/register", clientsRoutes.registerClient);
+
+  // API v1 routes (Notifications — iOS client + admin)
+  app.get("/api/v1/notifications", notificationsRoutes.getNotifications);
+  app.patch("/api/v1/notifications/:id/read", notificationsRoutes.markNotificationRead);
+  app.post("/api/v1/notifications", requireAuth, notificationsRoutes.createNotification);
 
   // API v1 routes (Car wash posts)
   app.get("/api/v1/posts", postsRoutes.getPosts);

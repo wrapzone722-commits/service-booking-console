@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
 import { User } from "@shared/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 export default function Clients() {
   const [clients, setClients] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
+  const [showSendMessage, setShowSendMessage] = useState(false);
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -24,6 +38,38 @@ export default function Clients() {
       setError("Ошибка загрузки");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedClient || !messageBody.trim()) return;
+    try {
+      setMessageSending(true);
+      const token = localStorage.getItem("session_token");
+      const res = await fetch("/api/v1/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          client_id: selectedClient._id,
+          body: messageBody.trim(),
+          title: messageTitle.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Ошибка отправки");
+      }
+      setShowSendMessage(false);
+      setMessageTitle("");
+      setMessageBody("");
+    } catch (err) {
+      console.error("Error:", err);
+      setError(err instanceof Error ? err.message : "Ошибка отправки");
+    } finally {
+      setMessageSending(false);
     }
   };
 
@@ -135,6 +181,21 @@ export default function Clients() {
                       })}
                     </p>
                   </div>
+
+                  {/* Send Message */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <Button
+                      onClick={() => {
+                        setShowSendMessage(true);
+                        setMessageTitle("");
+                        setMessageBody("");
+                      }}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      📩 Отправить сообщение клиенту
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Social Links */}
@@ -201,6 +262,42 @@ export default function Clients() {
           </div>
         )}
       </div>
+
+      {/* Send Message Dialog */}
+      <Dialog open={showSendMessage} onOpenChange={setShowSendMessage}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Отправить сообщение</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold mb-1">Заголовок (опционально)</label>
+              <Input
+                value={messageTitle}
+                onChange={(e) => setMessageTitle(e.target.value)}
+                placeholder="Например: Услуга завершена"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Текст сообщения</label>
+              <Textarea
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                placeholder="Сообщение появится в приложении в разделе «Сообщения»"
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSendMessage(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleSendMessage} disabled={!messageBody.trim() || messageSending}>
+              {messageSending ? "Отправка..." : "Отправить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
