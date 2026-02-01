@@ -5,8 +5,16 @@ import * as db from "../db";
 export const getServices: RequestHandler = (req, res) => {
   try {
     // ?all=true возвращает все услуги включая неактивные (для админ-панели)
+    // ?compact=1 убирает image_url из ответа (оставляет только image_thumbnail_url) для быстрой загрузки списка
     const includeInactive = req.query.all === "true";
-    const services = db.getServices(includeInactive);
+    const compact = req.query.compact === "1";
+    let services = db.getServices(includeInactive);
+    if (compact) {
+      services = services.map((s) => {
+        if (s.image_thumbnail_url) return { ...s, image_url: null };
+        return s;
+      });
+    }
     res.json(services);
   } catch (error) {
     console.error("Error fetching services:", error);
@@ -29,7 +37,7 @@ export const getService: RequestHandler<{ id: string }> = (req, res) => {
 
 export const createService: RequestHandler = (req, res) => {
   try {
-    const { name, description, price, duration, category, image_url, is_active } = req.body as CreateServiceRequest;
+    const { name, description, price, duration, category, image_url, image_thumbnail_url, is_active } = req.body as CreateServiceRequest;
 
     if (!name || !description || typeof price !== "number" || !duration || !category) {
       return res.status(400).json({
@@ -45,6 +53,7 @@ export const createService: RequestHandler = (req, res) => {
       duration,
       category,
       image_url: image_url || null,
+      image_thumbnail_url: image_thumbnail_url || null,
       is_active: is_active !== false,
     });
 

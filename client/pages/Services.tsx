@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { Service, CreateServiceRequest } from "@shared/api";
 
-const MAX_IMAGE_SIZE = 400;
+const PREVIEW_SIZE = 200;
+const THUMB_SIZE = 80;
 
-function resizeImage(file: File): Promise<string> {
+function resizeImage(file: File, maxSize: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -11,13 +12,13 @@ function resizeImage(file: File): Promise<string> {
       URL.revokeObjectURL(url);
       const canvas = document.createElement("canvas");
       let { width, height } = img;
-      if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
+      if (width > maxSize || height > maxSize) {
         if (width > height) {
-          height = (height / width) * MAX_IMAGE_SIZE;
-          width = MAX_IMAGE_SIZE;
+          height = (height / width) * maxSize;
+          width = maxSize;
         } else {
-          width = (width / height) * MAX_IMAGE_SIZE;
-          height = MAX_IMAGE_SIZE;
+          width = (width / height) * maxSize;
+          height = maxSize;
         }
       }
       canvas.width = width;
@@ -25,7 +26,7 @@ function resizeImage(file: File): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("No canvas"));
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -48,6 +49,7 @@ export default function Services() {
     duration: "",
     category: "",
     image_url: "" as string,
+    image_thumbnail_url: "" as string,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -109,12 +111,17 @@ export default function Services() {
       duration: parseInt(formData.duration),
       category: formData.category,
       image_url: formData.image_url || null,
+      image_thumbnail_url: formData.image_thumbnail_url || null,
       is_active: true,
     };
 
     try {
       if (editingId) {
-        const updatePayload = { ...payload, image_url: payload.image_url ?? undefined };
+        const updatePayload = {
+          ...payload,
+          image_url: payload.image_url ?? undefined,
+          image_thumbnail_url: payload.image_thumbnail_url ?? undefined,
+        };
         const res = await fetch(`/api/v1/services/${editingId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -132,22 +139,33 @@ export default function Services() {
       await fetchServices();
       setShowForm(false);
       setEditingId(null);
-      setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "" });
+      setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "", image_thumbnail_url: "" });
     } catch (err) {
       console.error("Error:", err);
       setError("Ошибка сохранения");
     }
   };
 
-  const handleEdit = (service: Service) => {
+  const handleEdit = async (service: Service) => {
     setEditingId(service._id);
+    let imageUrl = service.image_url || "";
+    if (!imageUrl && service._id) {
+      try {
+        const res = await fetch(`/api/v1/services/${service._id}`);
+        if (res.ok) {
+          const full = await res.json();
+          imageUrl = full.image_url || "";
+        }
+      } catch {}
+    }
     setFormData({
       name: service.name,
       description: service.description,
       price: service.price.toString(),
       duration: service.duration.toString(),
       category: service.category,
-      image_url: service.image_url || "",
+      image_url: imageUrl,
+      image_thumbnail_url: service.image_thumbnail_url || "",
     });
     setShowForm(true);
   };
@@ -156,8 +174,11 @@ export default function Services() {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
     try {
-      const dataUrl = await resizeImage(file);
-      setFormData((f) => ({ ...f, image_url: dataUrl }));
+      const [preview, thumb] = await Promise.all([
+        resizeImage(file, PREVIEW_SIZE, 0.7),
+        resizeImage(file, THUMB_SIZE, 0.5),
+      ]);
+      setFormData((f) => ({ ...f, image_url: preview, image_thumbnail_url: thumb }));
     } catch (err) {
       console.error("Image error:", err);
       setError("Ошибка загрузки изображения");
@@ -256,7 +277,7 @@ export default function Services() {
                 setShowForm(!showForm);
                 setShowAiForm(false);
                 setEditingId(null);
-                setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "" });
+                setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "", image_thumbnail_url: "" });
               }}
               className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold"
             >
@@ -325,8 +346,8 @@ export default function Services() {
                 <label className="block text-xs font-semibold text-foreground mb-1">Фото услуги</label>
                 <div className="flex gap-3 items-start">
                   <div className="w-24 h-24 rounded-lg border border-border bg-muted overflow-hidden flex items-center justify-center">
-                    {formData.image_url ? (
-                      <img src={formData.image_url} alt="" className="w-full h-full object-cover" />
+                    {(formData.image_url || formData.image_thumbnail_url) ? (
+                      <img src={formData.image_url || formData.image_thumbnail_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-3xl text-muted-foreground">📷</span>
                     )}
@@ -346,12 +367,12 @@ export default function Services() {
                       onClick={() => fileInputRef.current?.click()}
                       className="px-3 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors"
                     >
-                      {formData.image_url ? "Заменить" : "Загрузить"}
+                      {(formData.image_url || formData.image_thumbnail_url) ? "Заменить" : "Загрузить"}
                     </button>
-                    {formData.image_url && (
+                    {(formData.image_url || formData.image_thumbnail_url) && (
                       <button
                         type="button"
-                        onClick={() => setFormData((f) => ({ ...f, image_url: "" }))}
+                        onClick={() => setFormData((f) => ({ ...f, image_url: "", image_thumbnail_url: "" }))}
                         className="block mt-1 text-xs text-muted-foreground hover:text-foreground"
                       >
                         Удалить
@@ -436,8 +457,8 @@ export default function Services() {
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${
                     service.is_active ? "bg-blue-100" : "bg-gray-200"
                   }`}>
-                    {service.image_url ? (
-                      <img src={service.image_url} alt="" className="w-full h-full object-cover" />
+                    {(service.image_thumbnail_url || service.image_url) ? (
+                      <img src={service.image_thumbnail_url || service.image_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <span className="text-xl">💼</span>
                     )}

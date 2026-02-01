@@ -29,7 +29,7 @@ const navItems = [
   { path: "/assistant", label: "Ассистент", icon: "🤖" },
   { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
   { path: "/clients", label: "Клиенты", icon: "👥" },
-  { path: "/connections", label: "Подключения", icon: "📱" },
+  { path: "/cars", label: "Автомобили", icon: "🚗" },
   { path: "/settings", label: "Настройки", icon: "⚙️" },
 ];
 

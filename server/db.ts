@@ -1,4 +1,4 @@
-import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification } from "@shared/api";
+import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage } from "@shared/api";
 import crypto from "crypto";
 
 // Device Connection interface
@@ -45,6 +45,7 @@ interface Database {
   api_base_url: string; // for QR code generation
   telegram_bot_settings: TelegramBotSettings;
   notifications: Map<string, Notification>;
+  carFolders: Map<string, CarFolder>;
 }
 
 export interface TelegramBotSettings {
@@ -77,6 +78,7 @@ let db: Database = {
   slot_duration: 30,
   api_base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
   notifications: new Map(),
+  carFolders: new Map(),
   telegram_bot_settings: {
     enabled: false,
     notify_new_booking: true,
@@ -459,6 +461,41 @@ export function linkClientToDevice(deviceId: string, clientId: string): DeviceCo
     status: "connected",
     last_seen: new Date().toISOString(),
   });
+}
+
+// Cars (avatar folders)
+export function getCarFolders(): CarFolder[] {
+  return Array.from(db.carFolders.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getCarFolder(id: string): CarFolder | null {
+  return db.carFolders.get(id) || null;
+}
+
+export function getCarFolderByName(name: string): CarFolder | null {
+  for (const f of db.carFolders.values()) {
+    if (f.name === name) return f;
+  }
+  return null;
+}
+
+export function createCarFolder(data: Omit<CarFolder, "_id">): CarFolder {
+  const id = `car_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const folder: CarFolder = { ...data, _id: id };
+  db.carFolders.set(id, folder);
+  return folder;
+}
+
+export function updateCarFolder(id: string, data: Partial<CarFolder>): CarFolder | null {
+  const folder = db.carFolders.get(id);
+  if (!folder) return null;
+  const updated = { ...folder, ...data, _id: id };
+  db.carFolders.set(id, updated);
+  return updated;
+}
+
+export function deleteCarFolder(id: string): boolean {
+  return db.carFolders.delete(id);
 }
 
 // Notifications

@@ -14,6 +14,7 @@ import * as connectionsRoutes from "./routes/connections";
 import * as authRoutes from "./routes/auth";
 import * as notificationsRoutes from "./routes/notifications";
 import * as settingsRoutes from "./routes/settings";
+import * as carsRoutes from "./routes/cars";
 import { requireAuth } from "./middleware/auth";
 
 export function createServer() {
@@ -63,6 +64,14 @@ export function createServer() {
 
   // API v1 routes (Settings / QR)
   app.get("/api/v1/settings/api-url", settingsRoutes.getApiUrl);
+
+  // API v1 routes (Cars / Avatars)
+  app.get("/api/v1/cars/folders", carsRoutes.getCarFolders);
+  app.get("/api/v1/cars/folders/name/:name", carsRoutes.getCarFolderByName);
+  app.get("/api/v1/cars/folders/:id", carsRoutes.getCarFolder);
+  app.post("/api/v1/cars/folders", requireAuth, carsRoutes.createCarFolder);
+  app.put("/api/v1/cars/folders/:id", requireAuth, carsRoutes.updateCarFolder);
+  app.delete("/api/v1/cars/folders/:id", requireAuth, carsRoutes.deleteCarFolder);
 
   // API v1 routes (Clients Registration)
   app.post("/api/v1/clients/register", clientsRoutes.registerClient);

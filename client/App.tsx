@@ -13,8 +13,8 @@ import Bookings from "./pages/Bookings";
 import Clients from "./pages/Clients";
 import Posts from "./pages/Posts";
 import Assistant from "./pages/Assistant";
-import Connections from "./pages/Connections";
 import Settings from "./pages/Settings";
+import Cars from "./pages/Cars";
 import Login from "./pages/Login";
 import YandexCallback from "./pages/YandexCallback";
 import Organization from "./pages/Organization";
@@ -70,7 +70,7 @@ const AppContent = () => (
                     <Route path="/posts" element={<Posts />} />
                     <Route path="/assistant" element={<Assistant />} />
                     <Route path="/telegram-bot" element={<TelegramBot />} />
-                    <Route path="/connections" element={<Connections />} />
+                    <Route path="/cars" element={<Cars />} />
                     <Route path="/settings" element={<Settings />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />

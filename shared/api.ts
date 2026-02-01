@@ -20,6 +20,8 @@ export interface Service {
   duration: number; // in minutes
   category: string;
   image_url: string | null;
+  /** Маленькая миниатюра для списка (80x80, низкое качество) */
+  image_thumbnail_url?: string | null;
   is_active: boolean;
 }
 
@@ -30,6 +32,7 @@ export interface CreateServiceRequest {
   duration: number;
   category: string;
   image_url?: string | null;
+  image_thumbnail_url?: string | null;
   is_active?: boolean;
 }
 
@@ -40,6 +43,7 @@ export interface UpdateServiceRequest {
   duration?: number;
   category?: string;
   image_url?: string | null;
+  image_thumbnail_url?: string | null;
   is_active?: boolean;
 }
 
@@ -213,6 +217,21 @@ export interface TelegramBotSettings {
   admin_chat_ids: string[];
   reminders_enabled: boolean;
   reminder_hours_before: number[];
+}
+
+// ====== CARS (AVATARS / PROFILE PHOTOS) ======
+export interface CarImage {
+  name: string; // e.g. "01.jpg"
+  url: string; // full image base64 or URL
+  thumbnail_url: string; // thumbnail base64 or URL
+}
+
+export interface CarFolder {
+  _id: string;
+  name: string;
+  images: CarImage[];
+  /** Имя файла по умолчанию для фото профиля (01.jpg, 01.png и т.д.) */
+  default_photo_name: string;
 }
 
 // ====== NOTIFICATIONS ======
