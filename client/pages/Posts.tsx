@@ -256,7 +256,7 @@ export default function Posts() {
 
   if (loading) {
     return (
-      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[50vh] bg-background flex items-center justify-center">
         <div className="text-xs text-muted-foreground animate-pulse-soft">Загрузка…</div>
       </div>
     );
@@ -264,7 +264,7 @@ export default function Posts() {
 
   if (loadError) {
     return (
-      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-[50vh] bg-background flex items-center justify-center p-4">
         <div className="bg-white rounded-lg p-3 max-w-xs w-full text-xs">
           <div className="font-bold mb-1">Ошибка</div>
           <div className="text-muted-foreground mb-2">{loadError}</div>
@@ -280,7 +280,7 @@ export default function Posts() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50">
+    <div className="min-h-full bg-background">
       <div className="bg-white border-b border-border sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
           <div>

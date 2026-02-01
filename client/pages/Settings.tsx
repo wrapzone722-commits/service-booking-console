@@ -2,15 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 
 export default function Settings() {
   const [apiUrl, setApiUrl] = useState("");
+  const [apiUrlLoaded, setApiUrlLoaded] = useState(false);
   const [token, setToken] = useState("");
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   useEffect(() => {
-    const base = `${window.location.origin}/api/v1`;
-    setApiUrl(base);
+    fetch("/api/v1/settings/api-url")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.api_url) setApiUrl(data.api_url);
+        else setApiUrl(`${window.location.origin}/api/v1`);
+      })
+      .catch(() => setApiUrl(`${window.location.origin}/api/v1`))
+      .finally(() => setApiUrlLoaded(true));
   }, []);
 
-  const qrPayloadUrl = useMemo(() => apiUrl || "https://example.com/api/v1", [apiUrl]);
+  const qrPayloadUrl = useMemo(
+    () => apiUrl?.trim() || (apiUrlLoaded ? `${window.location.origin}/api/v1` : ""),
+    [apiUrl, apiUrlLoaded]
+  );
   const qrPayloadJson = useMemo(
     () => JSON.stringify({ base_url: qrPayloadUrl, ...(token ? { token } : {}) }),
     [qrPayloadUrl, token]
@@ -32,7 +42,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3">
@@ -49,17 +59,23 @@ export default function Settings() {
             <span>📱</span> Подключение мобильного приложения
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Покажите QR-код клиенту при первом запуске iOS-приложения. После сканирования приложение
-            подключится к API и зарегистрирует устройство.
+            QR-код генерируется на основе URL API текущего сервера. Покажите его клиенту при первом
+            запуске iOS-приложения — после сканирования приложение подключится и зарегистрирует устройство.
           </p>
 
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-shrink-0">
-              <img
-                src={qrImageUrl}
-                alt="QR для подключения"
-                className="w-[280px] h-[280px] border border-border rounded-lg bg-white"
-              />
+              {qrPayloadUrl ? (
+                <img
+                  src={qrImageUrl}
+                  alt="QR для подключения"
+                  className="w-[280px] h-[280px] border border-border rounded-lg bg-white"
+                />
+              ) : (
+                <div className="w-[280px] h-[280px] border border-border rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-sm">
+                  Загрузка...
+                </div>
+              )}
             </div>
             <div className="flex-1 space-y-4">
               <div>

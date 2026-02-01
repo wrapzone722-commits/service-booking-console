@@ -1,9 +1,23 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { NetworkStatus } from "./NetworkStatus";
+import { useTheme, type ThemeId } from "@/hooks/use-theme";
 
 interface LayoutProps {
   children: ReactNode;
+}
+
+function Clock() {
+  const [time, setTime] = useState(() => new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTime(new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  return <span className="tabular-nums font-medium">{time}</span>;
 }
 
 const navItems = [
@@ -26,9 +40,16 @@ const bottomNavItems = [
   { path: "/posts", label: "Посты", icon: "🚿" },
 ];
 
+const themes: { id: ThemeId; label: string; icon: string }[] = [
+  { id: "light", label: "Светлая", icon: "☀️" },
+  { id: "gray", label: "Серая", icon: "🌙" },
+  { id: "dark", label: "Тёмная", icon: "🌑" },
+];
+
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   const [accountName, setAccountName] = useState("Admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -95,14 +116,31 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="relative flex flex-col min-h-screen bg-background md:flex-row">
-      {/* Desktop: network status top-right */}
-      <div className="hidden md:flex absolute top-3 right-4 z-30 pointer-events-none">
-        <div className="pointer-events-auto">
+      {/* Top bar: theme switcher + clock (desktop) */}
+      <div className="hidden md:flex absolute top-0 left-0 right-0 z-30 h-9 px-4 items-center justify-between bg-background/80 backdrop-blur border-b border-border">
+        <div className="flex items-center gap-1">
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                theme === t.id
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+              title={t.label}
+            >
+              {t.icon}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <Clock />
           <NetworkStatus />
         </div>
       </div>
 
-      {/* Mobile header */}
+      {/* Mobile header with theme + clock */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-gradient-to-b from-[hsl(var(--sidebar-background))] to-[hsl(230_50%_25%)] text-sidebar-foreground border-b border-sidebar-border/50 sticky top-0 z-40 safe-area-top">
         <button
           onClick={() => setSidebarOpen(true)}
@@ -116,7 +154,24 @@ export default function Layout({ children }: LayoutProps) {
         <Link to="/" className="flex items-center gap-2 flex-1 justify-center">
           <span className="font-bold text-sm">ServiceBooking</span>
         </Link>
-        <NetworkStatus className="md:hidden" />
+        <div className="flex items-center gap-2">
+          <span className="text-sidebar-foreground/90 text-sm tabular-nums">
+            <Clock />
+          </span>
+          <div className="flex gap-0.5">
+            {themes.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`p-1.5 rounded text-sm ${theme === t.id ? "bg-white/20" : "opacity-60"}`}
+                title={t.label}
+              >
+                {t.icon}
+              </button>
+            ))}
+          </div>
+          <NetworkStatus className="md:hidden" />
+        </div>
       </header>
 
       {/* Sidebar overlay (mobile) */}
@@ -155,15 +210,15 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col min-h-0 md:min-h-screen w-full">
-        <div className="flex-1 min-h-0 overflow-auto bg-gray-50 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+      <main className="flex-1 flex flex-col min-h-0 md:min-h-screen w-full md:pt-9">
+        <div className="flex-1 min-h-0 overflow-auto bg-background pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           <div className="min-h-[100dvh]">
             {children}
           </div>
         </div>
 
         {/* Bottom navigation (mobile only) */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border shadow-lg z-40 safe-area-bottom flex justify-around items-stretch pb-[env(safe-area-inset-bottom)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-40 safe-area-bottom flex justify-around items-stretch pb-[env(safe-area-inset-bottom)]">
           {bottomNavItems.map((item) => (
             <Link
               key={item.path}

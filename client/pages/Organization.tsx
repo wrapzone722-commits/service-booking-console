@@ -135,7 +135,7 @@ export default function Organization() {
 
   if (loading && !accountInfo) {
     return (
-      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[50vh] bg-background flex items-center justify-center">
         <div className="text-muted-foreground">Загрузка...</div>
       </div>
     );
@@ -143,7 +143,7 @@ export default function Organization() {
 
   if (error && !accountInfo) {
     return (
-      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-[50vh] bg-background flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <p className="text-red-600 font-medium mb-4">{error}</p>
           <button
@@ -162,7 +162,7 @@ export default function Organization() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50">
+    <div className="min-h-full bg-background">
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3">
           <h1 className="text-2xl font-bold text-foreground">Организация</h1>

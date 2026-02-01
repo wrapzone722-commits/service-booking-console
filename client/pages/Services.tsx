@@ -180,7 +180,7 @@ export default function Services() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3 flex items-center justify-between">

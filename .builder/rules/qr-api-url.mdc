@@ -1,0 +1,26 @@
+---
+description: QR-код для подключения iOS-приложения всегда генерируется на основе API URL
+globs: client/pages/Settings.tsx, server/routes/settings.ts
+alwaysApply: false
+---
+
+## Правило: QR-код зависит от API URL
+
+**QR-код для подключения мобильного приложения должен генерироваться только на основе актуального URL API.**
+
+### Требования
+
+1. **Источник URL** — URL для QR берётся с сервера через `GET /api/v1/settings/api-url`, который возвращает `{ api_url: string }`.
+
+2. **Логика на сервере** — эндпоинт использует `db.getApiUrlFromRequest(req)`:
+   - Строит URL из заголовка Host и протокола (x-forwarded-proto) запроса
+   - Fallback: `API_BASE_URL` из env или значение из настроек
+
+3. **На клиенте (Settings)**:
+   - При загрузке страницы — `fetch("/api/v1/settings/api-url")` и подстановка в QR
+   - QR-картинка: `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(apiUrl)}`
+   - Данные QR: только URL (или JSON `{ base_url, token? }` по спецификации)
+
+4. **Ручная правка** — пользователь может изменить URL в поле ввода; при изменении QR перегенерируется с новым значением.
+
+5. **Не использовать** `window.location.origin` как единственный источник — он может не совпадать с реальным API URL при reverse proxy или раздельном хостинге.

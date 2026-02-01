@@ -13,6 +13,7 @@ import * as telegramRoutes from "./routes/telegram";
 import * as connectionsRoutes from "./routes/connections";
 import * as authRoutes from "./routes/auth";
 import * as notificationsRoutes from "./routes/notifications";
+import * as settingsRoutes from "./routes/settings";
 import { requireAuth } from "./middleware/auth";
 
 export function createServer() {
@@ -59,6 +60,9 @@ export function createServer() {
   app.get("/api/v1/profile", usersRoutes.getProfile);
   app.put("/api/v1/profile", usersRoutes.updateProfile);
   app.post("/api/v1/users", usersRoutes.createUser);
+
+  // API v1 routes (Settings / QR)
+  app.get("/api/v1/settings/api-url", settingsRoutes.getApiUrl);
 
   // API v1 routes (Clients Registration)
   app.post("/api/v1/clients/register", clientsRoutes.registerClient);

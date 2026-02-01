@@ -34,7 +34,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (isAuthenticated === null) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Загрузка...</div>;
+    return <div className="min-h-screen bg-background flex items-center justify-center">Загрузка...</div>;
   }
 
   if (!isAuthenticated) {

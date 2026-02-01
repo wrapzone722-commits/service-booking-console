@@ -121,14 +121,14 @@ export default function TelegramBot() {
 
   if (loading || !settings) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-muted-foreground">Загрузка…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-6 py-4">
           <h1 className="text-2xl font-bold text-foreground">Telegram Бот</h1>
