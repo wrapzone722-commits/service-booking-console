@@ -139,11 +139,11 @@ docker run -p 3000:3000 -e JWT_SECRET=test-secret servicebooking:local
 
 По умолчанию используется **Timeweb Cloud AI** — токен и URL встроены в проект. Кнопка «🤖 Создать с ИИ» на странице Услуг сразу работает.
 
-**Заменить на OpenAI:**
+**Заменить на OpenRouter (альтернатива):**
 ```env
-AI_API_ENDPOINT=https://api.openai.com/v1
-AI_API_KEY=sk-...
-AI_MODEL=gpt-4o-mini
+AI_API_ENDPOINT=https://openrouter.ai/api/v1
+AI_API_KEY=sk-or-v1-...
+AI_MODEL=google/gemma-3-4b-it:free
 ```
 
 ## Верификация по коду (без затрат или через SMS)
