@@ -217,6 +217,14 @@ export interface TelegramBotSettings {
   admin_chat_ids: string[];
   reminders_enabled: boolean;
   reminder_hours_before: number[];
+  /** Приветственное сообщение при /start */
+  welcome_message: string;
+  /** Шаблоны: {{user_name}}, {{service_name}}, {{date_time}}, {{price}}, {{notes}} */
+  template_new_booking: string;
+  template_booking_cancelled: string;
+  template_booking_confirmed: string;
+  template_daily_summary: string;
+  template_reminder: string;
 }
 
 // ====== CARS (AVATARS / PROFILE PHOTOS) ======

@@ -55,9 +55,15 @@ export interface TelegramBotSettings {
   notify_booking_confirmed: boolean;
   notify_daily_summary: boolean;
   daily_summary_hour: number; // 0-23
-  admin_chat_ids: string[]; // Telegram chat IDs for notifications
+  admin_chat_ids: string[];
   reminders_enabled: boolean;
-  reminder_hours_before: number[]; // [24, 1] = 24h and 1h before
+  reminder_hours_before: number[];
+  welcome_message: string;
+  template_new_booking: string;
+  template_booking_cancelled: string;
+  template_booking_confirmed: string;
+  template_daily_summary: string;
+  template_reminder: string;
 }
 
 let db: Database = {
@@ -89,6 +95,12 @@ let db: Database = {
     admin_chat_ids: [],
     reminders_enabled: false,
     reminder_hours_before: [24, 1],
+    welcome_message: "👋 Добро пожаловать! Вы подключены к уведомлениям о записях.",
+    template_new_booking: "",
+    template_booking_cancelled: "",
+    template_booking_confirmed: "",
+    template_daily_summary: "",
+    template_reminder: "",
   },
 };
 
@@ -548,7 +560,17 @@ export function setWorkingHours(start: number, end: number): void {
 }
 
 export function getTelegramBotSettings(): TelegramBotSettings {
-  return { ...db.telegram_bot_settings, admin_chat_ids: [...db.telegram_bot_settings.admin_chat_ids] };
+  const s = db.telegram_bot_settings;
+  return {
+    ...s,
+    admin_chat_ids: [...s.admin_chat_ids],
+    welcome_message: s.welcome_message ?? "👋 Добро пожаловать! Вы подключены к уведомлениям о записях.",
+    template_new_booking: s.template_new_booking ?? "",
+    template_booking_cancelled: s.template_booking_cancelled ?? "",
+    template_booking_confirmed: s.template_booking_confirmed ?? "",
+    template_daily_summary: s.template_daily_summary ?? "",
+    template_reminder: s.template_reminder ?? "",
+  };
 }
 
 export function updateTelegramBotSettings(data: Partial<TelegramBotSettings>): TelegramBotSettings {
@@ -562,6 +584,12 @@ export function updateTelegramBotSettings(data: Partial<TelegramBotSettings>): T
   if (data.admin_chat_ids !== undefined) s.admin_chat_ids = Array.isArray(data.admin_chat_ids) ? data.admin_chat_ids.filter(Boolean) : [];
   if (data.reminders_enabled !== undefined) s.reminders_enabled = data.reminders_enabled;
   if (data.reminder_hours_before !== undefined) s.reminder_hours_before = Array.isArray(data.reminder_hours_before) ? data.reminder_hours_before : s.reminder_hours_before;
+  if (data.welcome_message !== undefined) s.welcome_message = String(data.welcome_message ?? "");
+  if (data.template_new_booking !== undefined) s.template_new_booking = String(data.template_new_booking ?? "");
+  if (data.template_booking_cancelled !== undefined) s.template_booking_cancelled = String(data.template_booking_cancelled ?? "");
+  if (data.template_booking_confirmed !== undefined) s.template_booking_confirmed = String(data.template_booking_confirmed ?? "");
+  if (data.template_daily_summary !== undefined) s.template_daily_summary = String(data.template_daily_summary ?? "");
+  if (data.template_reminder !== undefined) s.template_reminder = String(data.template_reminder ?? "");
   return getTelegramBotSettings();
 }
 

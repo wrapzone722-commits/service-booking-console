@@ -99,6 +99,7 @@ export function createServer() {
   app.get("/api/v1/telegram/settings", requireAuth, telegramRoutes.getSettings);
   app.put("/api/v1/telegram/settings", requireAuth, telegramRoutes.updateSettings);
   app.post("/api/v1/telegram/send-test", requireAuth, telegramRoutes.sendTest);
+  app.post("/api/v1/telegram/generate-message", requireAuth, telegramRoutes.generateMessage);
   app.post("/api/v1/telegram/webhook", telegramRoutes.webhook);
   app.post("/api/v1/telegram/set-webhook", requireAuth, telegramRoutes.setWebhook);
 
