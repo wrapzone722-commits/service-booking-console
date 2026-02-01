@@ -1,5 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Service, CreateServiceRequest } from "@shared/api";
+
+const MAX_IMAGE_SIZE = 400;
+
+function resizeImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      let { width, height } = img;
+      if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
+        if (width > height) {
+          height = (height / width) * MAX_IMAGE_SIZE;
+          width = MAX_IMAGE_SIZE;
+        } else {
+          width = (width / height) * MAX_IMAGE_SIZE;
+          height = MAX_IMAGE_SIZE;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("No canvas"));
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = url;
+  });
+}
 
 export default function Services() {
   const [services, setServices] = useState<Service[]>([]);
@@ -13,7 +47,9 @@ export default function Services() {
     price: "",
     duration: "",
     category: "",
+    image_url: "" as string,
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // AI Assistant state
   const [showAiForm, setShowAiForm] = useState(false);
@@ -72,15 +108,17 @@ export default function Services() {
       price: parseFloat(formData.price),
       duration: parseInt(formData.duration),
       category: formData.category,
+      image_url: formData.image_url || null,
       is_active: true,
     };
 
     try {
       if (editingId) {
+        const updatePayload = { ...payload, image_url: payload.image_url ?? undefined };
         const res = await fetch(`/api/v1/services/${editingId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(updatePayload),
         });
         if (!res.ok) throw new Error("Failed to update service");
       } else {
@@ -94,7 +132,7 @@ export default function Services() {
       await fetchServices();
       setShowForm(false);
       setEditingId(null);
-      setFormData({ name: "", description: "", price: "", duration: "", category: "" });
+      setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "" });
     } catch (err) {
       console.error("Error:", err);
       setError("Ошибка сохранения");
@@ -109,8 +147,22 @@ export default function Services() {
       price: service.price.toString(),
       duration: service.duration.toString(),
       category: service.category,
+      image_url: service.image_url || "",
     });
     setShowForm(true);
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    try {
+      const dataUrl = await resizeImage(file);
+      setFormData((f) => ({ ...f, image_url: dataUrl }));
+    } catch (err) {
+      console.error("Image error:", err);
+      setError("Ошибка загрузки изображения");
+    }
+    e.target.value = "";
   };
 
   const handleDelete = async (id: string) => {
@@ -204,7 +256,7 @@ export default function Services() {
                 setShowForm(!showForm);
                 setShowAiForm(false);
                 setEditingId(null);
-                setFormData({ name: "", description: "", price: "", duration: "", category: "" });
+                setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "" });
               }}
               className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold"
             >
@@ -268,6 +320,47 @@ export default function Services() {
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white rounded-lg p-4 shadow-sm border border-border space-y-3 animate-slide-in">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-shrink-0">
+                <label className="block text-xs font-semibold text-foreground mb-1">Фото услуги</label>
+                <div className="flex gap-3 items-start">
+                  <div className="w-24 h-24 rounded-lg border border-border bg-muted overflow-hidden flex items-center justify-center">
+                    {formData.image_url ? (
+                      <img src={formData.image_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl text-muted-foreground">📷</span>
+                    )}
+                  </div>
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      id="service-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                      aria-label="Загрузить фото услуги"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 text-sm rounded-lg border border-border hover:bg-muted transition-colors"
+                    >
+                      {formData.image_url ? "Заменить" : "Загрузить"}
+                    </button>
+                    {formData.image_url && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData((f) => ({ ...f, image_url: "" }))}
+                        className="block mt-1 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input
                 type="text"
@@ -340,10 +433,14 @@ export default function Services() {
                 style={{ animationDelay: `${idx * 30}ms` }}
               >
                 <div className="flex items-start justify-between mb-2">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${
                     service.is_active ? "bg-blue-100" : "bg-gray-200"
                   }`}>
-                    💼
+                    {service.image_url ? (
+                      <img src={service.image_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl">💼</span>
+                    )}
                   </div>
                   <button
                     onClick={() => handleToggleActive(service)}

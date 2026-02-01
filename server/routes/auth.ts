@@ -552,7 +552,7 @@ export const verifyEmail: RequestHandler = async (req, res) => {
 // Get current account info
 export const getMe: RequestHandler = (req, res) => {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, "")?.trim();
     if (!token) {
       return res.status(401).json({ error: "Unauthorized", message: "No token provided" });
     }

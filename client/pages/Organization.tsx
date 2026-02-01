@@ -42,12 +42,18 @@ export default function Organization() {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem("session_token");
+      const token = localStorage.getItem("session_token")?.trim();
+      if (!token) {
+        navigate("/login", { replace: true });
+        return;
+      }
       const res = await fetch("/api/v1/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
         localStorage.removeItem("session_token");
+        localStorage.removeItem("account_id");
+        localStorage.removeItem("account_name");
         navigate("/login", { replace: true });
         return;
       }
@@ -158,7 +164,22 @@ export default function Organization() {
   }
 
   if (!accountInfo) {
-    return null;
+    return (
+      <div className="min-h-[50vh] bg-background flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <p className="text-muted-foreground mb-4">Нет данных организации. Возможно, требуется повторный вход.</p>
+          <button
+            onClick={() => {
+              localStorage.removeItem("session_token");
+              navigate("/login", { replace: true });
+            }}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+          >
+            Войти снова
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
