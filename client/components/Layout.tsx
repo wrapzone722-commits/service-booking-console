@@ -1,33 +1,45 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { NetworkStatus } from "./NetworkStatus";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
+const navItems = [
+  { path: "/", label: "Главная", icon: "📊" },
+  { path: "/organization", label: "Организация", icon: "🏢" },
+  { path: "/services", label: "Услуги", icon: "💼" },
+  { path: "/bookings", label: "Записи", icon: "📅" },
+  { path: "/posts", label: "Посты", icon: "🚿" },
+  { path: "/assistant", label: "Ассистент", icon: "🤖" },
+  { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
+  { path: "/clients", label: "Клиенты", icon: "👥" },
+  { path: "/connections", label: "Подключения", icon: "📱" },
+  { path: "/settings", label: "Настройки", icon: "⚙️" },
+];
+
+const bottomNavItems = [
+  { path: "/", label: "Главная", icon: "📊" },
+  { path: "/bookings", label: "Записи", icon: "📅" },
+  { path: "/services", label: "Услуги", icon: "💼" },
+  { path: "/posts", label: "Посты", icon: "🚿" },
+];
+
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [accountName, setAccountName] = useState("Admin");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const name = localStorage.getItem("account_name");
-    if (name) {
-      setAccountName(name);
-    }
+    if (name) setAccountName(name);
   }, []);
 
-  const navItems = [
-    { path: "/", label: "Главная", icon: "📊" },
-    { path: "/organization", label: "Организация", icon: "🏢" },
-    { path: "/services", label: "Услуги", icon: "💼" },
-    { path: "/bookings", label: "Записи", icon: "📅" },
-    { path: "/posts", label: "Посты", icon: "🚿" },
-    { path: "/assistant", label: "Ассистент", icon: "🤖" },
-    { path: "/clients", label: "Клиенты", icon: "👥" },
-    { path: "/connections", label: "Подключения", icon: "📱" },
-    { path: "/settings", label: "Настройки", icon: "⚙️" },
-  ];
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -40,55 +52,137 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="w-56 bg-gradient-to-b from-[hsl(var(--sidebar-background))] to-[hsl(230_50%_25%)] text-sidebar-foreground shadow-lg flex flex-col">
-        {/* Logo */}
-        <div className="p-3 border-b border-sidebar-border/50">
-          <Link to="/organization" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-10 h-10 rounded-lg bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-bold text-sm flex-shrink-0">
-              SB
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-sm truncate">ServiceBooking</h1>
-              <p className="text-xs text-white/60 truncate">{accountName}</p>
-            </div>
-          </Link>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all duration-200 ${
-                isActive(item.path)
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
-                  : "text-sidebar-foreground hover:bg-white/10"
-              }`}
-            >
-              <span className="text-lg flex-shrink-0">{item.icon}</span>
-              <span className="font-medium truncate">{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        {/* Footer */}
-        <div className="p-2 border-t border-sidebar-border/50">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-white/10 transition-all text-xs font-medium"
+  const SidebarContent = () => (
+    <>
+      <div className="p-3 border-b border-sidebar-border/50">
+        <Link to="/organization" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <div className="w-10 h-10 rounded-lg bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-bold text-sm flex-shrink-0">
+            SB
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-sm truncate">ServiceBooking</h1>
+            <p className="text-xs text-white/60 truncate">{accountName}</p>
+          </div>
+        </Link>
+      </div>
+      <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+        {navItems.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm transition-all duration-200 min-h-[44px] ${
+              isActive(item.path)
+                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
+                : "text-sidebar-foreground hover:bg-white/10 active:bg-white/20"
+            }`}
           >
-            <span>🚪</span>
-            <span className="truncate">Выход</span>
-          </button>
+            <span className="text-lg flex-shrink-0">{item.icon}</span>
+            <span className="font-medium truncate">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+      <div className="p-2 border-t border-sidebar-border/50">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-white/10 active:bg-white/20 transition-all text-sm font-medium min-h-[44px]"
+        >
+          <span>🚪</span>
+          <span className="truncate">Выход</span>
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="relative flex flex-col min-h-screen bg-background md:flex-row">
+      {/* Desktop: network status top-right */}
+      <div className="hidden md:flex absolute top-3 right-4 z-30 pointer-events-none">
+        <div className="pointer-events-auto">
+          <NetworkStatus />
+        </div>
+      </div>
+
+      {/* Mobile header */}
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-gradient-to-b from-[hsl(var(--sidebar-background))] to-[hsl(230_50%_25%)] text-sidebar-foreground border-b border-sidebar-border/50 sticky top-0 z-40 safe-area-top">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-2 -ml-2 rounded-lg hover:bg-white/10 active:bg-white/20 min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Меню"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <Link to="/" className="flex items-center gap-2 flex-1 justify-center">
+          <span className="font-bold text-sm">ServiceBooking</span>
+        </Link>
+        <NetworkStatus className="md:hidden" />
+      </header>
+
+      {/* Sidebar overlay (mobile) */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar - drawer on mobile, fixed on desktop */}
+      <aside
+        className={`
+          fixed md:static inset-y-0 left-0 z-50 w-64 max-w-[85vw]
+          bg-gradient-to-b from-[hsl(var(--sidebar-background))] to-[hsl(230_50%_25%)] text-sidebar-foreground shadow-lg flex flex-col
+          transform transition-transform duration-300 ease-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          pt-[env(safe-area-inset-top)] md:pt-0
+        `}
+      >
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="md:hidden flex justify-end p-2">
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-2 rounded-lg hover:bg-white/10 active:bg-white/20 min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Закрыть"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <SidebarContent />
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-gray-50">{children}</main>
+      {/* Main content */}
+      <main className="flex-1 flex flex-col min-h-0 md:min-h-screen w-full">
+        <div className="flex-1 min-h-0 overflow-auto bg-gray-50 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+          {children}
+        </div>
+
+        {/* Bottom navigation (mobile only) */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border shadow-lg z-40 safe-area-bottom flex justify-around items-stretch pb-[env(safe-area-inset-bottom)]">
+          {bottomNavItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex flex-col items-center justify-center flex-1 py-2 min-h-[48px] px-1 ${
+                isActive(item.path) ? "text-primary font-semibold" : "text-muted-foreground"
+              }`}
+            >
+              <span className="text-xl">{item.icon}</span>
+              <span className="text-[10px] mt-0.5 truncate max-w-full">{item.label}</span>
+            </Link>
+          ))}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 py-2 min-h-[48px] px-1 text-muted-foreground"
+          >
+            <span className="text-xl">☰</span>
+            <span className="text-[10px] mt-0.5 truncate max-w-full">Ещё</span>
+          </button>
+        </nav>
+      </main>
     </div>
   );
 }

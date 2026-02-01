@@ -9,6 +9,7 @@ import * as usersRoutes from "./routes/users";
 import * as clientsRoutes from "./routes/clients";
 import * as postsRoutes from "./routes/posts";
 import * as assistantRoutes from "./routes/assistant";
+import * as telegramRoutes from "./routes/telegram";
 import * as connectionsRoutes from "./routes/connections";
 import * as authRoutes from "./routes/auth";
 import { requireAuth } from "./middleware/auth";
@@ -63,12 +64,24 @@ export function createServer() {
 
   // API v1 routes (Car wash posts)
   app.get("/api/v1/posts", postsRoutes.getPosts);
+  app.post("/api/v1/posts", postsRoutes.createPost);
   app.put("/api/v1/posts/:id", postsRoutes.updatePost);
+  app.delete("/api/v1/posts/:id", postsRoutes.deletePost);
   app.get("/api/v1/posts/:id/slots", postsRoutes.getPostDaySlots);
   app.put("/api/v1/posts/:id/slots/closed", postsRoutes.setPostDaySlotClosed);
+  app.get("/api/v1/working-hours", postsRoutes.getWorkingHours);
+  app.put("/api/v1/working-hours", postsRoutes.setWorkingHours);
 
   // API v1 routes (Assistant)
   app.post("/api/v1/assistant/chat", assistantRoutes.chat);
+
+  // API v1 routes (Telegram Bot)
+  app.get("/api/v1/telegram/bot-info", telegramRoutes.getBotInfo);
+  app.get("/api/v1/telegram/settings", requireAuth, telegramRoutes.getSettings);
+  app.put("/api/v1/telegram/settings", requireAuth, telegramRoutes.updateSettings);
+  app.post("/api/v1/telegram/send-test", requireAuth, telegramRoutes.sendTest);
+  app.post("/api/v1/telegram/webhook", telegramRoutes.webhook);
+  app.post("/api/v1/telegram/set-webhook", requireAuth, telegramRoutes.setWebhook);
 
   // API v1 routes (Device Connections)
   app.get("/api/v1/connections", connectionsRoutes.getConnections);

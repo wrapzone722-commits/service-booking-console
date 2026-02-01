@@ -572,6 +572,7 @@ export const getMe: RequestHandler = (req, res) => {
       email: account.email,
       name: account.name,
       verified: account.verified,
+      telegram_id: account.telegram_id,
       qr_code_data: account.qr_code_data,
       phone: account.phone,
       phone_extra: account.phone_extra,

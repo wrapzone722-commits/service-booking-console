@@ -33,14 +33,14 @@ export default function Settings() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
-        <div className="px-6 py-3">
+        <div className="px-4 md:px-6 py-3">
           <h1 className="text-2xl font-bold text-foreground">Настройки</h1>
           <p className="text-xs text-muted-foreground">API и подключения</p>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-4 max-w-4xl">
+      <div className="p-4 md:p-6 space-y-4 max-w-4xl">
         {/* API Config */}
         <div className="bg-white rounded-lg shadow-sm border border-border p-4 animate-slide-in">
           <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">

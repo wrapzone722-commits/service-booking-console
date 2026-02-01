@@ -43,6 +43,19 @@ interface Database {
   working_hours: { start: number; end: number };
   slot_duration: number; // in minutes
   api_base_url: string; // for QR code generation
+  telegram_bot_settings: TelegramBotSettings;
+}
+
+export interface TelegramBotSettings {
+  enabled: boolean;
+  notify_new_booking: boolean;
+  notify_booking_cancelled: boolean;
+  notify_booking_confirmed: boolean;
+  notify_daily_summary: boolean;
+  daily_summary_hour: number; // 0-23
+  admin_chat_ids: string[]; // Telegram chat IDs for notifications
+  reminders_enabled: boolean;
+  reminder_hours_before: number[]; // [24, 1] = 24h and 1h before
 }
 
 let db: Database = {
@@ -59,9 +72,20 @@ let db: Database = {
   accountsByYandexId: new Map(),
   accountsByTelegramId: new Map(),
   accountsByPhone: new Map(),
-  working_hours: { start: 9, end: 18 }, // 9 AM to 6 PM
-  slot_duration: 30, // 30 min slots
+  working_hours: { start: 9, end: 18 },
+  slot_duration: 30,
   api_base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
+  telegram_bot_settings: {
+    enabled: false,
+    notify_new_booking: true,
+    notify_booking_cancelled: true,
+    notify_booking_confirmed: false,
+    notify_daily_summary: true,
+    daily_summary_hour: 9,
+    admin_chat_ids: [],
+    reminders_enabled: false,
+    reminder_hours_before: [24, 1],
+  },
 };
 
 // База данных стартует пустой (без демо-данных)
@@ -229,6 +253,21 @@ export function getPosts(): Post[] {
 
 export function getPost(id: string): Post | null {
   return db.posts.get(id) || null;
+}
+
+export function createPost(data: Omit<Post, "_id">): Post {
+  const id = `post_${Date.now()}`;
+  const post: Post = { ...data, _id: id };
+  db.posts.set(id, post);
+  return post;
+}
+
+export function deletePost(id: string): boolean {
+  const post = db.posts.get(id);
+  if (!post) return false;
+  db.posts.delete(id);
+  db.closedSlotsByPost.delete(id);
+  return true;
 }
 
 export function updatePost(id: string, data: Partial<Post>): Post | null {
@@ -402,6 +441,38 @@ export function linkClientToDevice(deviceId: string, clientId: string): DeviceCo
     status: "connected",
     last_seen: new Date().toISOString(),
   });
+}
+
+export function getWorkingHours(): { start: number; end: number } {
+  return { ...db.working_hours };
+}
+
+export function setWorkingHours(start: number, end: number): void {
+  db.working_hours.start = Math.max(0, Math.min(23, start));
+  db.working_hours.end = Math.max(0, Math.min(24, end));
+}
+
+export function getTelegramBotSettings(): TelegramBotSettings {
+  return { ...db.telegram_bot_settings, admin_chat_ids: [...db.telegram_bot_settings.admin_chat_ids] };
+}
+
+export function updateTelegramBotSettings(data: Partial<TelegramBotSettings>): TelegramBotSettings {
+  const s = db.telegram_bot_settings;
+  if (data.enabled !== undefined) s.enabled = data.enabled;
+  if (data.notify_new_booking !== undefined) s.notify_new_booking = data.notify_new_booking;
+  if (data.notify_booking_cancelled !== undefined) s.notify_booking_cancelled = data.notify_booking_cancelled;
+  if (data.notify_booking_confirmed !== undefined) s.notify_booking_confirmed = data.notify_booking_confirmed;
+  if (data.notify_daily_summary !== undefined) s.notify_daily_summary = data.notify_daily_summary;
+  if (data.daily_summary_hour !== undefined) s.daily_summary_hour = Math.max(0, Math.min(23, data.daily_summary_hour));
+  if (data.admin_chat_ids !== undefined) s.admin_chat_ids = Array.isArray(data.admin_chat_ids) ? data.admin_chat_ids.filter(Boolean) : [];
+  if (data.reminders_enabled !== undefined) s.reminders_enabled = data.reminders_enabled;
+  if (data.reminder_hours_before !== undefined) s.reminder_hours_before = Array.isArray(data.reminder_hours_before) ? data.reminder_hours_before : s.reminder_hours_before;
+  return getTelegramBotSettings();
+}
+
+export function addTelegramAdminChatId(chatId: string): void {
+  const ids = db.telegram_bot_settings.admin_chat_ids;
+  if (!ids.includes(chatId)) ids.push(chatId);
 }
 
 export function getApiBaseUrl(): string {

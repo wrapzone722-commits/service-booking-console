@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import YandexCallback from "./pages/YandexCallback";
 import Organization from "./pages/Organization";
+import TelegramBot from "./pages/TelegramBot";
 import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 
@@ -68,6 +69,7 @@ const AppContent = () => (
                     <Route path="/clients" element={<Clients />} />
                     <Route path="/posts" element={<Posts />} />
                     <Route path="/assistant" element={<Assistant />} />
+                    <Route path="/telegram-bot" element={<TelegramBot />} />
                     <Route path="/connections" element={<Connections />} />
                     <Route path="/settings" element={<Settings />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

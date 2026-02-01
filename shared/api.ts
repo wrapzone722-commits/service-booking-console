@@ -200,6 +200,19 @@ export interface VerificationRequest {
   email: string;
 }
 
+// ====== TELEGRAM BOT ======
+export interface TelegramBotSettings {
+  enabled: boolean;
+  notify_new_booking: boolean;
+  notify_booking_cancelled: boolean;
+  notify_booking_confirmed: boolean;
+  notify_daily_summary: boolean;
+  daily_summary_hour: number;
+  admin_chat_ids: string[];
+  reminders_enabled: boolean;
+  reminder_hours_before: number[];
+}
+
 // ====== ERROR RESPONSE ======
 export interface ErrorResponse {
   error: string;

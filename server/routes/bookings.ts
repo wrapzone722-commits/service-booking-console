@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
 import { CreateBookingRequest, UpdateBookingStatusRequest } from "@shared/api";
 import * as db from "../db";
+import { notifyNewBooking, notifyBookingCancelled, notifyBookingConfirmed } from "../lib/telegram";
 
 export const getBookings: RequestHandler = (req, res) => {
   try {
@@ -76,6 +77,8 @@ export const createBooking: RequestHandler = (req, res) => {
       notes: notes || null,
     });
 
+    notifyNewBooking(booking).catch((e) => console.error("Telegram notify error:", e));
+
     res.status(201).json(booking);
   } catch (error) {
     console.error("Error creating booking:", error);
@@ -102,10 +105,16 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
       });
     }
 
+    const prev = db.getBooking(req.params.id);
     const booking = db.updateBooking(req.params.id, { status });
 
     if (!booking) {
       return res.status(404).json({ error: "Not found", message: "Booking not found" });
+    }
+
+    if (prev && prev.status !== status) {
+      if (status === "cancelled") notifyBookingCancelled(booking).catch((e) => console.error("Telegram notify:", e));
+      if (status === "confirmed") notifyBookingConfirmed(booking).catch((e) => console.error("Telegram notify:", e));
     }
 
     res.json(booking);

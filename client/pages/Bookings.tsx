@@ -93,7 +93,7 @@ export default function Bookings() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
-        <div className="px-6 py-3 flex items-center justify-between">
+        <div className="px-4 md:px-6 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Записи</h1>
             <p className="text-xs text-muted-foreground">Управление бронированиями</p>
@@ -105,12 +105,12 @@ export default function Bookings() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white border-b border-border px-6 py-2 sticky top-16 z-10 flex gap-2 overflow-x-auto">
+      <div className="bg-white border-b border-border px-4 md:px-6 py-2 sticky top-14 md:top-16 z-10 flex gap-2 overflow-x-auto">
         {["all", "pending", "confirmed", "in_progress", "completed", "cancelled"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
-            className={`px-3 py-1.5 text-xs rounded-lg font-semibold transition-all whitespace-nowrap ${
+            className={`px-4 py-2.5 min-h-[44px] text-xs rounded-lg font-semibold transition-all whitespace-nowrap flex items-center ${
               filterStatus === status
                 ? "bg-primary text-primary-foreground"
                 : "bg-gray-100 text-foreground hover:bg-gray-200"
@@ -122,7 +122,7 @@ export default function Bookings() {
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-3">
+      <div className="p-4 md:p-6 space-y-3">
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm animate-slide-in">
             {error}

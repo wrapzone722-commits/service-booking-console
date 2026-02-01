@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface AccountInfo {
   account_id: string;
@@ -21,6 +22,7 @@ interface AccountInfo {
 }
 
 export default function Organization() {
+  const navigate = useNavigate();
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,16 +41,25 @@ export default function Organization() {
   const fetchAccountInfo = async () => {
     try {
       setLoading(true);
+      setError(null);
       const token = localStorage.getItem("session_token");
       const res = await fetch("/api/v1/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (res.status === 401) {
+        localStorage.removeItem("session_token");
+        navigate("/login", { replace: true });
+        return;
+      }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Ошибка загрузки");
+      }
       const data = await res.json();
       setAccountInfo(data);
       setForm({
-        name: data.name,
-        email: data.email,
+        name: data.name ?? "",
+        email: data.email ?? "",
         phone: data.phone ?? "",
         phone_extra: data.phone_extra ?? "",
         website: data.website ?? "",
@@ -62,10 +73,9 @@ export default function Organization() {
         bank_account: data.bank_account ?? "",
         director_name: data.director_name ?? "",
       });
-      setError(null);
     } catch (err) {
       console.error(err);
-      setError("Ошибка загрузки");
+      setError(err instanceof Error ? err.message : "Ошибка загрузки");
     } finally {
       setLoading(false);
     }
@@ -110,12 +120,12 @@ export default function Organization() {
     }
   };
 
-  const Input = ({ label, name, value = "", placeholder = "", type = "text" }: { label: string; name: keyof AccountInfo; value?: string; placeholder?: string; type?: string }) => (
+  const Input = ({ label, name, value, placeholder = "", type = "text" }: { label: string; name: keyof AccountInfo; value?: string | undefined; placeholder?: string; type?: string }) => (
     <div>
       <label className="block text-xs font-semibold text-muted-foreground mb-1">{label}</label>
       <input
         type={type}
-        value={value}
+        value={value ?? ""}
         onChange={(e) => setForm((f) => ({ ...f, [name]: e.target.value }))}
         placeholder={placeholder}
         className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
@@ -123,24 +133,44 @@ export default function Organization() {
     </div>
   );
 
-  if (loading || !accountInfo) {
+  if (loading && !accountInfo) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
         <div className="text-muted-foreground">Загрузка...</div>
       </div>
     );
   }
 
+  if (error && !accountInfo) {
+    return (
+      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <p className="text-red-600 font-medium mb-4">{error}</p>
+          <button
+            onClick={fetchAccountInfo}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Повторить
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!accountInfo) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-full bg-gray-50">
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
-        <div className="px-6 py-3">
+        <div className="px-4 md:px-6 py-3">
           <h1 className="text-2xl font-bold text-foreground">Организация</h1>
           <p className="text-xs text-muted-foreground">Адрес, телефоны, юридические данные — для документов</p>
         </div>
       </div>
 
-      <div className="p-6 max-w-4xl">
+      <div className="p-4 md:p-6 max-w-4xl">
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>
         )}

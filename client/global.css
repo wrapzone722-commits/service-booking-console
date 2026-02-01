@@ -104,9 +104,19 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     @apply bg-background text-foreground;
-    /* support iOS safe area insets */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
+    /* Prevent overscroll bounce on iOS */
+    overscroll-behavior: none;
+    /* Touch optimization */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent zoom on input focus on iOS */
+  @media (max-width: 768px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
   }
 
   :where(p, span, li, h1, h2, h3, h4, h5, h6, a, button, label, td, th) {
@@ -202,4 +212,12 @@
 
 .transition-smooth {
   @apply transition-all duration-300;
+}
+
+/* Safe area for notched devices */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }

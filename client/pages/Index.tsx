@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Service, Booking, User } from "@shared/api";
 
 export default function Index() {
@@ -88,7 +89,7 @@ export default function Index() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
-        <div className="px-6 py-3 flex items-center justify-between">
+        <div className="px-4 md:px-6 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Панель управления</h1>
             <p className="text-xs text-muted-foreground">Обзор сервиса бронирования</p>
@@ -102,7 +103,7 @@ export default function Index() {
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {loading ? (
           <div className="text-center py-8 text-muted-foreground text-sm animate-pulse">
             Загрузка данных...
@@ -139,9 +140,9 @@ export default function Index() {
               <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-border animate-slide-in">
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                   <h2 className="text-sm font-bold text-foreground">Услуги ({services.length})</h2>
-                  <button className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-blue-600 transition-colors">
+                  <Link to="/services" className="text-xs px-3 py-2 min-h-[36px] bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold flex items-center">
                     + Новая
-                  </button>
+                  </Link>
                 </div>
                 <div className="divide-y divide-border max-h-64 overflow-y-auto">
                   {services.map((s, idx) => (

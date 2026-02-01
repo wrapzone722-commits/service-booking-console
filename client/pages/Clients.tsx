@@ -31,7 +31,7 @@ export default function Clients() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
-        <div className="px-6 py-3 flex items-center justify-between">
+        <div className="px-4 md:px-6 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Клиенты</h1>
             <p className="text-xs text-muted-foreground">База и контакты</p>
@@ -43,7 +43,7 @@ export default function Clients() {
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm animate-slide-in">
             {error}

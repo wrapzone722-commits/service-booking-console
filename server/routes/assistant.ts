@@ -5,7 +5,8 @@ type OpenAiMsg = { role: "system" | "user" | "assistant"; content: string };
 
 type AssistantOk =
   | { type: "message"; message: string }
-  | { type: "create_service_result"; message: string; service: any };
+  | { type: "create_service_result"; message: string; service: any }
+  | { type: "create_post_result"; message: string; post: any };
 
 type AssistantErr = { type: "error"; message: string };
 
@@ -33,7 +34,10 @@ const SYSTEM_PROMPT = `Ты — ассистент админ‑панели с�
 1) Отвечай по-русски.
 2) Если пользователь просит создать услугу — верни СТРОГО JSON (без markdown) вида:
    {"type":"create_service","data":{"name":"...","description":"...","price":1500,"duration":30,"category":"..."},"message":"..."}
-3) Во всех остальных случаях верни СТРОГО JSON вида:
+3) Если пользователь просит создать пост (пост мойки, бокс, эстакаду и т.п.) — верни СТРОГО JSON вида:
+   {"type":"create_post","data":{"name":"..."},"message":"..."}
+   name — название поста, например "Пост 1", "Бокс А", "Эстакада", "Помывочная 2".
+4) Во всех остальных случаях верни СТРОГО JSON вида:
    {"type":"message","message":"..."}
 `;
 
@@ -120,6 +124,30 @@ export const chat: RequestHandler = async (req, res) => {
         type: "create_service_result",
         message: parsed.message ?? "Услуга создана",
         service,
+      };
+      return res.json(out);
+    }
+
+    if (parsed?.type === "create_post" && parsed?.data) {
+      const d = parsed.data;
+      if (!d.name || typeof d.name !== "string" || !String(d.name).trim()) {
+        const out: AssistantErr = { type: "error", message: "GPT вернул некорректные данные поста" };
+        return res.status(400).json(out);
+      }
+
+      const post = db.createPost({
+        name: String(d.name).trim(),
+        is_enabled: true,
+        use_custom_hours: false,
+        start_time: "09:00",
+        end_time: "18:00",
+        interval_minutes: 30,
+      });
+
+      const out: AssistantOk = {
+        type: "create_post_result",
+        message: parsed.message ?? "Пост создан",
+        post,
       };
       return res.json(out);
     }
