@@ -4,7 +4,9 @@ import * as db from "../db";
 
 export const getServices: RequestHandler = (req, res) => {
   try {
-    const services = db.getServices();
+    // ?all=true возвращает все услуги включая неактивные (для админ-панели)
+    const includeInactive = req.query.all === "true";
+    const services = db.getServices(includeInactive);
     res.json(services);
   } catch (error) {
     console.error("Error fetching services:", error);

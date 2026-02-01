@@ -71,8 +71,9 @@ export function getDb(): Database {
   return db;
 }
 
-export function getServices(): Service[] {
-  return Array.from(db.services.values()).filter((s) => s.is_active);
+export function getServices(includeInactive = false): Service[] {
+  const all = Array.from(db.services.values());
+  return includeInactive ? all : all.filter((s) => s.is_active);
 }
 
 export function getService(id: string): Service | null {

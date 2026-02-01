@@ -93,7 +93,7 @@ export const chat: RequestHandler = async (req, res) => {
         duration: Number(d.duration),
         category: String(d.category ?? "Прочее"),
         image_url: null,
-        is_active: true,
+        is_active: false, // По умолчанию неактивна — нужно включить вручную
       });
 
       const out: AssistantOk = {
