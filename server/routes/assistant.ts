@@ -76,14 +76,15 @@ export const chat: RequestHandler = async (req, res) => {
       body: JSON.stringify(requestBody),
     });
 
-    const json = await r.json();
+    const json = await r.json().catch(() => ({}));
     const content = json?.choices?.[0]?.message?.content;
 
     if (!r.ok || !content || typeof content !== "string") {
-      console.error("OpenAI error:", json);
+      console.error("AI API error:", { status: r.status, statusText: r.statusText, json });
+      const errMsg = json?.error?.message || json?.message || (typeof json?.error === "string" ? json.error : null);
       const out: AssistantErr = {
         type: "error",
-        message: "Ошибка ответа GPT API",
+        message: errMsg || `Ошибка AI API (${r.status}): ${r.statusText}`,
       };
       return res.status(502).json(out);
     }
