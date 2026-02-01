@@ -1,9 +1,16 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { CarFolder, CarImage } from "@shared/api";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 const THUMB_SIZE = 200;
 const PREVIEW_SIZE = 800;
+
+const IMAGE_EXTS = /\.(jpe?g|png|gif|webp|bmp)$/i;
+
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  return IMAGE_EXTS.test(file.name);
+}
 
 function resizeImage(file: File, maxSize: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -41,6 +48,63 @@ function getBaseName(filename: string): string {
   return filename.replace(/\.[^/.]+$/, "");
 }
 
+interface FileWithPath {
+  file: File;
+  relativePath: string;
+}
+
+async function readDirectoryRecursive(
+  entry: FileSystemDirectoryEntry,
+  basePath = ""
+): Promise<FileWithPath[]> {
+  const results: FileWithPath[] = [];
+  const reader = entry.createReader();
+  const readBatch = (): Promise<FileSystemEntry[]> =>
+    new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+
+  let entries: FileSystemEntry[];
+  do {
+    entries = await readBatch();
+    for (const e of entries) {
+      const path = basePath ? `${basePath}/${e.name}` : e.name;
+      if (e.isFile) {
+        const file = await new Promise<File>((resolve, reject) =>
+          (e as FileSystemFileEntry).file(resolve, reject)
+        );
+        results.push({ file, relativePath: path });
+      } else {
+        const sub = await readDirectoryRecursive(e as FileSystemDirectoryEntry, path);
+        results.push(...sub);
+      }
+    }
+  } while (entries.length > 0);
+  return results;
+}
+
+async function getFilesFromDataTransfer(items: DataTransferItemList): Promise<FileWithPath[]> {
+  const out: FileWithPath[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.kind !== "file") continue;
+    const entry = item.webkitGetAsEntry?.();
+    if (!entry) {
+      const file = item.getAsFile();
+      if (file) out.push({ file, relativePath: file.name });
+      continue;
+    }
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve, reject) =>
+        (entry as FileSystemFileEntry).file(resolve, reject)
+      );
+      out.push({ file, relativePath: file.name });
+    } else {
+      const files = await readDirectoryRecursive(entry as FileSystemDirectoryEntry, entry.name);
+      out.push(...files);
+    }
+  }
+  return out;
+}
+
 export default function Cars() {
   const [folders, setFolders] = useState<CarFolder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,11 +114,7 @@ export default function Cars() {
   const [previewImage, setPreviewImage] = useState<CarImage | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetchFolders();
-  }, []);
-
-  const fetchFolders = async () => {
+  const fetchFolders = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch("/api/v1/cars/folders");
@@ -67,59 +127,111 @@ export default function Cars() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchFolders();
+  }, [fetchFolders]);
+
+  const processAndUpload = useCallback(
+    async (filesWithPath: FileWithPath[]) => {
+      const imageFiles = filesWithPath.filter((f) => isImageFile(f.file));
+      if (!imageFiles.length) {
+        setError("Нет изображений (jpeg, png, gif, webp)");
+        return;
+      }
+      setUploading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem("session_token");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+        const grouped = new Map<string, FileWithPath[]>();
+        const fallbackName = `Новая папка ${Date.now().toString().slice(-6)}`;
+        for (const item of imageFiles) {
+          const parts = item.relativePath.split("/");
+          const folderKey = parts.length > 1 ? parts[0] : fallbackName;
+          if (!grouped.has(folderKey)) grouped.set(folderKey, []);
+          grouped.get(folderKey)!.push(item);
+        }
+        for (const [folderName, folderItems] of grouped) {
+          const images: CarImage[] = [];
+          for (const { file } of folderItems) {
+            const [url, thumbnail_url] = await Promise.all([
+              resizeImage(file, PREVIEW_SIZE, 0.88),
+              resizeImage(file, THUMB_SIZE, 0.82),
+            ]);
+            images.push({ name: file.name, url, thumbnail_url });
+          }
+          const res = await fetch("/api/v1/cars/folders", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ name: folderName, images }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.message || data.error || `Ошибка ${res.status}`);
+          }
+        }
+        await fetchFolders();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Ошибка загрузки";
+        setError(msg);
+        console.error("Cars upload error:", err);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [fetchFolders]
+  );
 
   const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList?.length) return;
-    const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
-    if (!files.length) {
-      setError("В папке нет изображений");
-      e.target.value = "";
-      return;
+    const filesWithPath: FileWithPath[] = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const path =
+        (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      filesWithPath.push({ file, relativePath: path });
     }
-    setUploading(true);
-    setError(null);
-    try {
-      const token = localStorage.getItem("session_token");
-      const headers = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-      const grouped = new Map<string, File[]>();
-      for (const file of files) {
-        const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
-        const parts = path.split("/");
-        const folderKey =
-          parts.length > 1 ? parts[0] : `Новая папка ${Date.now().toString().slice(-6)}`;
-        if (!grouped.has(folderKey)) grouped.set(folderKey, []);
-        grouped.get(folderKey)!.push(file);
-      }
-      for (const [folderName, folderFiles] of grouped) {
-        const images: CarImage[] = [];
-        for (const file of folderFiles) {
-          const filename = file.name;
-          const [url, thumbnail_url] = await Promise.all([
-            resizeImage(file, PREVIEW_SIZE, 0.88),
-            resizeImage(file, THUMB_SIZE, 0.82),
-          ]);
-          images.push({ name: filename, url, thumbnail_url });
-        }
-        const res = await fetch("/api/v1/cars/folders", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ name: folderName, images }),
-        });
-        if (!res.ok) throw new Error("Ошибка загрузки");
-      }
-      await fetchFolders();
-    } catch (err) {
-      setError("Ошибка загрузки папки");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+    await processAndUpload(filesWithPath);
+    e.target.value = "";
   };
+
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      if (uploading) return;
+      const items = e.dataTransfer?.items;
+      if (!items?.length) return;
+      try {
+        const filesWithPath = await getFilesFromDataTransfer(items);
+        await processAndUpload(filesWithPath);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Ошибка при перетаскивании");
+        console.error("Drop error:", err);
+      }
+    },
+    [processAndUpload, uploading]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+  }, []);
 
   const handleDeleteFolder = async (id: string) => {
     if (!confirm("Удалить папку и все фото?")) return;
@@ -160,27 +272,40 @@ export default function Cars() {
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap gap-3">
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          className={`mb-4 rounded-xl border-2 border-dashed p-6 transition-colors ${
+            dragOver
+              ? "border-primary bg-primary/5"
+              : "border-border bg-muted/30 hover:border-primary/50"
+          } ${uploading ? "pointer-events-none opacity-70" : ""}`}
+        >
           <input
             ref={folderInputRef}
             type="file"
             {...({ webkitdirectory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
             multiple
-            accept="image/*"
             onChange={handleFolderSelect}
             className="hidden"
             aria-label="Загрузить папку"
           />
-          <button
-            onClick={() => folderInputRef.current?.click()}
-            disabled={uploading}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
-          >
-            {uploading ? "Загрузка..." : "📁 Загрузить папку / папки"}
-          </button>
-          <span className="text-xs text-muted-foreground self-center">
-            Выберите папку или папку с подпапками — загрузятся все подпапки
-          </span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <button
+              onClick={() => folderInputRef.current?.click()}
+              disabled={uploading}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 w-fit"
+            >
+              {uploading ? "Загрузка..." : "📁 Выбрать папку"}
+            </button>
+            <span className="text-sm text-muted-foreground">
+              или перетащите сюда папки (можно несколько)
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Выберите папку или перетащите несколько папок. Будут загружены все изображения (jpg, png, gif, webp).
+          </p>
         </div>
 
         {loading ? (
