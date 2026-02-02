@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { NetworkStatus } from "./NetworkStatus";
+import { Switch } from "./ui/switch";
 import { useTheme, type ThemeId } from "@/hooks/use-theme";
 
 interface LayoutProps {
@@ -118,7 +119,8 @@ export default function Layout({ children }: LayoutProps) {
     <div className="relative flex flex-col min-h-screen bg-background md:flex-row">
       {/* Top bar: theme switcher + clock (desktop) */}
       <div className="hidden md:flex absolute top-0 left-0 right-0 z-30 h-9 px-4 items-center justify-between bg-background/80 backdrop-blur border-b border-border">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
           {themes.map((t) => (
             <button
               key={t.id}
@@ -133,6 +135,13 @@ export default function Layout({ children }: LayoutProps) {
               {t.icon}
             </button>
           ))}
+          </div>
+          <Switch
+            checked={theme === "dark" || theme === "gray"}
+            onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+            aria-label="Тёмная тема"
+            title="Тёмная тема"
+          />
         </div>
         <div className="flex items-center gap-3">
           <Clock />
@@ -158,7 +167,7 @@ export default function Layout({ children }: LayoutProps) {
           <span className="text-sidebar-foreground/90 text-sm tabular-nums">
             <Clock />
           </span>
-          <div className="flex gap-0.5">
+          <div className="flex items-center gap-1">
             {themes.map((t) => (
               <button
                 key={t.id}
@@ -169,6 +178,12 @@ export default function Layout({ children }: LayoutProps) {
                 {t.icon}
               </button>
             ))}
+            <Switch
+              checked={theme === "dark" || theme === "gray"}
+              onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              aria-label="Тёмная тема"
+              className="data-[state=checked]:bg-white/30"
+            />
           </div>
           <NetworkStatus className="md:hidden" />
         </div>
