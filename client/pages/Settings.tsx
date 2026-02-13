@@ -123,6 +123,100 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* OpenAI API — ИИ для управления структурой проекта */}
+        <div className="bg-white rounded-lg shadow-sm border border-border p-4 animate-slide-in">
+          <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+            <span>🤖</span> ИИ (OpenAI) — управление структурой проекта
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            API ключ используется ассистентом для создания услуг и постов, а также для контекста структуры проекта.
+            Ключ хранится на сервере и не передаётся в браузер.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                OpenAI API ключ
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="password"
+                  value={aiKeyInput}
+                  onChange={(e) => setAiKeyInput(e.target.value)}
+                  placeholder={aiConfigured ? "•••••••• (оставьте пустым, чтобы не менять)" : "sk-..."}
+                  className="flex-1 min-w-[200px] px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                />
+                <a
+                  href="https://platform.openai.com/api-keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 text-sm text-primary hover:underline whitespace-nowrap"
+                >
+                  Получить ключ →
+                </a>
+              </div>
+              {aiConfigured && (
+                <p className="text-xs text-muted-foreground mt-1">Ключ уже настроен. Введите новый, чтобы заменить.</p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Endpoint (опционально)
+                </label>
+                <input
+                  type="text"
+                  value={aiEndpoint}
+                  onChange={(e) => setAiEndpoint(e.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Модель (опционально)
+                </label>
+                <input
+                  type="text"
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  placeholder="gpt-4o-mini"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                />
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setAiSaving(true);
+                setAiSaved(false);
+                try {
+                  await fetch("/api/v1/settings/ai", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      api_key: aiKeyInput || undefined,
+                      api_endpoint: aiEndpoint.trim() || undefined,
+                      model: aiModel.trim() || undefined,
+                    }),
+                  });
+                  const data = await fetch("/api/v1/settings/ai").then((r) => r.json());
+                  setAiConfigured(Boolean(data?.configured));
+                  setAiEndpoint(data?.openai_api_endpoint ?? "");
+                  setAiModel(data?.openai_model ?? "");
+                  setAiKeyInput("");
+                  setAiSaved(true);
+                  setTimeout(() => setAiSaved(false), 3000);
+                } finally {
+                  setAiSaving(false);
+                }
+              }}
+              disabled={aiSaving}
+              className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 font-semibold disabled:opacity-50"
+            >
+              {aiSaving ? "Сохранение…" : aiSaved ? "Сохранено" : "Сохранить настройки ИИ"}
+            </button>
+          </div>
+        </div>
+
         {/* API Config (legacy) */}
         <div className="bg-white rounded-lg shadow-sm border border-border p-4 animate-slide-in">
           <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">

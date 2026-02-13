@@ -28,7 +28,18 @@ function getEnvModel() {
   return process.env.AI_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
 }
 
-const SYSTEM_PROMPT = `Ты — ассистент админ‑панели сервиса записи/автомойки.
+/** Ключ/endpoint/model: сначала из запроса, потом из настроек (Настройки → ИИ), потом из env */
+function resolveAiConfig(config: { apiKey?: string; apiEndpoint?: string; model?: string } | undefined) {
+  const fromSettings = db.getAiSettings();
+  return {
+    apiKey: config?.apiKey || fromSettings.openai_api_key || getEnvKey(),
+    apiEndpoint: config?.apiEndpoint || fromSettings.openai_api_endpoint || getEnvEndpoint(),
+    model: config?.model || fromSettings.openai_model || getEnvModel(),
+  };
+}
+
+function buildSystemPrompt(projectStructureContext?: string): string {
+  let base = `Ты — ассистент админ‑панели сервиса записи/автомойки. Ты помогаешь управлять структурой проекта изнутри: услуги, посты, а также можешь ориентироваться в структуре файлов проекта.
 
 Правила:
 1) Отвечай по-русски.
@@ -40,26 +51,69 @@ const SYSTEM_PROMPT = `Ты — ассистент админ‑панели с�
 4) Во всех остальных случаях верни СТРОГО JSON вида:
    {"type":"message","message":"..."}
 `;
+  if (projectStructureContext) {
+    base += `\n\nКонтекст структуры проекта (для ответов о файлах и навигации):\n${projectStructureContext}\n`;
+  }
+  return base;
+}
+
+/** Возвращает текстовое описание структуры проекта для контекста ИИ (только разрешённые каталоги) */
+function getProjectStructureContext(): string | undefined {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const root = path.resolve(process.cwd());
+    const allowedDirs = ["client", "server", "shared"];
+    const lines: string[] = [];
+    for (const dir of allowedDirs) {
+      const full = path.join(root, dir);
+      if (!fs.existsSync(full) || !fs.statSync(full).isDirectory()) continue;
+      lines.push(`${dir}/`);
+      const entries = fs.readdirSync(full, { withFileTypes: true });
+      for (const e of entries.slice(0, 50)) {
+        const name = e.name;
+        if (name.startsWith(".") || name === "node_modules") continue;
+        lines.push(`  ${e.isDirectory() ? name + "/" : name}`);
+      }
+    }
+    return lines.length ? lines.join("\n") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** GET структуры проекта (для ИИ и отладки) */
+export const getProjectStructure: RequestHandler = (_req, res) => {
+  try {
+    const structure = getProjectStructureContext();
+    res.json({ structure: structure ?? "" });
+  } catch (e) {
+    console.error("getProjectStructure:", e);
+    res.status(500).json({ structure: "" });
+  }
+};
 
 export const chat: RequestHandler = async (req, res) => {
   try {
     const incoming = (req.body?.messages ?? []) as OpenAiMsg[];
     const config = req.body?.config ?? {};
 
-    // Use provided config or fallback to env (Timeweb Cloud AI по умолчанию)
-    const apiKey = config.apiKey || getEnvKey();
-    const apiEndpoint = config.apiEndpoint || getEnvEndpoint();
-    const model = config.model || getEnvModel();
+    const resolved = resolveAiConfig(config);
+    const apiKey = resolved.apiKey;
+    const apiEndpoint = resolved.apiEndpoint;
+    const model = resolved.model;
 
     if (!apiKey) {
       const out: AssistantErr = {
         type: "error",
-        message: "AI API ключ не настроен.",
+        message: "AI API ключ не настроен. Укажите ключ в Настройках → ИИ (OpenAI) или в настройках ассистента.",
       };
       return res.status(500).json(out);
     }
 
-    const messages: OpenAiMsg[] = [{ role: "system", content: SYSTEM_PROMPT }, ...incoming];
+    const projectContext = getProjectStructureContext();
+    const systemPrompt = buildSystemPrompt(projectContext);
+    const messages: OpenAiMsg[] = [{ role: "system", content: systemPrompt }, ...incoming];
 
     const chatEndpoint = `${apiEndpoint.replace(/\/$/, "")}/chat/completions`;
 
