@@ -54,8 +54,9 @@ export function createServer() {
   app.delete("/api/v1/bookings/:id", bookingsRoutes.deleteBooking);
   app.post("/api/v1/bookings/:id/rating", bookingsRoutes.submitBookingRating);
 
-  // Алиас для iOS: RatingView вызывает /api/client/appointments/:id/rating
+  // Алиасы для iOS (если приложение ходит на /api/client/...)
   app.post("/api/client/appointments/:id/rating", bookingsRoutes.submitBookingRating);
+  app.post("/api/client/appointments", bookingsRoutes.createBooking);
 
   // API v1 routes (Time Slots)
   app.get("/api/v1/slots", slotsRoutes.getSlots);

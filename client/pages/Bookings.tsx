@@ -22,15 +22,19 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | BookingStatus>("all");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBookings();
   }, []);
 
   const fetchBookings = async () => {
+    const token = localStorage.getItem("session_token");
     try {
       setLoading(true);
-      const res = await fetch("/api/v1/bookings");
+      const res = await fetch("/api/v1/bookings", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error("Failed to fetch bookings");
       const data = (await res.json()) as Booking[];
       setBookings(data);
@@ -44,29 +48,45 @@ export default function Bookings() {
   };
 
   const handleStatusChange = async (id: string, newStatus: BookingStatus) => {
+    if (updatingId) return;
+    const token = localStorage.getItem("session_token");
+    setUpdatingId(id);
     try {
+      setError(null);
       const res = await fetch(`/api/v1/bookings/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("Failed to update booking");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { message?: string }).message || "Не удалось обновить статус");
       await fetchBookings();
     } catch (err) {
       console.error(err);
-      setError("Не удалось обновить статус");
+      setError(err instanceof Error ? err.message : "Не удалось обновить статус");
+    } finally {
+      setUpdatingId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Удалить запись?")) return;
+    const token = localStorage.getItem("session_token");
     try {
-      const res = await fetch(`/api/v1/bookings/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete booking");
+      setError(null);
+      const res = await fetch(`/api/v1/bookings/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { message?: string }).message || "Не удалось удалить запись");
       await fetchBookings();
     } catch (err) {
       console.error(err);
-      setError("Не удалось удалить запись");
+      setError(err instanceof Error ? err.message : "Не удалось удалить запись");
     }
   };
 
@@ -205,11 +225,22 @@ export default function Bookings() {
                     <span className={`px-2.5 py-1 text-[11px] font-semibold rounded-full border ${statusClass}`}>
                       {STATUS_OPTIONS.find((s) => s.id === booking.status)?.label ?? booking.status}
                     </span>
+                    {booking.status === "pending" && (
+                      <button
+                        type="button"
+                        disabled={updatingId === booking._id}
+                        onClick={() => handleStatusChange(booking._id, "confirmed")}
+                        className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:pointer-events-none"
+                      >
+                        {updatingId === booking._id ? "…" : "Подтвердить запись"}
+                      </button>
+                    )}
                     <select
                       aria-label="Статус записи"
                       value={booking.status}
+                      disabled={updatingId === booking._id}
                       onChange={(e) => handleStatusChange(booking._id, e.target.value as BookingStatus)}
-                      className="px-3 py-2 rounded-xl border border-border bg-card text-xs font-medium"
+                      className="px-3 py-2 rounded-xl border border-border bg-card text-xs font-medium disabled:opacity-60"
                     >
                       {STATUS_OPTIONS.map((option) => (
                         <option key={option.id} value={option.id}>

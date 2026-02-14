@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Service, Booking, User } from "@shared/api";
+import { WorkExecutionWidget } from "@/components/WorkExecutionWidget";
 
 export default function Index() {
   const [services, setServices] = useState<Service[]>([]);
@@ -92,6 +93,7 @@ export default function Index() {
   const totalRevenue = bookings.reduce((sum, b) => sum + b.price, 0);
   const completedBookings = bookings.filter((b) => b.status === "completed").length;
   const pendingBookings = bookings.filter((b) => b.status === "pending").length;
+  const inProgressBookings = bookings.filter((b) => b.status === "in_progress");
 
   if (error && services.length === 0 && bookings.length === 0 && clients.length === 0) {
     return (
@@ -153,6 +155,7 @@ export default function Index() {
                 { label: "Записей", value: bookings.length, icon: "📅", color: "green" },
                 { label: "Клиентов", value: clients.length, icon: "👥", color: "purple" },
                 { label: "Выручка", value: `${(totalRevenue / 1000).toFixed(1)}k ₽`, icon: "💰", color: "yellow" },
+                { label: "В процессе", value: inProgressBookings.length, icon: "▶", color: "violet" },
                 { label: "Завершено", value: completedBookings, icon: "✓", color: "emerald" },
                 { label: "Ожидает", value: pendingBookings, icon: "⏳", color: "orange" },
               ].map((stat, idx) => (
@@ -169,6 +172,9 @@ export default function Index() {
                 </div>
               ))}
             </div>
+
+            {/* Виджет выполнения работы: в процессе + таймер и прогресс */}
+            <WorkExecutionWidget inProgressBookings={inProgressBookings} className="animate-slide-in" />
 
             {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

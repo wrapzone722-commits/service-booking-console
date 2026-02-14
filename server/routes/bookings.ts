@@ -47,14 +47,33 @@ export const getBooking: RequestHandler<{ id: string }> = (req, res) => {
 
 export const createBooking: RequestHandler = (req, res) => {
   try {
-    const body = req.body as CreateBookingRequest & { start_iso?: string };
+    const body = req.body as CreateBookingRequest & { start_iso?: string } | null;
+    if (!body || typeof body !== "object") {
+      console.warn("[bookings] Create failed: empty or invalid body (iOS: отправьте Content-Type: application/json и JSON в теле)");
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Request body must be JSON with service_id and date_time (or start_iso). Send Content-Type: application/json.",
+      });
+    }
     const date_time = body.date_time ?? body.start_iso;
     const { service_id, notes, post_id, user_id: bodyUserId } = body;
 
+    // Логирование для отладки iOS/клиентов (почему «ничего не происходит»)
+    console.log("[bookings] POST create", {
+      hasBody: true,
+      keys: Object.keys(body),
+      service_id: service_id ?? null,
+      date_time: date_time ?? null,
+      start_iso: body.start_iso ?? null,
+      hasAuth: !!getApiKeyFromRequest(req),
+    });
+
     if (!service_id || !date_time) {
+      const message = "Missing required fields: service_id and date_time (or start_iso)";
+      console.warn("[bookings] Validation failed:", message);
       return res.status(400).json({
         error: "Validation error",
-        message: "Missing required fields: service_id and date_time (or start_iso)",
+        message,
       });
     }
 
@@ -80,6 +99,7 @@ export const createBooking: RequestHandler = (req, res) => {
       if (clientAuth) {
         user = db.getUser(clientAuth.client_id);
         if (!user) {
+          console.warn("[bookings] Create failed: client not found for api_key");
           return res.status(401).json({
             error: "Unauthorized",
             message: "Client not found. Re-register the device.",
@@ -90,6 +110,7 @@ export const createBooking: RequestHandler = (req, res) => {
         if (jwtPayload) {
           user = bodyUserId ? db.getUser(bodyUserId) : db.getUsers()[0];
         } else {
+          console.warn("[bookings] Create failed: invalid or expired token (iOS: проверьте api_key и заголовок X-API-Key или Authorization: Bearer)");
           return res.status(401).json({
             error: "Unauthorized",
             message: "Invalid or expired token. Use X-API-Key or Bearer api_key from POST /api/v1/clients/register",
@@ -126,17 +147,25 @@ export const createBooking: RequestHandler = (req, res) => {
 
     notifyNewBooking(booking).catch((e) => console.error("Telegram notify error:", e));
 
+    console.log("[bookings] Created", booking._id, booking.service_name, booking.user_name);
     res.status(201).json(booking);
   } catch (error) {
-    console.error("Error creating booking:", error);
+    console.error("[bookings] Error creating booking:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to create booking" });
   }
 };
 
 export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) => {
   try {
-    const { status } = req.body as UpdateBookingStatusRequest;
+    const body = req.body as UpdateBookingStatusRequest | null;
+    const status = body?.status;
 
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Request body must be JSON with status. Send Content-Type: application/json.",
+      });
+    }
     if (!status) {
       return res.status(400).json({
         error: "Validation error",
