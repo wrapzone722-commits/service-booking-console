@@ -182,6 +182,9 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
           type: "service",
           title: "Услуга завершена",
         });
+        // Начисление баллов лояльности: 1 балл за каждые 100 ₽, минимум 1
+        const points = Math.max(1, Math.floor((booking.price ?? 0) / 100));
+        db.addLoyaltyPoints(booking.user_id, points);
       }
     }
 

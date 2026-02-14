@@ -1,5 +1,18 @@
 import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage } from "@shared/api";
+import type { DisplayPhotoRule } from "@shared/api";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+
+const DATA_DIR = path.join(process.cwd(), "data");
+const CAR_FOLDERS_FILE = path.join(DATA_DIR, "car-folders.json");
+const DISPLAY_SETTINGS_FILE = path.join(DATA_DIR, "display-settings.json");
+
+const DEFAULT_DISPLAY_PHOTO_RULE: DisplayPhotoRule = {
+  days_01: 3,
+  days_02: 2,
+  days_03: 1,
+};
 
 // Device Connection interface
 export interface DeviceConnection {
@@ -107,6 +120,120 @@ let db: Database = {
 // База данных стартует пустой (без демо-данных)
 // Данные создаются при авторизации пользователей
 
+// Загрузка папок автомобилей из файла (сохраняются между перезапусками)
+function loadCarFoldersFromFile(): void {
+  try {
+    if (!fs.existsSync(CAR_FOLDERS_FILE)) return;
+    const raw = fs.readFileSync(CAR_FOLDERS_FILE, "utf-8");
+    const arr = JSON.parse(raw) as CarFolder[];
+    if (Array.isArray(arr)) {
+      db.carFolders.clear();
+      for (const folder of arr) {
+        if (folder._id && folder.name && Array.isArray(folder.images)) {
+          const f: CarFolder = {
+            ...folder,
+            default_photo_name: folder.default_photo_name || "01",
+          };
+          db.carFolders.set(folder._id, f);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load car folders from file:", e);
+  }
+}
+
+function saveCarFoldersToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const arr = Array.from(db.carFolders.values());
+    fs.writeFileSync(CAR_FOLDERS_FILE, JSON.stringify(arr, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save car folders to file:", e);
+  }
+}
+
+loadCarFoldersFromFile();
+
+function loadDisplaySettingsFromFile(): void {
+  try {
+    if (!fs.existsSync(DISPLAY_SETTINGS_FILE)) return;
+    const raw = fs.readFileSync(DISPLAY_SETTINGS_FILE, "utf-8");
+    const o = JSON.parse(raw) as { display_photo_rule?: DisplayPhotoRule };
+    if (o?.display_photo_rule) {
+      displayPhotoRuleStore.days_01 = Math.max(0, Number(o.display_photo_rule.days_01) ?? 3);
+      displayPhotoRuleStore.days_02 = Math.max(0, Number(o.display_photo_rule.days_02) ?? 2);
+      displayPhotoRuleStore.days_03 = Math.max(0, Number(o.display_photo_rule.days_03) ?? 1);
+    }
+  } catch (e) {
+    console.error("Failed to load display settings:", e);
+  }
+}
+
+function saveDisplaySettingsToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(
+      DISPLAY_SETTINGS_FILE,
+      JSON.stringify({ display_photo_rule: displayPhotoRuleStore }, null, 2),
+      "utf-8"
+    );
+  } catch (e) {
+    console.error("Failed to save display settings:", e);
+  }
+}
+
+const displayPhotoRuleStore: DisplayPhotoRule = { ...DEFAULT_DISPLAY_PHOTO_RULE };
+loadDisplaySettingsFromFile();
+
+export function getDisplayPhotoRule(): DisplayPhotoRule {
+  return { ...displayPhotoRuleStore };
+}
+
+export function setDisplayPhotoRule(rule: Partial<DisplayPhotoRule>): DisplayPhotoRule {
+  if (rule.days_01 !== undefined) displayPhotoRuleStore.days_01 = Math.max(0, rule.days_01);
+  if (rule.days_02 !== undefined) displayPhotoRuleStore.days_02 = Math.max(0, rule.days_02);
+  if (rule.days_03 !== undefined) displayPhotoRuleStore.days_03 = Math.max(0, rule.days_03);
+  saveDisplaySettingsToFile();
+  return getDisplayPhotoRule();
+}
+
+/** Дата последней завершённой записи клиента (ISO строка или null) */
+export function getLastCompletedBookingDateForClient(clientId: string): string | null {
+  const completed = Array.from(db.bookings.values()).filter(
+    (b) => b.user_id === clientId && b.status === "completed"
+  );
+  if (completed.length === 0) return null;
+  completed.sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime());
+  return completed[0].date_time;
+}
+
+const DISPLAY_PHOTO_ORDER = ["01", "02", "03", "04"];
+
+/** По правилу и количеству дней с последней услуги вернуть имя файла (01/02/03/04) */
+export function getDisplayPhotoNameByRule(daysSinceCompleted: number): string {
+  const rule = displayPhotoRuleStore;
+  let day = 0;
+  if (daysSinceCompleted < day + rule.days_01) return "01";
+  day += rule.days_01;
+  if (daysSinceCompleted < day + rule.days_02) return "02";
+  day += rule.days_02;
+  if (daysSinceCompleted < day + rule.days_03) return "03";
+  return "04";
+}
+
+/** Из списка имён файлов папки (с любым расширением .jpg, .png и т.д.) выбрать подходящее по базовому имени: предпочитаем preferredName, иначе 01→02→03→04 */
+export function pickDisplayPhotoFromAvailable(availableBaseNames: string[], preferredName: string): string {
+  const normalized = availableBaseNames.map((n) => String(n).replace(/\.[^/.]+$/, "").trim().toLowerCase());
+  const preferred = preferredName.trim().toLowerCase();
+  if (normalized.includes(preferred)) return preferredName;
+  const idx = DISPLAY_PHOTO_ORDER.indexOf(preferredName);
+  for (let i = idx >= 0 ? idx : DISPLAY_PHOTO_ORDER.length - 1; i >= 0; i--) {
+    if (normalized.includes(DISPLAY_PHOTO_ORDER[i].toLowerCase())) return DISPLAY_PHOTO_ORDER[i];
+  }
+  return normalized[0] ?? "01";
+}
+
 export function getDb(): Database {
   return db;
 }
@@ -184,6 +311,8 @@ function ensureDefaultUser(): void {
     email: null,
     avatar_url: null,
     social_links: {},
+    client_tier: "client",
+    loyalty_points: 0,
   });
 }
 
@@ -204,6 +333,8 @@ export function createUser(data: Omit<User, "_id" | "created_at">): User {
     ...data,
     _id: id,
     created_at: new Date().toISOString(),
+    client_tier: data.client_tier ?? "client",
+    loyalty_points: data.loyalty_points ?? 0,
   };
   db.users.set(id, user);
   return user;
@@ -215,6 +346,14 @@ export function updateUser(id: string, data: Partial<User>): User | null {
   const updated = { ...user, ...data, _id: id };
   db.users.set(id, updated);
   return updated;
+}
+
+/** Начислить баллы лояльности клиенту (например за завершённую запись). */
+export function addLoyaltyPoints(userId: string, points: number): User | null {
+  const user = db.users.get(userId);
+  if (!user || points <= 0) return null;
+  const current = user.loyalty_points ?? 0;
+  return updateUser(userId, { loyalty_points: current + points });
 }
 
 export function getUserByEmail(email: string): User | null {
@@ -250,6 +389,8 @@ export function registerClientDevice(params: {
     email: null,
     avatar_url: null,
     social_links: {},
+    client_tier: "client",
+    loyalty_points: 0,
   });
 
   const record: ClientAuth = {
@@ -527,6 +668,7 @@ export function createCarFolder(data: Omit<CarFolder, "_id">): CarFolder {
   const id = `car_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const folder: CarFolder = { ...data, _id: id };
   db.carFolders.set(id, folder);
+  saveCarFoldersToFile();
   return folder;
 }
 
@@ -535,11 +677,14 @@ export function updateCarFolder(id: string, data: Partial<CarFolder>): CarFolder
   if (!folder) return null;
   const updated = { ...folder, ...data, _id: id };
   db.carFolders.set(id, updated);
+  saveCarFoldersToFile();
   return updated;
 }
 
 export function deleteCarFolder(id: string): boolean {
-  return db.carFolders.delete(id);
+  const ok = db.carFolders.delete(id);
+  if (ok) saveCarFoldersToFile();
+  return ok;
 }
 
 // Notifications

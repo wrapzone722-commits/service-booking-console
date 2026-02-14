@@ -2,11 +2,12 @@ import { RequestHandler } from "express";
 import type { CarFolder, CarImage } from "@shared/api";
 import * as db from "../db";
 
-const getBaseName = (filename: string) => filename.replace(/\.[^/.]+$/, "");
+/** Имя файла без расширения (01.jpg, 01.png, 01.JPG → "01"). */
+const getBaseName = (filename: string) => filename.replace(/\.[^/.]+$/, "").trim();
 
-/** Для превью всегда фото с именем default_photo_name (обычно "01"). */
+/** Для превью всегда фото с именем default_photo_name (обычно "01"); подходят любые расширения (.jpg, .png и т.д.). */
 function withProfilePreview(folder: CarFolder): CarFolder {
-  const key = folder.default_photo_name || "01";
+  const key = (folder.default_photo_name || "01").trim();
   const img: CarImage | undefined = folder.images.find((i) => getBaseName(i.name) === key) ?? folder.images[0];
   return {
     ...folder,

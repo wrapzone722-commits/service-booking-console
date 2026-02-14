@@ -105,6 +105,9 @@ export interface SocialLinks {
   vk?: string | null;
 }
 
+/** Уровень клиента в программе лояльности: Клиент, Постоянный клиент, Прайд */
+export type ClientTier = "client" | "regular" | "pride";
+
 export interface User {
   _id: string;
   first_name: string;
@@ -113,7 +116,11 @@ export interface User {
   email: string | null;
   avatar_url: string | null;
   social_links: SocialLinks;
+  /** Доступ к записям: active / inactive */
   status?: "active" | "inactive" | "vip";
+  /** Уровень в программе лояльности (Клиент / Постоянный клиент / Прайд) */
+  client_tier?: ClientTier;
+  /** Накопительные баллы (начисляются за завершённые записи) */
   loyalty_points?: number;
   /** Марка/модель авто для iOS (carMake) */
   car_make?: string | null;
@@ -133,6 +140,7 @@ export interface UpdateUserRequest {
   profile_photo_url?: string | null;
   social_links?: SocialLinks;
   status?: "active" | "inactive" | "vip";
+  client_tier?: ClientTier;
   loyalty_points?: number;
   /** iOS: марка авто */
   car_make?: string | null;
@@ -264,6 +272,16 @@ export interface CarFolder {
   profile_preview_url?: string;
   /** Миниатюра для превью (фото 01). Заполняется сервером. */
   profile_preview_thumbnail_url?: string;
+}
+
+/** Правило отображения фото авто после услуги: 01 → 02 → 03 → 04 по дням */
+export interface DisplayPhotoRule {
+  /** Дней показывать 01 после посещения (0–3 дня) */
+  days_01: number;
+  /** Дней показывать 02 после 01 (следующие 2 дня) */
+  days_02: number;
+  /** Дней показывать 03 после 02 (1 день), затем 04 */
+  days_03: number;
 }
 
 // ====== NOTIFICATIONS ======

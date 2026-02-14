@@ -1,5 +1,6 @@
 import { RequestHandler } from "express";
 import { UpdateUserRequest } from "@shared/api";
+import type { ClientTier } from "@shared/api";
 import * as db from "../db";
 import { verifyToken } from "./auth";
 import { getApiKeyFromRequest } from "../middleware/auth";
@@ -12,6 +13,7 @@ type UserImportInput = {
   avatar_url?: string | null;
   social_links?: Record<string, string | null | undefined>;
   status?: "active" | "inactive" | "vip";
+  client_tier?: ClientTier;
   loyalty_points?: number;
   created_at?: string;
 };
@@ -68,6 +70,15 @@ export const getProfile: RequestHandler = (req, res) => {
 
     const name = `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Клиент";
     const telegram = user.social_links?.telegram ?? null;
+    const clientTier = user.client_tier ?? (user.status === "vip" ? "pride" : "client");
+
+    const lastCompleted = db.getLastCompletedBookingDateForClient(user._id);
+    let daysSince = 0;
+    if (lastCompleted) {
+      daysSince = Math.floor((Date.now() - new Date(lastCompleted).getTime()) / 86400000);
+    }
+    const display_photo_name = db.getDisplayPhotoNameByRule(daysSince);
+
     const profile = {
       ...user,
       name,
@@ -76,7 +87,9 @@ export const getProfile: RequestHandler = (req, res) => {
       car_plate: user.car_plate ?? null,
       promo_code: user.promo_code ?? null,
       telegram,
-      is_vip: user.status === "vip",
+      client_tier: clientTier,
+      is_vip: clientTier === "pride" || user.status === "vip",
+      display_photo_name,
     };
     res.json(profile);
   } catch (error) {
@@ -131,6 +144,7 @@ export const updateProfile: RequestHandler = (req, res) => {
       updates.social_links = { ...existing?.social_links, telegram: body.telegram ?? undefined };
     }
     if (body.status !== undefined) updates.status = body.status;
+    if (body.client_tier !== undefined) updates.client_tier = body.client_tier;
     if (body.loyalty_points !== undefined) updates.loyalty_points = body.loyalty_points;
 
     const user = db.updateUser(userId, updates);
@@ -139,6 +153,13 @@ export const updateProfile: RequestHandler = (req, res) => {
     }
 
     const name = `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Клиент";
+    const clientTier = user.client_tier ?? (user.status === "vip" ? "pride" : "client");
+    const lastCompletedUpd = db.getLastCompletedBookingDateForClient(userId);
+    let daysSinceUpd = 0;
+    if (lastCompletedUpd) {
+      daysSinceUpd = Math.floor((Date.now() - new Date(lastCompletedUpd).getTime()) / 86400000);
+    }
+    const display_photo_name_upd = db.getDisplayPhotoNameByRule(daysSinceUpd);
     const profile = {
       ...user,
       name,
@@ -147,12 +168,47 @@ export const updateProfile: RequestHandler = (req, res) => {
       car_plate: user.car_plate ?? null,
       promo_code: user.promo_code ?? null,
       telegram: user.social_links?.telegram ?? null,
-      is_vip: user.status === "vip",
+      client_tier: clientTier,
+      is_vip: clientTier === "pride" || user.status === "vip",
+      display_photo_name: display_photo_name_upd,
     };
     res.json(profile);
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to update profile" });
+  }
+};
+
+/** Обновить клиента (админ). Доступны: client_tier, loyalty_points, status, имя, контакты. */
+export const updateUserById: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = db.getUser(userId);
+    if (!user) {
+      return res.status(404).json({ error: "Not found", message: "User not found" });
+    }
+    const body = req.body as Partial<UpdateUserRequest>;
+    const updates: Parameters<typeof db.updateUser>[1] = {};
+    if (body.first_name !== undefined) updates.first_name = body.first_name;
+    if (body.last_name !== undefined) updates.last_name = body.last_name;
+    if (body.phone !== undefined) updates.phone = body.phone;
+    if (body.email !== undefined) updates.email = body.email;
+    if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url;
+    if (body.status !== undefined) updates.status = body.status;
+    if (body.client_tier !== undefined) updates.client_tier = body.client_tier;
+    if (body.loyalty_points !== undefined) updates.loyalty_points = body.loyalty_points;
+    if (body.car_make !== undefined) updates.car_make = body.car_make;
+    if (body.car_plate !== undefined) updates.car_plate = body.car_plate;
+    if (body.promo_code !== undefined) updates.promo_code = body.promo_code;
+    if (body.social_links !== undefined) updates.social_links = body.social_links;
+    const updated = db.updateUser(userId, updates);
+    if (!updated) {
+      return res.status(404).json({ error: "Not found", message: "User not found" });
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ error: "Internal server error", message: "Failed to update user" });
   }
 };
 
@@ -183,6 +239,7 @@ export const createUser: RequestHandler = (req, res) => {
       avatar_url: avatar_url || null,
       social_links: social_links || {},
       status: req.body?.status === "inactive" || req.body?.status === "vip" ? req.body.status : "active",
+      client_tier: req.body?.client_tier ?? "client",
       loyalty_points: Number.isFinite(Number(req.body?.loyalty_points)) ? Number(req.body.loyalty_points) : 0,
     });
 
@@ -225,6 +282,10 @@ export const importUsers: RequestHandler = (req, res) => {
 
       const status: "active" | "inactive" | "vip" =
         row.status === "inactive" || row.status === "vip" ? row.status : "active";
+      const tierRaw = (row.client_tier ?? "").toString().toLowerCase();
+      const client_tier: ClientTier =
+        tierRaw === "regular" || tierRaw === "постоянный" ? "regular" :
+        tierRaw === "pride" || tierRaw === "прайд" ? "pride" : "client";
       const payload: {
         first_name: string;
         last_name: string;
@@ -233,6 +294,7 @@ export const importUsers: RequestHandler = (req, res) => {
         avatar_url: string | null;
         social_links: Record<string, string | null | undefined>;
         status: "active" | "inactive" | "vip";
+        client_tier: ClientTier;
         loyalty_points: number;
       } = {
         first_name: firstName,
@@ -242,6 +304,7 @@ export const importUsers: RequestHandler = (req, res) => {
         avatar_url: row.avatar_url ?? null,
         social_links: row.social_links ?? {},
         status,
+        client_tier,
         loyalty_points: Number.isFinite(Number(row.loyalty_points)) ? Number(row.loyalty_points) : 0,
       };
 

@@ -44,8 +44,9 @@ function resizeImage(file: File, maxSize: number, quality: number): Promise<stri
   });
 }
 
+/** Имя файла без расширения (01.jpg, 01.png → "01"). */
 function getBaseName(filename: string): string {
-  return filename.replace(/\.[^/.]+$/, "");
+  return filename.replace(/\.[^/.]+$/, "").trim();
 }
 
 interface FileWithPath {
@@ -260,7 +261,7 @@ export default function Cars() {
         <div className="px-4 md:px-6 py-3">
           <h1 className="text-2xl font-bold text-foreground">Автомобили</h1>
           <p className="text-xs text-muted-foreground">
-            Папки с аватарками для профиля. По умолчанию фото «01» — фото профиля. iOS отображает миниатюры.
+            Папки с аватарками для профиля. Файлы 01, 02, 03, 04 (любое расширение: .jpg, .png). По умолчанию фото «01» — фото профиля.
           </p>
         </div>
       </div>

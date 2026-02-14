@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { User } from "@shared/api";
+import { User, type ClientTier } from "@shared/api";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,16 @@ const statusLabelMap: Record<string, string> = {
   inactive: "Неактивный",
   vip: "VIP",
 };
+
+const tierLabelMap: Record<ClientTier, string> = {
+  client: "Клиент",
+  regular: "Постоянный клиент",
+  pride: "Прайд",
+};
+
+function getClientTier(user: User): ClientTier {
+  return user.client_tier ?? (user.status === "vip" ? "pride" : "client");
+}
 
 function toCsvValue(value: string | number | null | undefined): string {
   const str = value == null ? "" : String(value);
@@ -61,11 +71,17 @@ export default function Clients() {
   const [messageSending, setMessageSending] = useState(false);
   const [search, setSearch] = useState("");
   const [importing, setImporting] = useState(false);
+  const [editingTier, setEditingTier] = useState<ClientTier | null>(null);
+  const [savingTier, setSavingTier] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchClients();
   }, []);
+
+  useEffect(() => {
+    setEditingTier(null);
+  }, [selectedClient?._id]);
 
   const fetchClients = async () => {
     try {
@@ -80,6 +96,38 @@ export default function Clients() {
       setError("Ошибка загрузки");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveClientTier = async () => {
+    if (!selectedClient || editingTier === null) return;
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Нужна авторизация для изменения типа клиента");
+      return;
+    }
+    try {
+      setSavingTier(true);
+      const res = await fetch(`/api/v1/users/${selectedClient._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ client_tier: editingTier }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Ошибка сохранения");
+      }
+      const updated = await res.json();
+      setClients((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+      setSelectedClient(updated);
+      setEditingTier(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка сохранения");
+    } finally {
+      setSavingTier(false);
     }
   };
 
@@ -138,6 +186,7 @@ export default function Clients() {
       "Телефон",
       "Email",
       "Статус",
+      "Тип клиента",
       "Накопительные баллы",
       "Telegram",
       "WhatsApp",
@@ -152,6 +201,7 @@ export default function Clients() {
       c.phone,
       c.email || "",
       c.status || "active",
+      tierLabelMap[getClientTier(c)],
       Number.isFinite(Number(c.loyalty_points)) ? Number(c.loyalty_points) : 0,
       c.social_links?.telegram || "",
       c.social_links?.whatsapp || "",
@@ -201,6 +251,7 @@ export default function Clients() {
         phone: indexOfAny("телефон", "phone"),
         email: indexOfAny("email", "e-mail"),
         status: indexOfAny("статус", "status"),
+        client_tier: indexOfAny("тип клиента", "client_tier", "tier", "тип"),
         loyalty_points: indexOfAny("накопительные баллы", "баллы", "loyalty_points", "points"),
         telegram: indexOfAny("telegram"),
         whatsapp: indexOfAny("whatsapp"),
@@ -218,6 +269,13 @@ export default function Clients() {
         const get = (i: number) => (i >= 0 ? (cells[i] || "").trim() : "");
         const statusRaw = get(idx.status).toLowerCase();
         const status = statusRaw === "inactive" || statusRaw === "vip" ? statusRaw : "active";
+        const tierRaw = get(idx.client_tier).toLowerCase();
+        const client_tier: ClientTier =
+          tierRaw === "regular" || tierRaw === "постоянный клиент" || tierRaw === "постоянный"
+            ? "regular"
+            : tierRaw === "pride" || tierRaw === "прайд"
+              ? "pride"
+              : "client";
         const points = Number(get(idx.loyalty_points) || "0");
 
         return {
@@ -226,6 +284,7 @@ export default function Clients() {
           phone: get(idx.phone),
           email: get(idx.email) || null,
           status,
+          client_tier,
           loyalty_points: Number.isFinite(points) ? points : 0,
           social_links: {
             telegram: get(idx.telegram) || null,
@@ -345,7 +404,7 @@ export default function Clients() {
                             {client.first_name} {client.last_name}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
-                            {client.phone} • {statusLabelMap[client.status || "active"]} • {client.loyalty_points ?? 0} бал.
+                            {client.phone} • {tierLabelMap[getClientTier(client)]} • {client.loyalty_points ?? 0} бал.
                           </p>
                         </div>
                       </div>
@@ -385,10 +444,31 @@ export default function Clients() {
                       </div>
                     )}
                     <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 border border-emerald-200">
-                      <p className="text-xs text-emerald-700 font-semibold">🏷️ Статус</p>
-                      <p className="text-sm font-bold text-emerald-900">
-                        {statusLabelMap[selectedClient.status || "active"]}
-                      </p>
+                      <p className="text-xs text-emerald-700 font-semibold">🏷️ Тип клиента</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <select
+                          aria-label="Тип клиента"
+                          value={editingTier ?? getClientTier(selectedClient)}
+                          onChange={(e) => setEditingTier(e.target.value as ClientTier)}
+                          className="text-sm font-bold text-emerald-900 bg-white/80 border border-emerald-200 rounded-md px-2 py-1"
+                        >
+                          {(Object.keys(tierLabelMap) as ClientTier[]).map((t) => (
+                            <option key={t} value={t}>
+                              {tierLabelMap[t]}
+                            </option>
+                          ))}
+                        </select>
+                        {editingTier !== null && editingTier !== getClientTier(selectedClient) && (
+                          <Button
+                            size="sm"
+                            onClick={saveClientTier}
+                            disabled={savingTier}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            {savingTier ? "Сохранение…" : "Сохранить"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-3 border border-amber-200">
                       <p className="text-xs text-amber-700 font-semibold">⭐ Накопительные баллы</p>

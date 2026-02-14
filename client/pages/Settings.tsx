@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import type { DisplayPhotoRule } from "@shared/api";
 
 export default function Settings() {
   const [apiUrl, setApiUrl] = useState("");
   const [apiUrlLoaded, setApiUrlLoaded] = useState(false);
   const [token, setToken] = useState("");
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [displayRule, setDisplayRule] = useState<DisplayPhotoRule>({ days_01: 3, days_02: 2, days_03: 1 });
+  const [displayRuleLoaded, setDisplayRuleLoaded] = useState(false);
+  const [displayRuleSaving, setDisplayRuleSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/v1/settings/api-url")
@@ -16,6 +20,39 @@ export default function Settings() {
       .catch(() => setApiUrl(`${window.location.origin}/api/v1`))
       .finally(() => setApiUrlLoaded(true));
   }, []);
+
+  useEffect(() => {
+    fetch("/api/v1/settings/display-photo-rule")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.days_01 != null) setDisplayRule({
+          days_01: Number(data.days_01) || 3,
+          days_02: Number(data.days_02) || 2,
+          days_03: Number(data.days_03) || 1,
+        });
+      })
+      .catch(() => {})
+      .finally(() => setDisplayRuleLoaded(true));
+  }, []);
+
+  const saveDisplayRule = async () => {
+    const token = localStorage.getItem("session_token");
+    if (!token) return;
+    setDisplayRuleSaving(true);
+    try {
+      const res = await fetch("/api/v1/settings/display-photo-rule", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(displayRule),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDisplayRule(data);
+      }
+    } finally {
+      setDisplayRuleSaving(false);
+    }
+  };
 
   const qrPayloadUrl = useMemo(
     () => apiUrl?.trim() || (apiUrlLoaded ? `${window.location.origin}/api/v1` : ""),
@@ -123,6 +160,66 @@ export default function Settings() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Настройки отображения авто (01 → 02 → 03 → 04 по дням после услуги) */}
+        <div className="bg-white dark:bg-card rounded-lg shadow-sm border border-border p-4 animate-slide-in">
+          <h2 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+            <span>🚗</span> Настройки отображения авто
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            После посещения у клиента всегда показывается файл 01. Далее по дням: 02, 03, 04. Если в папке нет 03 или 04 — показываются имеющиеся файлы с соблюдением порядка.
+          </p>
+          {displayRuleLoaded && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">Дней показывать 01 (после посещения)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={displayRule.days_01}
+                  onChange={(e) => setDisplayRule((r) => ({ ...r, days_01: parseInt(e.target.value, 10) || 0 }))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background"
+                  aria-label="Дней 01"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">Дней показывать 02</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={displayRule.days_02}
+                  onChange={(e) => setDisplayRule((r) => ({ ...r, days_02: parseInt(e.target.value, 10) || 0 }))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background"
+                  aria-label="Дней 02"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">Дней показывать 03 (затем 04)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={displayRule.days_03}
+                  onChange={(e) => setDisplayRule((r) => ({ ...r, days_03: parseInt(e.target.value, 10) || 0 }))}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background"
+                  aria-label="Дней 03"
+                />
+              </div>
+            </div>
+          )}
+          {displayRuleLoaded && (
+            <button
+              type="button"
+              onClick={saveDisplayRule}
+              disabled={displayRuleSaving}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
+            >
+              {displayRuleSaving ? "Сохранение…" : "Сохранить правило"}
+            </button>
+          )}
         </div>
 
         {/* API Config (legacy) */}

@@ -62,6 +62,7 @@ export function createServer() {
   // API v1 routes (Users/Profile)
   app.get("/api/v1/users", usersRoutes.getUsers);
   app.get("/api/v1/users/:id", usersRoutes.getUser);
+  app.put("/api/v1/users/:id", requireAuth, usersRoutes.updateUserById);
   app.get("/api/v1/profile", usersRoutes.getProfile);
   app.put("/api/v1/profile", usersRoutes.updateProfile);
   app.post("/api/v1/users", usersRoutes.createUser);
@@ -69,6 +70,8 @@ export function createServer() {
 
   // API v1 routes (Settings / QR)
   app.get("/api/v1/settings/api-url", settingsRoutes.getApiUrl);
+  app.get("/api/v1/settings/display-photo-rule", settingsRoutes.getDisplayPhotoRule);
+  app.put("/api/v1/settings/display-photo-rule", requireAuth, settingsRoutes.updateDisplayPhotoRule);
 
   // API v1 routes (Cars / Avatars)
   app.get("/api/v1/cars/folders", carsRoutes.getCarFolders);
