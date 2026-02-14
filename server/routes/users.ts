@@ -2,6 +2,7 @@ import { RequestHandler } from "express";
 import { UpdateUserRequest } from "@shared/api";
 import * as db from "../db";
 import { verifyToken } from "./auth";
+import { getApiKeyFromRequest } from "../middleware/auth";
 
 type UserImportInput = {
   first_name?: string;
@@ -43,10 +44,9 @@ export const getUser: RequestHandler<{ id: string }> = (req, res) => {
 export const getProfile: RequestHandler = (req, res) => {
   try {
     let user = null;
-    const authHeader = req.headers.authorization;
+    const token = getApiKeyFromRequest(req);
 
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
+    if (token) {
       const clientAuth = db.getClientAuthByApiKey(token);
       if (clientAuth) {
         user = db.getUser(clientAuth.client_id);
@@ -65,7 +65,19 @@ export const getProfile: RequestHandler = (req, res) => {
       return res.status(404).json({ error: "Not found", message: "Profile not found" });
     }
 
-    res.json(user);
+    const name = `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Клиент";
+    const telegram = user.social_links?.telegram ?? null;
+    const profile = {
+      ...user,
+      name,
+      profile_photo_url: user.avatar_url,
+      car_make: user.car_make ?? null,
+      car_plate: user.car_plate ?? null,
+      promo_code: user.promo_code ?? null,
+      telegram,
+      is_vip: user.status === "vip",
+    };
+    res.json(profile);
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to fetch profile" });
@@ -74,12 +86,11 @@ export const getProfile: RequestHandler = (req, res) => {
 
 export const updateProfile: RequestHandler = (req, res) => {
   try {
-    const updates = req.body as UpdateUserRequest;
+    const body = req.body as UpdateUserRequest & { name?: string; profile_photo_url?: string; telegram?: string };
     let userId: string | null = null;
-    const authHeader = req.headers.authorization;
+    const token = getApiKeyFromRequest(req);
 
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
+    if (token) {
       const clientAuth = db.getClientAuthByApiKey(token);
       if (clientAuth) {
         userId = clientAuth.client_id;
@@ -98,12 +109,46 @@ export const updateProfile: RequestHandler = (req, res) => {
       return res.status(404).json({ error: "Not found", message: "Profile not found" });
     }
 
+    const updates: Parameters<typeof db.updateUser>[1] = {};
+    if (body.first_name !== undefined) updates.first_name = body.first_name;
+    if (body.last_name !== undefined) updates.last_name = body.last_name;
+    if (body.phone !== undefined) updates.phone = body.phone;
+    if (body.email !== undefined) updates.email = body.email;
+    if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url;
+    if (body.profile_photo_url !== undefined) updates.avatar_url = body.profile_photo_url ?? null;
+    if (body.name !== undefined) {
+      const parts = String(body.name).trim().split(/\s+/);
+      updates.first_name = parts[0] ?? "";
+      updates.last_name = parts.slice(1).join(" ") ?? "";
+    }
+    if (body.car_make !== undefined) updates.car_make = body.car_make ?? undefined;
+    if (body.car_plate !== undefined) updates.car_plate = body.car_plate ?? undefined;
+    if (body.promo_code !== undefined) updates.promo_code = body.promo_code ?? undefined;
+    if (body.social_links !== undefined) updates.social_links = body.social_links;
+    if (body.telegram !== undefined) {
+      const existing = db.getUser(userId);
+      updates.social_links = { ...existing?.social_links, telegram: body.telegram ?? undefined };
+    }
+    if (body.status !== undefined) updates.status = body.status;
+    if (body.loyalty_points !== undefined) updates.loyalty_points = body.loyalty_points;
+
     const user = db.updateUser(userId, updates);
     if (!user) {
       return res.status(404).json({ error: "Not found", message: "User not found" });
     }
 
-    res.json(user);
+    const name = `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Клиент";
+    const profile = {
+      ...user,
+      name,
+      profile_photo_url: user.avatar_url,
+      car_make: user.car_make ?? null,
+      car_plate: user.car_plate ?? null,
+      promo_code: user.promo_code ?? null,
+      telegram: user.social_links?.telegram ?? null,
+      is_vip: user.status === "vip",
+    };
+    res.json(profile);
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to update profile" });

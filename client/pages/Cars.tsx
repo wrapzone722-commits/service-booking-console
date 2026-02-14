@@ -318,7 +318,7 @@ export default function Cars() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {folders.map((folder) => {
-              const defaultImg = getDefaultImage(folder);
+              const previewThumb = folder.profile_preview_thumbnail_url ?? getDefaultImage(folder)?.thumbnail_url;
               return (
                 <div
                   key={folder._id}
@@ -330,9 +330,9 @@ export default function Cars() {
                   }`}
                 >
                   <div className="aspect-square bg-muted flex items-center justify-center">
-                    {defaultImg ? (
+                    {previewThumb ? (
                       <img
-                        src={defaultImg.thumbnail_url}
+                        src={previewThumb}
                         alt=""
                         className="w-full h-full object-cover"
                         loading="lazy"

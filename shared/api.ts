@@ -65,6 +65,10 @@ export interface Booking {
   created_at: string; // ISO 8601
   /** ISO 8601, когда статус переведён в in_progress (для Live Activity таймера) */
   in_progress_started_at?: string | null;
+  /** Оценка от клиента (1–5), после завершения услуги */
+  rating?: number | null;
+  /** Комментарий к оценке */
+  rating_comment?: string | null;
 }
 
 export interface CreateBookingRequest {
@@ -116,10 +120,14 @@ export interface User {
   email: string | null;
   avatar_url: string | null;
   social_links: SocialLinks;
-  /** Статус клиента для CRM */
   status?: "active" | "inactive" | "vip";
-  /** Накопительные баллы клиента */
   loyalty_points?: number;
+  /** Марка/модель авто для iOS (carMake) */
+  car_make?: string | null;
+  /** Гос. номер для iOS (carPlate) */
+  car_plate?: string | null;
+  /** Промокод для iOS */
+  promo_code?: string | null;
   created_at: string; // ISO 8601
 }
 
@@ -129,9 +137,20 @@ export interface UpdateUserRequest {
   email?: string | null;
   phone?: string;
   avatar_url?: string | null;
+  profile_photo_url?: string | null;
   social_links?: SocialLinks;
   status?: "active" | "inactive" | "vip";
   loyalty_points?: number;
+  /** iOS: марка авто */
+  car_make?: string | null;
+  /** iOS: гос. номер */
+  car_plate?: string | null;
+  /** iOS: промокод */
+  promo_code?: string | null;
+  /** iOS: полное имя (мапится в first_name + last_name) */
+  name?: string;
+  /** iOS: Telegram (мапится в social_links.telegram) */
+  telegram?: string | null;
 }
 
 // ====== API CONFIG ======
@@ -248,6 +267,10 @@ export interface CarFolder {
   images: CarImage[];
   /** Имя файла по умолчанию для фото профиля (01.jpg, 01.png и т.д.) */
   default_photo_name: string;
+  /** Для превью всегда показывать это фото (файл с именем 01). Заполняется сервером. */
+  profile_preview_url?: string;
+  /** Миниатюра для превью (фото 01). Заполняется сервером. */
+  profile_preview_thumbnail_url?: string;
 }
 
 // ====== NOTIFICATIONS ======

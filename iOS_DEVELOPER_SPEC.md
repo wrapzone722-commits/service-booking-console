@@ -16,9 +16,9 @@ Implement an iOS app client for the ServiceBooking system that allows users to:
 **Base URL:** `https://example.com/api/v1` (user configurable from QR scan or manual entry)
 
 ### 1. Device Registration
-**POST** `/clients/register`
+**POST** `clients/register` (полный URL: `{base}/clients/register`, например `https://example.com/api/v1/clients/register`)
 
-Register device on first launch to get `client_id` and `api_key`.
+Регистрация устройства при первом запуске. Возвращает `client_id` и `api_key`.
 
 **Request:**
 ```json
@@ -46,7 +46,7 @@ Register device on first launch to get `client_id` and `api_key`.
 ---
 
 ### 2. Get Services List
-**GET** `/services`
+**GET** `services`
 
 **Response:**
 ```json
@@ -73,7 +73,7 @@ Register device on first launch to get `client_id` and `api_key`.
 ---
 
 ### 3. Get Available Slots for Service
-**GET** `/slots?service_id={serviceId}&date={YYYY-MM-DD}&post_id=post_1`
+**GET** `slots?service_id={serviceId}&date={YYYY-MM-DD}&post_id=post_1`
 
 Returns available time slots for a specific service on a specific date and post.
 
@@ -130,9 +130,9 @@ Returns available time slots for a specific service on a specific date and post.
 ---
 
 ### 5. Create Booking
-**POST** `/bookings`
+**POST** `bookings` (авторизация: X-API-Key или Bearer api_key)
 
-Create a booking for the authenticated user.
+Создание записи. Авторизованный клиент определяется по api_key.
 
 **Request:**
 ```json
@@ -143,6 +143,7 @@ Create a booking for the authenticated user.
   "notes": "Optional notes from user"
 }
 ```
+Сервер также принимает `start_iso` вместо `date_time` (то же значение ISO 8601).
 
 **Response:**
 ```json
@@ -167,6 +168,28 @@ Create a booking for the authenticated user.
 - Include post_id from selection (default: post_1)
 - Show confirmation screen after successful booking
 - Display booking details: service name, time, price, duration
+
+---
+
+### 5b. Profile (клиент)
+
+**GET** `profile` — получить профиль текущего клиента (авторизация: X-API-Key или Bearer api_key).
+
+**Ответ (поля для iOS):**
+- `_id`, `first_name`, `last_name`, `phone`, `email`, `avatar_url`
+- `name` — объединённое имя (first_name + last_name)
+- `profile_photo_url` — то же, что avatar_url (URL или data URI фото профиля)
+- `car_make`, `car_plate` — марка/модель авто и гос. номер
+- `telegram` — из social_links (для отображения)
+- `promo_code` — промокод
+- `is_vip` — true если статус клиента vip
+
+**PUT** `profile` — обновить профиль. Тело (все поля опциональны):
+- `name` — полное имя (разбивается на first_name, last_name)
+- `profile_photo_url` или `avatar_url` — фото профиля (например, data URI из выбранного фото папки «Автомобили»)
+- `phone`, `car_make`, `car_plate`, `telegram`, `promo_code`
+
+Ответ — тот же объект профиля, что и GET profile.
 
 ---
 
@@ -294,19 +317,24 @@ On tap → go to Date & Time Picker
 
 ## 🔐 Authentication & Headers
 
-**All requests (except /clients/register)** should include:
+**Base URL:** задаётся пользователем (QR или ввод). Например: `https://your-server.com/api/v1`. Все пути ниже — относительно этого base (например, `GET profile` → `GET {base}/profile`).
 
-```
-Authorization: Bearer {api_key}
-Content-Type: application/json
-```
+**Все запросы (кроме POST /clients/register)** должны содержать API-ключ одним из способов:
 
-Where `{api_key}` is the value returned from `/clients/register` response, stored securely in Keychain.
+1. **Заголовок X-API-Key** (рекомендуется для iOS):
+   ```
+   X-API-Key: {api_key}
+   ```
+2. **Или заголовок Authorization:**
+   ```
+   Authorization: Bearer {api_key}
+   ```
 
-**Example:**
+`{api_key}` — значение из ответа `POST /clients/register`, хранить в Keychain.
+
+**Пример (X-API-Key):**
 ```swift
-var request = URLRequest(url: url)
-request.setValue("Bearer abc123def456...", forHTTPHeaderField: "Authorization")
+request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 ```
 
@@ -393,17 +421,19 @@ Handle these HTTP responses gracefully:
 
 6. **Offline Support (Optional):** Consider local caching of services list and available slots for better UX.
 
-7. **Cars / Avatars:** Папки с фото для аватара профиля. По умолчанию фото «01» — фото профиля.
+7. **Cars / Avatars:** Папки с фото для аватара профиля. Клиент может выбирать любое фото из папок как фото профиля. **Для превью** (список папок, миниатюра папки) всегда отображается фото с именем «01» — сервер отдаёт поля `profile_preview_url` и `profile_preview_thumbnail_url`.
 
 ---
 
 ### 6. Cars / Avatars (фото профиля)
 
-**GET** `/cars/folders` — список папок (без авторизации для iOS).
+Клиент iOS может выбирать фото из папок «Автомобили» в качестве фото профиля. Папки загружаются в консоли (раздел «Автомобили»).
 
-**GET** `/cars/folders/name/:name` — папка по имени.
+**GET** `/api/v1/cars/folders` — список папок (без авторизации для iOS).
 
-**GET** `/cars/folders/:id` — папка по ID.
+**GET** `/api/v1/cars/folders/name/:name` — папка по имени.
+
+**GET** `/api/v1/cars/folders/:id` — папка по ID.
 
 **Ответ (папка):**
 ```json
@@ -411,6 +441,8 @@ Handle these HTTP responses gracefully:
   "_id": "car_xxx",
   "name": "Седан",
   "default_photo_name": "01",
+  "profile_preview_url": "data:image/jpeg;base64,...",
+  "profile_preview_thumbnail_url": "data:image/jpeg;base64,...",
   "images": [
     {
       "name": "01.jpg",
@@ -426,9 +458,10 @@ Handle these HTTP responses gracefully:
 }
 ```
 
-- **thumbnail_url** — миниатюра для отображения в списке (обязательно использовать для быстрой загрузки).
-- **Фото «01»** (01.jpg, 01.png) — фото профиля по умолчанию. При выборе папки показывать это фото как аватар.
-- При выборе папки отображать все изображения; использовать `thumbnail_url` для миниатюр.
+- **Для превью всегда использовать фото с именем «01»**: в ответе сервер заполняет `profile_preview_url` и `profile_preview_thumbnail_url` — это всегда изображение с именем файла 01 (01.jpg, 01.png и т.д.). В списке папок и как аватар по умолчанию при выборе папки показывать именно эти поля.
+- **thumbnail_url** у каждого изображения — миниатюра для галереи (обязательно для быстрой загрузки).
+- При выборе папки отображать все изображения из `images`; пользователь выбирает любое фото в качестве фото профиля.
+- **Установка фото профиля**: после выбора изображения отправить **PUT** `/api/v1/profile` с заголовком `Authorization: Bearer {api_key}` и телом `{"avatar_url": "<url выбранного изображения>"}`, где `url` — значение `images[].url` выбранной картинки.
 
 ---
 

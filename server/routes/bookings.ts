@@ -3,18 +3,21 @@ import { Booking, CreateBookingRequest, UpdateBookingStatusRequest } from "@shar
 import * as db from "../db";
 import { notifyNewBooking, notifyBookingCancelled, notifyBookingConfirmed } from "../lib/telegram";
 import { verifyToken } from "./auth";
+import { getApiKeyFromRequest } from "../middleware/auth";
+
+/** POST body для оценки записи (iOS RatingView) */
+interface RatingRequestBody {
+  rating: number;
+  comment?: string | null;
+}
 
 export const getBookings: RequestHandler = (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = getApiKeyFromRequest(req);
     let clientId: string | null = null;
-
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
+    if (token) {
       const clientAuth = db.getClientAuthByApiKey(token);
-      if (clientAuth) {
-        clientId = clientAuth.client_id;
-      }
+      if (clientAuth) clientId = clientAuth.client_id;
     }
 
     let bookings = db.getBookings();
@@ -43,12 +46,14 @@ export const getBooking: RequestHandler<{ id: string }> = (req, res) => {
 
 export const createBooking: RequestHandler = (req, res) => {
   try {
-    const { service_id, date_time, notes, post_id } = req.body as CreateBookingRequest;
+    const body = req.body as CreateBookingRequest & { start_iso?: string };
+    const date_time = body.date_time ?? body.start_iso;
+    const { service_id, notes, post_id, user_id: bodyUserId } = body;
 
     if (!service_id || !date_time) {
       return res.status(400).json({
         error: "Validation error",
-        message: "Missing required fields: service_id, date_time",
+        message: "Missing required fields: service_id and date_time (or start_iso)",
       });
     }
 
@@ -66,11 +71,10 @@ export const createBooking: RequestHandler = (req, res) => {
       return res.status(409).json({ error: "Conflict", message: "Post is disabled" });
     }
 
-    // Resolve user: from api_key (iOS client) or JWT (admin) or fallback to first user (no auth)
+    // Resolve user: from X-API-Key or Bearer (iOS client) or JWT (admin) or fallback to first user
     let user: { _id: string; first_name: string; last_name: string } | null = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
+    const token = getApiKeyFromRequest(req);
+    if (token) {
       const clientAuth = db.getClientAuthByApiKey(token);
       if (clientAuth) {
         user = db.getUser(clientAuth.client_id);
@@ -87,7 +91,7 @@ export const createBooking: RequestHandler = (req, res) => {
         } else {
           return res.status(401).json({
             error: "Unauthorized",
-            message: "Invalid or expired token. Use api_key from POST /clients/register",
+            message: "Invalid or expired token. Use X-API-Key or Bearer api_key from POST /api/v1/clients/register",
           });
         }
       }
@@ -195,9 +199,8 @@ export const deleteBooking: RequestHandler<{ id: string }> = (req, res) => {
       return res.status(404).json({ error: "Not found", message: "Booking not found" });
     }
 
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
+    const token = getApiKeyFromRequest(req);
+    if (token) {
       const clientAuth = db.getClientAuthByApiKey(token);
       if (clientAuth && booking.user_id !== clientAuth.client_id) {
         return res.status(403).json({
@@ -217,5 +220,45 @@ export const deleteBooking: RequestHandler<{ id: string }> = (req, res) => {
   } catch (error) {
     console.error("Error deleting booking:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to delete booking" });
+  }
+};
+
+/** POST /api/v1/bookings/:id/rating — оценка записи (и алиас /api/client/appointments/:id/rating для iOS). */
+export const submitBookingRating: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body as RatingRequestBody;
+
+    const rating = typeof body.rating === "number" ? Math.min(5, Math.max(1, Math.round(body.rating))) : undefined;
+    if (rating === undefined) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Missing or invalid field: rating (1–5)",
+      });
+    }
+
+    const booking = db.getBooking(id);
+    if (!booking) {
+      return res.status(404).json({ error: "Not found", message: "Booking not found" });
+    }
+
+    const token = getApiKeyFromRequest(req);
+    if (token) {
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (clientAuth && booking.user_id !== clientAuth.client_id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You can only rate your own bookings",
+        });
+      }
+    }
+
+    const comment = typeof body.comment === "string" ? body.comment.trim() || null : null;
+    db.updateBooking(id, { rating, rating_comment: comment });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error submitting rating:", error);
+    res.status(500).json({ error: "Internal server error", message: "Failed to submit rating" });
   }
 };

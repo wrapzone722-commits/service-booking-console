@@ -112,11 +112,13 @@ export function getDb(): Database {
 }
 
 export function getServices(includeInactive = false): Service[] {
+  ensureDefaultService();
   const all = Array.from(db.services.values());
   return includeInactive ? all : all.filter((s) => s.is_active);
 }
 
 export function getService(id: string): Service | null {
+  ensureDefaultService();
   return db.services.get(id) || null;
 }
 
@@ -275,6 +277,22 @@ function ensureDefaultPost(): void {
     interval_minutes: 30,
   };
   db.posts.set("post_1", post);
+}
+
+/** Одна демо-услуга при первом запуске, чтобы iOS/консоль сразу видели список. */
+function ensureDefaultService(): void {
+  if (db.services.size > 0) return;
+  const service: Service = {
+    _id: "svc_default",
+    name: "Экспресс-мойка",
+    description: "Быстрая мойка кузова. Добавьте свои услуги в разделе «Услуги».",
+    price: 500,
+    duration: 30,
+    category: "Мойка",
+    image_url: null,
+    is_active: true,
+  };
+  db.services.set("svc_default", service);
 }
 
 export function getPosts(): Post[] {

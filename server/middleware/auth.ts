@@ -37,43 +37,40 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-/** Optional: extracts JWT (admin) or api_key (iOS client) from Bearer header. Sets req.account or req.clientAuth. */
-export function optionalBearerAuth(req: Request, _res: Response, next: NextFunction) {
+/** Извлекает api_key из X-API-Key или Authorization: Bearer (для iOS и консоли). */
+export function getApiKeyFromRequest(req: Request): string | null {
+  const xApiKey = req.headers["x-api-key"];
+  if (typeof xApiKey === "string" && xApiKey.trim()) return xApiKey.trim();
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return next();
-  }
+  if (authHeader?.startsWith("Bearer ")) return authHeader.slice(7).trim();
+  return null;
+}
 
-  const token = authHeader.slice(7);
+/** Optional: extracts JWT (admin) or api_key (iOS client) from X-API-Key or Bearer. Sets req.account or req.clientAuth. */
+export function optionalBearerAuth(req: Request, _res: Response, next: NextFunction) {
+  const token = getApiKeyFromRequest(req);
+  if (!token) return next();
 
-  // Try JWT first (admin/web)
   const payload = verifyToken(token);
   if (payload) {
     req.account = payload;
     return next();
   }
 
-  // Try api_key (iOS client from /clients/register)
   const clientAuth = db.getClientAuthByApiKey(token);
-  if (clientAuth) {
-    req.clientAuth = clientAuth;
-  }
-
+  if (clientAuth) req.clientAuth = clientAuth;
   next();
 }
 
-/** Requires either JWT (admin) or api_key (iOS client). Returns 401 if neither valid. */
+/** Requires either JWT (admin) or api_key (iOS client). Accepts X-API-Key or Authorization: Bearer. */
 export function requireBearerAuth(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const token = getApiKeyFromRequest(req);
+  if (!token) {
     return res.status(401).json({
       error: "Unauthorized",
-      message: "Missing or invalid Authorization header. Use Bearer api_key from /clients/register",
+      message: "Missing or invalid auth. Use X-API-Key header or Authorization: Bearer api_key from POST /api/v1/clients/register",
     });
   }
-
-  const token = authHeader.slice(7);
 
   const payload = verifyToken(token);
   if (payload) {

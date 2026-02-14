@@ -1,9 +1,23 @@
 import { RequestHandler } from "express";
+import type { CarFolder, CarImage } from "@shared/api";
 import * as db from "../db";
+
+const getBaseName = (filename: string) => filename.replace(/\.[^/.]+$/, "");
+
+/** Для превью всегда фото с именем default_photo_name (обычно "01"). */
+function withProfilePreview(folder: CarFolder): CarFolder {
+  const key = folder.default_photo_name || "01";
+  const img: CarImage | undefined = folder.images.find((i) => getBaseName(i.name) === key) ?? folder.images[0];
+  return {
+    ...folder,
+    profile_preview_url: img?.url,
+    profile_preview_thumbnail_url: img?.thumbnail_url,
+  };
+}
 
 export const getCarFolders: RequestHandler = (_req, res) => {
   try {
-    const folders = db.getCarFolders();
+    const folders = db.getCarFolders().map(withProfilePreview);
     res.json(folders);
   } catch (error) {
     console.error("Error fetching car folders:", error);
@@ -17,7 +31,7 @@ export const getCarFolder: RequestHandler<{ id: string }> = (req, res) => {
     if (!folder) {
       return res.status(404).json({ error: "Not found", message: "Car folder not found" });
     }
-    res.json(folder);
+    res.json(withProfilePreview(folder));
   } catch (error) {
     console.error("Error fetching car folder:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to fetch car folder" });
@@ -30,7 +44,7 @@ export const getCarFolderByName: RequestHandler<{ name: string }> = (req, res) =
     if (!folder) {
       return res.status(404).json({ error: "Not found", message: "Car folder not found" });
     }
-    res.json(folder);
+    res.json(withProfilePreview(folder));
   } catch (error) {
     console.error("Error fetching car folder by name:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to fetch car folder" });
@@ -51,7 +65,7 @@ export const createCarFolder: RequestHandler = (req, res) => {
       images: images,
       default_photo_name: "01",
     });
-    res.status(201).json(folder);
+    res.status(201).json(withProfilePreview(folder));
   } catch (error) {
     console.error("Error creating car folder:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to create car folder" });
@@ -68,7 +82,7 @@ export const updateCarFolder: RequestHandler<{ id: string }> = (req, res) => {
     if (!folder) {
       return res.status(404).json({ error: "Not found", message: "Car folder not found" });
     }
-    res.json(folder);
+    res.json(withProfilePreview(folder));
   } catch (error) {
     console.error("Error updating car folder:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to update car folder" });

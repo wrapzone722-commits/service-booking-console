@@ -1,18 +1,16 @@
 import { RequestHandler } from "express";
 import * as db from "../db";
+import { getApiKeyFromRequest } from "../middleware/auth";
 
 export const getNotifications: RequestHandler = (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader?.startsWith("Bearer ")) {
+    const token = getApiKeyFromRequest(req);
+    if (!token) {
       return res.status(401).json({
         error: "Unauthorized",
-        message: "Authorization Bearer api_key required",
+        message: "X-API-Key or Authorization Bearer api_key required",
       });
     }
-
-    const token = authHeader.slice(7);
     const clientAuth = db.getClientAuthByApiKey(token);
 
     if (!clientAuth) {
@@ -35,16 +33,13 @@ export const getNotifications: RequestHandler = (req, res) => {
 
 export const markNotificationRead: RequestHandler<{ id: string }> = (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader?.startsWith("Bearer ")) {
+    const token = getApiKeyFromRequest(req);
+    if (!token) {
       return res.status(401).json({
         error: "Unauthorized",
-        message: "Authorization Bearer api_key required",
+        message: "X-API-Key or Authorization Bearer api_key required",
       });
     }
-
-    const token = authHeader.slice(7);
     const clientAuth = db.getClientAuthByApiKey(token);
 
     if (!clientAuth) {

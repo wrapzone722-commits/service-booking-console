@@ -34,7 +34,11 @@ export const getSlots: RequestHandler = (req, res) => {
       return res.status(404).json({ error: "Not found", message: "Service not found" });
     }
 
-    res.json(slots);
+    const withCapacity = slots.map((s) => ({
+      ...s,
+      remaining_capacity: s.is_available ? 1 : 0,
+    }));
+    res.json(withCapacity);
   } catch (error) {
     console.error("Error fetching slots:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to fetch slots" });
