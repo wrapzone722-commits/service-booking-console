@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { NetworkStatus } from "./NetworkStatus";
 import { Switch } from "./ui/switch";
 import { useTheme, type ThemeId } from "@/hooks/use-theme";
@@ -27,7 +28,6 @@ const navItems = [
   { path: "/services", label: "Услуги", icon: "💼" },
   { path: "/bookings", label: "Записи", icon: "📅" },
   { path: "/posts", label: "Посты", icon: "🚿" },
-  { path: "/assistant", label: "Ассистент", icon: "🤖" },
   { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
   { path: "/clients", label: "Клиенты", icon: "👥" },
   { path: "/cars", label: "Автомобили", icon: "🚗" },
@@ -53,6 +53,14 @@ export default function Layout({ children }: LayoutProps) {
   const { theme, setTheme } = useTheme();
   const [accountName, setAccountName] = useState("Admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { data: stats = { bookingsToday: 0 } } = useQuery({
+    queryKey: ["stats", "dashboard"],
+    queryFn: async () => {
+      const r = await fetch("/api/v1/stats/dashboard");
+      if (!r.ok) return { bookingsToday: 0 };
+      return r.json() as Promise<{ bookingsToday: number }>;
+    },
+  });
 
   useEffect(() => {
     const name = localStorage.getItem("account_name");

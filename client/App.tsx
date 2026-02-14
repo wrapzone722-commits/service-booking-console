@@ -12,11 +12,9 @@ import Services from "./pages/Services";
 import Bookings from "./pages/Bookings";
 import Clients from "./pages/Clients";
 import Posts from "./pages/Posts";
-import Assistant from "./pages/Assistant";
 import Settings from "./pages/Settings";
 import Cars from "./pages/Cars";
 import Login from "./pages/Login";
-import YandexCallback from "./pages/YandexCallback";
 import Company from "./pages/Company";
 import TelegramBot from "./pages/TelegramBot";
 import NotFound from "./pages/NotFound";
@@ -53,7 +51,6 @@ const AppContent = () => (
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/auth/yandex/callback" element={<YandexCallback />} />
 
           {/* Protected routes */}
           <Route
@@ -69,7 +66,6 @@ const AppContent = () => (
                     <Route path="/bookings" element={<Bookings />} />
                     <Route path="/clients" element={<Clients />} />
                     <Route path="/posts" element={<Posts />} />
-                    <Route path="/assistant" element={<Assistant />} />
                     <Route path="/telegram-bot" element={<TelegramBot />} />
                     <Route path="/cars" element={<Cars />} />
                     <Route path="/settings" element={<Settings />} />

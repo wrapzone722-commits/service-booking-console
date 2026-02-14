@@ -52,12 +52,6 @@ export default function Services() {
     image_thumbnail_url: "" as string,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // AI Assistant state
-  const [showAiForm, setShowAiForm] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiMessage, setAiMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchServices();
@@ -182,7 +176,6 @@ export default function Services() {
     });
     setEditingId(null);
     setShowForm(true);
-    setShowAiForm(false);
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,45 +221,6 @@ export default function Services() {
     }
   };
 
-  const handleAiCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiPrompt.trim()) return;
-
-    try {
-      setAiLoading(true);
-      setAiMessage(null);
-      setError(null);
-
-      const res = await fetch("/api/v1/assistant/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: `Создай услугу: ${aiPrompt}` }],
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.type === "error") {
-        setError(data.message);
-        return;
-      }
-
-      if (data.type === "create_service_result") {
-        setAiMessage(`✓ ${data.message}: "${data.service.name}" (${data.service.price} ₽)`);
-        await fetchServices();
-        setAiPrompt("");
-      } else {
-        setAiMessage(data.message || "Не удалось создать услугу");
-      }
-    } catch (err) {
-      console.error("AI Error:", err);
-      setError("Ошибка подключения к ассистенту");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -279,18 +233,7 @@ export default function Services() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                setShowAiForm(!showAiForm);
-                setShowForm(false);
-                setAiMessage(null);
-              }}
-              className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
-            >
-              {showAiForm ? "✕" : "🤖 Создать с ИИ"}
-            </button>
-            <button
-              onClick={() => {
                 setShowForm(!showForm);
-                setShowAiForm(false);
                 setEditingId(null);
                 setFormData({ name: "", description: "", price: "", duration: "", category: "", image_url: "", image_thumbnail_url: "" });
               }}
@@ -313,44 +256,6 @@ export default function Services() {
             >
               Повторить
             </button>
-          </div>
-        )}
-
-        {/* AI Form */}
-        {showAiForm && (
-          <div className="bg-purple-50 rounded-lg p-4 shadow-sm border border-purple-200 space-y-3 animate-slide-in">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">🤖</span>
-              <div>
-                <h3 className="font-semibold text-purple-900">Создать с ИИ</h3>
-                <p className="text-xs text-purple-600">Опишите услугу — ассистент создаст её автоматически</p>
-              </div>
-            </div>
-            <form onSubmit={handleAiCreate} className="flex gap-2">
-              <input
-                type="text"
-                placeholder='Например: "полировка кузова" или "экспресс мойка"'
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-purple-300 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={aiLoading}
-              />
-              <button
-                type="submit"
-                disabled={aiLoading || !aiPrompt.trim()}
-                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold disabled:opacity-50"
-              >
-                {aiLoading ? "Создание..." : "Создать"}
-              </button>
-            </form>
-            {aiMessage && (
-              <div className="p-2 bg-white rounded-lg border border-purple-200 text-sm text-purple-800">
-                {aiMessage}
-              </div>
-            )}
-            <p className="text-xs text-purple-500">
-              💡 Услуга создаётся <strong>неактивной</strong> — включите её после проверки
-            </p>
           </div>
         )}
 

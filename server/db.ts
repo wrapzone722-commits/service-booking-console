@@ -620,27 +620,6 @@ export function getApiUrlFromRequest(req: { headers: { host?: string }; protocol
   return db.api_base_url;
 }
 
-export function getAiSettings(): AiSettings {
-  return { ...db.ai_settings };
-}
-
-/** Без ключа — для отдачи на фронт (настроен/не настроен) */
-export function getAiSettingsPublic(): Omit<AiSettings, "openai_api_key"> & { configured: boolean } {
-  const s = db.ai_settings;
-  return {
-    openai_api_endpoint: s.openai_api_endpoint,
-    openai_model: s.openai_model,
-    configured: Boolean(s.openai_api_key?.trim()),
-  };
-}
-
-export function updateAiSettings(data: Partial<AiSettings>): AiSettings {
-  if (data.openai_api_key !== undefined) db.ai_settings.openai_api_key = String(data.openai_api_key ?? "").trim();
-  if (data.openai_api_endpoint !== undefined) db.ai_settings.openai_api_endpoint = String(data.openai_api_endpoint ?? "").trim();
-  if (data.openai_model !== undefined) db.ai_settings.openai_model = String(data.openai_model ?? "").trim();
-  return getAiSettings();
-}
-
 // Account/Organization Functions
 export function createAccount(data: Omit<Account, "_id" | "created_at" | "updated_at">): Account {
   const id = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

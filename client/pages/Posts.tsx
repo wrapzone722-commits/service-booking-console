@@ -34,11 +34,6 @@ export default function Posts() {
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editingNameValue, setEditingNameValue] = useState("");
 
-  const [showAiForm, setShowAiForm] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiMessage, setAiMessage] = useState<string | null>(null);
-
   const selected = useMemo(() => posts.find((p) => p._id === selectedId) ?? null, [posts, selectedId]);
 
   useEffect(() => {
@@ -204,40 +199,6 @@ export default function Posts() {
     }
   };
 
-  const handleAiCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiPrompt.trim()) return;
-    try {
-      setAiLoading(true);
-      setAiMessage(null);
-      setError(null);
-      const res = await fetch("/api/v1/assistant/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: `Создай пост: ${aiPrompt}` }],
-        }),
-      });
-      const data = await res.json();
-      if (data.type === "error") {
-        setError(data.message);
-        return;
-      }
-      if (data.type === "create_post_result") {
-        setAiMessage(`✓ ${data.message}: "${data.post.name}"`);
-        await fetchPosts();
-        setAiPrompt("");
-      } else {
-        setAiMessage(data.message || "Не удалось создать пост");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Ошибка подключения к ассистенту");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   const toggleSlotClosed = async (time: string, closed: boolean) => {
     if (!selected) return;
     setDaySlots((prev) => prev.map((s) => (s.time === time ? { ...s, is_closed: closed } : s)));
@@ -289,13 +250,7 @@ export default function Posts() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowAiForm(!showAiForm); setShowCreateForm(false); setAiMessage(null); }}
-              className="px-3 py-2.5 min-h-[44px] text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 active:bg-purple-800 transition-colors font-semibold"
-            >
-              {showAiForm ? "✕" : "🤖 Создать с ИИ"}
-            </button>
-            <button
-              onClick={() => { setShowCreateForm(!showCreateForm); setShowAiForm(false); }}
+              onClick={() => { setShowCreateForm(!showCreateForm); }}
               className="px-3 py-2.5 min-h-[44px] text-sm bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 active:bg-blue-700 transition-colors font-semibold"
             >
               {showCreateForm ? "✕" : "+ Добавить"}
@@ -307,31 +262,6 @@ export default function Posts() {
       <div className="p-4 md:p-6 space-y-4">
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>
-        )}
-
-        {/* AI Form */}
-        {showAiForm && (
-          <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 space-y-3">
-            <h3 className="font-semibold text-purple-900">🤖 Создать пост с ИИ</h3>
-            <form onSubmit={handleAiCreate} className="flex gap-2">
-              <input
-                type="text"
-                placeholder='Например: "Пост 1", "Бокс А", "Эстакада"'
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-purple-300 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={aiLoading}
-              />
-              <button
-                type="submit"
-                disabled={aiLoading || !aiPrompt.trim()}
-                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold disabled:opacity-50"
-              >
-                {aiLoading ? "Создание..." : "Создать"}
-              </button>
-            </form>
-            {aiMessage && <div className="p-2 bg-white rounded border border-purple-200 text-sm text-purple-800">{aiMessage}</div>}
-          </div>
         )}
 
         {/* Manual Create Form */}
@@ -389,19 +319,13 @@ export default function Posts() {
         {/* Posts tabs */}
         {posts.length === 0 ? (
           <div className="bg-white rounded-lg border border-border p-8 text-center">
-            <p className="text-muted-foreground mb-4">Нет постов. Создайте первый — вручную или с помощью ИИ.</p>
+            <p className="text-muted-foreground mb-4">Нет постов. Создайте первый.</p>
             <div className="flex justify-center gap-2">
               <button
-                onClick={() => { setShowCreateForm(true); setShowAiForm(false); }}
+                onClick={() => { setShowCreateForm(true); }}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold"
               >
                 + Добавить
-              </button>
-              <button
-                onClick={() => { setShowAiForm(true); setShowCreateForm(false); }}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold"
-              >
-                🤖 Создать с ИИ
               </button>
             </div>
           </div>

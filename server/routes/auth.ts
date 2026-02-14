@@ -5,8 +5,6 @@ import * as db from "../db";
 import { sendVerificationEmail } from "../lib/email";
 import { sendVerificationSms } from "../lib/sms";
 
-const DEFAULT_PASSWORD = "0000";
-
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + (process.env.JWT_SECRET || "your-secret-key-change-in-production")).digest("hex");
 }
@@ -258,15 +256,16 @@ export const loginByTelegram: RequestHandler = async (req, res) => {
   }
 };
 
-// Login by phone + password (default password 0000)
+// Вход по номеру телефона. Аккаунт создаётся при первом вводе номера.
+// TODO: Подключить сервис проверки кода (SMS) — шаг верификации перед выдачей токена.
 export const loginByPhone: RequestHandler = async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const { phone } = req.body;
 
-    if (!phone || !password) {
+    if (!phone || typeof phone !== "string") {
       return res.status(400).json({
         error: "Validation error",
-        message: "Укажите номер телефона и пароль",
+        message: "Укажите номер телефона",
       });
     }
 
@@ -281,32 +280,16 @@ export const loginByPhone: RequestHandler = async (req, res) => {
     let account = db.getAccountByPhone(normalizedPhone);
 
     if (!account) {
-      // First-time login: create account with default password 0000
-      const defaultHash = hashPassword(DEFAULT_PASSWORD);
-      if (!verifyPassword(password, defaultHash)) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          message: "Неверный пароль. По умолчанию: 0000",
-        });
-      }
       account = db.createAccount({
         name: "Организация",
         email: `phone_${normalizedPhone}@local`,
         phone: normalizedPhone,
         verified: true,
-        password_hash: defaultHash,
         qr_code_data: JSON.stringify({
           api_url: db.getApiUrlFromRequest(req),
           org_id: `org_${Date.now()}`,
         }),
       });
-    } else {
-      if (!account.password_hash || !verifyPassword(password, account.password_hash)) {
-        return res.status(401).json({
-          error: "Unauthorized",
-          message: "Неверный пароль",
-        });
-      }
     }
 
     const token = generateToken(account._id, account.email);
@@ -317,7 +300,7 @@ export const loginByPhone: RequestHandler = async (req, res) => {
       name: account.name,
       verified: account.verified,
       session_token: token,
-      requires_verification: !account.verified,
+      requires_verification: false,
     });
   } catch (error) {
     console.error("Login by phone error:", error);

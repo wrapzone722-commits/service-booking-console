@@ -18,13 +18,6 @@ export default function TelegramBot() {
   const [testLoading, setTestLoading] = useState(false);
   const [webhookLoading, setWebhookLoading] = useState(false);
 
-  // AI assistant
-  const [aiContext, setAiContext] = useState("");
-  const [aiType, setAiType] = useState<string>("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState<string | null>(null);
-  const [aiTargetField, setAiTargetField] = useState<string | null>(null);
-
   useEffect(() => {
     document.title = "ServiceBooking — Telegram Бот";
   }, []);
@@ -140,38 +133,6 @@ export default function TelegramBot() {
     }
   };
 
-  const generateWithAi = async (targetField?: string) => {
-    try {
-      setAiLoading(true);
-      setAiResult(null);
-      const res = await fetch("/api/v1/telegram/generate-message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getHeaders() },
-        body: JSON.stringify({
-          context: aiContext.trim() || undefined,
-          type: aiType || undefined,
-          sample: { user_name: "Иван", service_name: "Экспресс-мойка", date_time: "01.02.2026, 10:00", price: "1500" },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || "Ошибка");
-      setAiResult(data.message || "");
-      setAiTargetField(targetField ?? null);
-    } catch (e) {
-      setAiResult("");
-      setError(e instanceof Error ? e.message : "Ошибка генерации");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const applyAiToField = (field: keyof TelegramBotSettings) => {
-    if (!settings || !aiResult) return;
-    setSettings({ ...settings, [field]: aiResult });
-    setAiTargetField(null);
-    setAiResult(null);
-  };
-
   if (loading || !settings) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -189,7 +150,7 @@ export default function TelegramBot() {
       <div className="bg-white dark:bg-card border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3">
           <h1 className="text-2xl font-bold text-foreground">Telegram Бот</h1>
-          <p className="text-xs text-muted-foreground">Уведомления, шаблоны сообщений, AI-ассистент</p>
+          <p className="text-xs text-muted-foreground">Уведомления и шаблоны сообщений</p>
         </div>
       </div>
 
@@ -210,7 +171,6 @@ export default function TelegramBot() {
             <TabsTrigger value="main" className="flex-1 min-w-[90px]">Основные</TabsTrigger>
             <TabsTrigger value="notify" className="flex-1 min-w-[90px]">Уведомления</TabsTrigger>
             <TabsTrigger value="templates" className="flex-1 min-w-[90px]">Шаблоны</TabsTrigger>
-            <TabsTrigger value="ai" className="flex-1 min-w-[90px]">AI-ассистент</TabsTrigger>
             <TabsTrigger value="extra" className="flex-1 min-w-[90px]">Дополнительно</TabsTrigger>
           </TabsList>
 
@@ -417,79 +377,6 @@ export default function TelegramBot() {
             </div>
           </TabsContent>
 
-          {/* AI-ассистент */}
-          <TabsContent value="ai" className="mt-0 space-y-4">
-            <div className={card}>
-              <h2 className="text-sm font-bold text-foreground mb-2">AI — генерация и анализ сообщений</h2>
-              <p className="text-xs text-muted-foreground mb-3">
-                Опишите задачу или выберите тип — ИИ предложит текст для Telegram.
-              </p>
-              <div className="space-y-2 mb-3">
-                <select
-                  value={aiType}
-                  onChange={(e) => setAiType(e.target.value)}
-                  className={inputCls}
-                  aria-label="Тип сообщения для AI"
-                >
-                  <option value="">— Выберите тип —</option>
-                  <option value="new_booking">Уведомление о новой записи</option>
-                  <option value="cancelled">Уведомление об отмене</option>
-                  <option value="confirmed">Подтверждение записи</option>
-                  <option value="reminder">Напоминание о записи</option>
-                  <option value="welcome">Приветствие при /start</option>
-                </select>
-                <textarea
-                  value={aiContext}
-                  onChange={(e) => setAiContext(e.target.value)}
-                  rows={2}
-                  className={inputCls}
-                  placeholder="Или опишите своими словами: например, «дружелюбное уведомление о новой записи с эмодзи»"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => generateWithAi()}
-                  disabled={aiLoading}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold text-sm disabled:opacity-50"
-                >
-                  {aiLoading ? "Генерация…" : "🤖 Сгенерировать"}
-                </button>
-              </div>
-              {aiResult && (
-                <div className="mt-4 p-3 bg-muted rounded-lg">
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">Результат:</p>
-                  <p className="text-sm whitespace-pre-wrap mb-3">{aiResult}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => applyAiToField("welcome_message")}
-                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded"
-                    >
-                      → Приветствие
-                    </button>
-                    <button
-                      onClick={() => applyAiToField("template_new_booking")}
-                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded"
-                    >
-                      → Новая запись
-                    </button>
-                    <button
-                      onClick={() => applyAiToField("template_booking_cancelled")}
-                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded"
-                    >
-                      → Отмена
-                    </button>
-                    <button
-                      onClick={() => applyAiToField("template_booking_confirmed")}
-                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded"
-                    >
-                      → Подтверждение
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
           {/* Дополнительно */}
           <TabsContent value="extra" className="mt-0 space-y-4">
             <div className={card}>
@@ -518,7 +405,6 @@ export default function TelegramBot() {
                 <li>Ежедневная сводка в заданное время</li>
                 <li>Настраиваемые шаблоны сообщений</li>
                 <li>Приветствие при /start</li>
-                <li>AI-ассистент для составления текстов</li>
               </ul>
             </div>
           </TabsContent>

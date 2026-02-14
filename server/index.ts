@@ -8,12 +8,12 @@ import * as slotsRoutes from "./routes/slots";
 import * as usersRoutes from "./routes/users";
 import * as clientsRoutes from "./routes/clients";
 import * as postsRoutes from "./routes/posts";
-import * as assistantRoutes from "./routes/assistant";
 import * as telegramRoutes from "./routes/telegram";
 import * as connectionsRoutes from "./routes/connections";
 import * as authRoutes from "./routes/auth";
 import * as notificationsRoutes from "./routes/notifications";
 import * as settingsRoutes from "./routes/settings";
+import * as statsRoutes from "./routes/stats";
 import * as carsRoutes from "./routes/cars";
 import { requireAuth } from "./middleware/auth";
 
@@ -94,15 +94,11 @@ export function createServer() {
   app.get("/api/v1/working-hours", postsRoutes.getWorkingHours);
   app.put("/api/v1/working-hours", postsRoutes.setWorkingHours);
 
-  // API v1 routes (Assistant)
-  app.post("/api/v1/assistant/chat", assistantRoutes.chat);
-
   // API v1 routes (Telegram Bot)
   app.get("/api/v1/telegram/bot-info", telegramRoutes.getBotInfo);
   app.get("/api/v1/telegram/settings", requireAuth, telegramRoutes.getSettings);
   app.put("/api/v1/telegram/settings", requireAuth, telegramRoutes.updateSettings);
   app.post("/api/v1/telegram/send-test", requireAuth, telegramRoutes.sendTest);
-  app.post("/api/v1/telegram/generate-message", requireAuth, telegramRoutes.generateMessage);
   app.post("/api/v1/telegram/webhook", telegramRoutes.webhook);
   app.post("/api/v1/telegram/set-webhook", requireAuth, telegramRoutes.setWebhook);
 
@@ -115,21 +111,11 @@ export function createServer() {
   app.post("/api/v1/connections/link-client", connectionsRoutes.linkClientToDevice);
   app.get("/api/v1/connections/verify/token", connectionsRoutes.getConnectionByToken);
 
-  // API v1 routes (Authentication)
-  app.post("/api/v1/auth/register", authRoutes.register);
-  app.post("/api/v1/auth/register/yandex", authRoutes.registerWithYandex);
-  app.post("/api/v1/auth/login", authRoutes.login);
+  // API v1 routes (Authentication) — только вход по телефону + пароль
   app.post("/api/v1/auth/login/phone", authRoutes.loginByPhone);
-  app.post("/api/v1/auth/login/telegram", authRoutes.loginByTelegram);
-  app.post("/api/v1/auth/send-sms-code", authRoutes.sendSmsCode);
-  app.post("/api/v1/auth/verify-phone", authRoutes.verifyPhoneSms);
-  app.post("/api/v1/auth/verify-email", authRoutes.verifyEmail);
   app.get("/api/v1/auth/me", authRoutes.getMe);
   app.put("/api/v1/auth/organization", authRoutes.updateOrganization);
   app.post("/api/v1/auth/logout", authRoutes.logout);
-  app.get("/api/v1/auth/yandex/url", authRoutes.getYandexAuthUrl);
-  app.post("/api/v1/auth/yandex/callback", authRoutes.yandexCallback);
-  app.get("/api/v1/auth/telegram/widget-config", authRoutes.getTelegramWidgetConfig);
 
   return app;
 }
