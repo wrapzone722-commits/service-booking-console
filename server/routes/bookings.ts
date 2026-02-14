@@ -45,13 +45,21 @@ export const getBooking: RequestHandler<{ id: string }> = (req, res) => {
   }
 };
 
-/** Нормализует тело запроса от iOS: поддерживаем snake_case и camelCase, date_time/start_iso/slot/time */
+/** Собирает ISO дату-время из полей date + time (например "2026-02-17" и "19:30") */
+function toISOFromDateAndTime(dateStr: string | undefined, timeStr: string | undefined): string | null {
+  if (!dateStr || !timeStr) return null;
+  const date = new Date(dateStr + "T" + timeStr.replace(/^(\d{1,2}):(\d{2})$/, "$1:$2:00"));
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+/** Нормализует тело запроса от iOS: поддерживаем snake_case и camelCase, date_time/start_iso/slot/time или date+time */
 function normalizeCreateBookingBody(
   body: Record<string, unknown>
 ): { service_id: string; date_time: string; post_id?: string; notes?: string | null; user_id?: string } | null {
   const service_id =
     (body.service_id as string) ?? (body.serviceId as string) ?? null;
-  const date_time =
+  let date_time: string | null =
     (body.date_time as string) ??
     (body.start_iso as string) ??
     (body.startIso as string) ??
@@ -59,6 +67,13 @@ function normalizeCreateBookingBody(
     (body.time as string) ??
     (body.dateTime as string) ??
     null;
+  if (!date_time) {
+    const fromParts = toISOFromDateAndTime(
+      (body.date as string) ?? (body.dateStr as string),
+      (body.time as string) ?? (body.timeStr as string)
+    );
+    if (fromParts) date_time = fromParts;
+  }
   const post_id = (body.post_id as string) ?? (body.postId as string) ?? undefined;
   const notes = (body.notes as string | null) ?? null;
   const user_id = (body.user_id as string) ?? (body.userId as string) ?? undefined;
@@ -185,6 +200,8 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
   try {
     const body = req.body as UpdateBookingStatusRequest | null;
     const status = body?.status;
+
+    console.log("[bookings] PUT status", { id: req.params.id, status: status ?? null, hasBody: !!body });
 
     if (!body || typeof body !== "object") {
       return res.status(400).json({

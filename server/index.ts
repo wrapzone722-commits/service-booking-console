@@ -51,8 +51,8 @@ export function createServer() {
   app.get("/api/v1/bookings/:id", bookingsRoutes.getBooking);
   app.get("/api/v1/bookings/:id/act", bookingsRoutes.getBookingAct);
   app.post("/api/v1/bookings", bookingsRoutes.createBooking);
-  app.put("/api/v1/bookings/:id", bookingsRoutes.updateBookingStatus);
-  app.delete("/api/v1/bookings/:id", bookingsRoutes.deleteBooking);
+  app.put("/api/v1/bookings/:id", requireAuth, bookingsRoutes.updateBookingStatus);
+  app.delete("/api/v1/bookings/:id", requireAuth, bookingsRoutes.deleteBooking);
   app.post("/api/v1/bookings/:id/rating", bookingsRoutes.submitBookingRating);
 
   // Алиасы для iOS (если приложение ходит на /api/client/...)

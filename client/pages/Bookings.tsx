@@ -50,6 +50,10 @@ export default function Bookings() {
   const handleStatusChange = async (id: string, newStatus: BookingStatus) => {
     if (updatingId) return;
     const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Войдите в аккаунт для изменения статуса");
+      return;
+    }
     setUpdatingId(id);
     try {
       setError(null);
@@ -57,12 +61,21 @@ export default function Bookings() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { message?: string }).message || "Не удалось обновить статус");
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("session_token");
+          localStorage.removeItem("account_id");
+          localStorage.removeItem("account_name");
+          window.location.replace("/login");
+          return;
+        }
+        throw new Error(data.message || "Не удалось обновить статус");
+      }
       await fetchBookings();
     } catch (err) {
       console.error(err);
@@ -75,14 +88,27 @@ export default function Bookings() {
   const handleDelete = async (id: string) => {
     if (!confirm("Удалить запись?")) return;
     const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Войдите в аккаунт для удаления записи");
+      return;
+    }
     try {
       setError(null);
       const res = await fetch(`/api/v1/bookings/${id}`, {
         method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { message?: string }).message || "Не удалось удалить запись");
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("session_token");
+          localStorage.removeItem("account_id");
+          localStorage.removeItem("account_name");
+          window.location.replace("/login");
+          return;
+        }
+        throw new Error(data.message || "Не удалось удалить запись");
+      }
       await fetchBookings();
     } catch (err) {
       console.error(err);
@@ -93,17 +119,25 @@ export default function Bookings() {
   const handleOpenAct = async (id: string) => {
     const token = localStorage.getItem("session_token");
     try {
+      setError(null);
       const res = await fetch(`/api/v1/bookings/${id}/act`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Не удалось загрузить акт");
+        throw new Error((data as { message?: string }).message || "Не удалось загрузить акт");
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      const filename = `akt-${id}.pdf`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Не удалось открыть акт");
@@ -185,7 +219,10 @@ export default function Bookings() {
           </div>
         ) : filteredBookings.length === 0 ? (
           <div className="ios-card p-10 text-center text-sm text-muted-foreground">
-            По выбранному фильтру записей пока нет
+            <p>По выбранному фильтру записей пока нет</p>
+            {filterStatus === "completed" && (
+              <p className="mt-2 text-xs">Акт выполненных работ доступен для каждой записи со статусом «Завершена» — выберите «Все» или нажмите на завершённую запись и кнопку «Акт».</p>
+            )}
           </div>
         ) : (
           filteredBookings.map((booking) => {
