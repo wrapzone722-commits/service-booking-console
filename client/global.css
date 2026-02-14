@@ -180,16 +180,15 @@
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-[15px];
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
-    /* Prevent overscroll bounce on iOS */
     overscroll-behavior: none;
-    /* Touch optimization */
     -webkit-tap-highlight-color: transparent;
+    letter-spacing: -0.01em;
   }
 
   /* Prevent zoom on input focus on iOS */

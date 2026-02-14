@@ -87,19 +87,22 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </Link>
       </div>
-      <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => (
           <Link
             key={item.path}
             to={item.path}
-            className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm transition-all duration-200 min-h-[44px] ${
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm min-h-[44px] transition-colors ${
               isActive(item.path)
-                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
-                : "text-sidebar-foreground hover:bg-white/10 active:bg-white/20"
+                ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                : "text-sidebar-foreground/90 hover:bg-white/10"
             }`}
           >
             <span className="text-lg flex-shrink-0">{item.icon}</span>
-            <span className="font-medium truncate">{item.label}</span>
+            <span className="font-medium truncate flex-1">{item.label}</span>
+            {item.path === "/bookings" && stats.bookingsToday > 0 && (
+              <span className="rounded-full bg-white/20 px-1.5 text-xs font-semibold">{stats.bookingsToday}</span>
+            )}
           </Link>
         ))}
       </nav>

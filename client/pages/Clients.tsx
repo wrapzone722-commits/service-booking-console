@@ -107,11 +107,11 @@ export default function Clients() {
               <div className="bg-white rounded-lg shadow-sm border border-border">
                 <div className="px-4 py-3 border-b border-border bg-gray-50 rounded-t-lg">
                   <h2 className="text-sm font-bold text-foreground">
-                    Список ({clients.length})
+                    Список ({filteredClients.length})
                   </h2>
                 </div>
                 <div className="divide-y divide-border max-h-96 overflow-y-auto">
-                  {clients.map((client, idx) => (
+                  {filteredClients.map((client, idx) => (
                     <div
                       key={client._id}
                       onClick={() => setSelectedClient(client)}

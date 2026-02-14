@@ -170,6 +170,21 @@ export default function Services() {
     setShowForm(true);
   };
 
+  const handleDuplicate = (service: Service) => {
+    setFormData({
+      name: `${service.name} (копия)`,
+      description: service.description,
+      price: String(service.price),
+      duration: String(service.duration),
+      category: service.category,
+      image_url: service.image_url ?? "",
+      image_thumbnail_url: service.image_thumbnail_url ?? "",
+    });
+    setEditingId(null);
+    setShowForm(true);
+    setShowAiForm(false);
+  };
+
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;

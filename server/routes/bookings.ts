@@ -83,7 +83,7 @@ export const createBooking: RequestHandler = (req, res) => {
       } else {
         const jwtPayload = verifyToken(token);
         if (jwtPayload) {
-          user = db.getUsers()[0];
+          user = bodyUserId ? db.getUser(bodyUserId) : db.getUsers()[0];
         } else {
           return res.status(401).json({
             error: "Unauthorized",

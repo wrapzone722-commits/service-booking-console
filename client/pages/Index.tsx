@@ -242,30 +242,23 @@ export default function Index() {
               </div>
             </div>
 
-            {/* Clients - Compact Cards */}
-            <div className="bg-white rounded-lg shadow-sm border border-border animate-slide-in">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="px-4 py-3 border-b border-border">
-                <h2 className="text-sm font-bold text-foreground">Клиенты ({clients.length})</h2>
+                <h2 className="text-sm font-semibold text-foreground">Клиенты ({clients.length})</h2>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 p-3">
-                {clients.map((c, idx) => (
-                  <div
-                    key={c._id}
-                    className="p-2 rounded-lg border border-border hover:border-primary hover:shadow-md transition-all duration-300"
-                    style={{ animationDelay: `${idx * 40}ms` }}
-                  >
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 p-4">
+                {clients.map((c) => (
+                  <div key={c._id} className="rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary shrink-0">
                         {c.first_name[0]}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate">{c.first_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{c.phone.slice(0, 8)}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground truncate">{c.first_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{c.phone?.slice(0, 10) ?? ""}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(c.created_at).toLocaleDateString("ru-RU", { month: "short", day: "numeric" })}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleDateString("ru-RU", { month: "short", day: "numeric" })}</p>
                   </div>
                 ))}
               </div>

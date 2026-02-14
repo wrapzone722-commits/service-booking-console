@@ -45,6 +45,9 @@ export function createServer() {
   app.put("/api/v1/services/:id", servicesRoutes.updateService);
   app.delete("/api/v1/services/:id", servicesRoutes.deleteService);
 
+  // API v1 routes (Stats for sidebar/dashboard)
+  app.get("/api/v1/stats/dashboard", statsRoutes.getDashboardStats);
+
   // API v1 routes (Bookings)
   app.get("/api/v1/bookings", bookingsRoutes.getBookings);
   app.get("/api/v1/bookings/:id", bookingsRoutes.getBooking);
@@ -93,7 +96,6 @@ export function createServer() {
 
   // API v1 routes (Assistant)
   app.post("/api/v1/assistant/chat", assistantRoutes.chat);
-  app.get("/api/v1/project/structure", assistantRoutes.getProjectStructure);
 
   // API v1 routes (Telegram Bot)
   app.get("/api/v1/telegram/bot-info", telegramRoutes.getBotInfo);

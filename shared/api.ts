@@ -72,6 +72,8 @@ export interface CreateBookingRequest {
   date_time: string;
   post_id?: string;
   notes?: string | null;
+  /** При создании из админки — ID клиента */
+  user_id?: string;
 }
 
 export interface UpdateBookingStatusRequest {
