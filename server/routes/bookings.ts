@@ -4,6 +4,7 @@ import * as db from "../db";
 import { notifyNewBooking, notifyBookingCancelled, notifyBookingConfirmed } from "../lib/telegram";
 import { verifyToken } from "./auth";
 import { getApiKeyFromRequest } from "../middleware/auth";
+import { buildActPdf } from "../lib/act-pdf";
 
 /** POST body для оценки записи (iOS RatingView) */
 interface RatingRequestBody {
@@ -223,6 +224,55 @@ export const deleteBooking: RequestHandler<{ id: string }> = (req, res) => {
   } catch (error) {
     console.error("Error deleting booking:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to delete booking" });
+  }
+};
+
+/** GET /api/v1/bookings/:id/act — PDF «Акт выполненных работ» для завершённой записи. Доступ: админ (JWT) или клиент (api_key) только для своей записи. */
+export const getBookingAct: RequestHandler<{ id: string }> = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = db.getBooking(id);
+    if (!booking) {
+      return res.status(404).json({ error: "Not found", message: "Booking not found" });
+    }
+    if (booking.status !== "completed") {
+      return res.status(400).json({
+        error: "Bad request",
+        message: "Act is only available for completed bookings",
+      });
+    }
+
+    const token = getApiKeyFromRequest(req);
+    if (!token) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Authorization required (Bearer JWT or api_key)",
+      });
+    }
+    const payload = verifyToken(token);
+    if (payload) {
+      // Admin — allow
+    } else {
+      const clientAuth = db.getClientAuthByApiKey(token);
+      if (!clientAuth || clientAuth.client_id !== booking.user_id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "You can only view act for your own booking",
+        });
+      }
+    }
+
+    const pdfBuffer = await buildActPdf(id);
+    const filename = `akt-${id}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Error generating act PDF:", err);
+    res.status(500).json({
+      error: "Internal server error",
+      message: err instanceof Error ? err.message : "Failed to generate act",
+    });
   }
 };
 

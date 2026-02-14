@@ -48,6 +48,7 @@ export function createServer() {
   // API v1 routes (Bookings)
   app.get("/api/v1/bookings", bookingsRoutes.getBookings);
   app.get("/api/v1/bookings/:id", bookingsRoutes.getBooking);
+  app.get("/api/v1/bookings/:id/act", bookingsRoutes.getBookingAct);
   app.post("/api/v1/bookings", bookingsRoutes.createBooking);
   app.put("/api/v1/bookings/:id", bookingsRoutes.updateBookingStatus);
   app.delete("/api/v1/bookings/:id", bookingsRoutes.deleteBooking);

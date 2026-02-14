@@ -837,6 +837,12 @@ export function getAccount(id: string): Account | null {
   return db.accounts.get(id) || null;
 }
 
+/** Первый (любой) аккаунт организации — для подстановки в шапку актов выполненных работ */
+export function getFirstAccount(): Account | null {
+  const first = db.accounts.values().next();
+  return first.value ?? null;
+}
+
 export function getAccountByEmail(email: string): Account | null {
   return db.accountsByEmail.get(email.toLowerCase()) || null;
 }

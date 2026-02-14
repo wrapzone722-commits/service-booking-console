@@ -70,6 +70,26 @@ export default function Bookings() {
     }
   };
 
+  const handleOpenAct = async (id: string) => {
+    const token = localStorage.getItem("session_token");
+    try {
+      const res = await fetch(`/api/v1/bookings/${id}/act`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Не удалось загрузить акт");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Не удалось открыть акт");
+    }
+  };
+
   const filteredBookings = useMemo(
     () => bookings.filter((b) => filterStatus === "all" || b.status === filterStatus),
     [bookings, filterStatus]
@@ -201,6 +221,14 @@ export default function Bookings() {
                       <p className="text-sm font-bold text-primary">{booking.price.toFixed(0)} ₽</p>
                       <p className="text-xs text-muted-foreground">{booking.duration} мин</p>
                     </div>
+                    {booking.status === "completed" && (
+                      <button
+                        onClick={() => handleOpenAct(booking._id)}
+                        className="px-3 py-2 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 text-xs font-semibold hover:bg-sky-100 transition"
+                      >
+                        Акт
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(booking._id)}
                       className="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition"
