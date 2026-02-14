@@ -174,7 +174,21 @@ export function deleteBooking(id: string): boolean {
   return db.bookings.delete(id);
 }
 
+/** Один пользователь по умолчанию, чтобы GET /profile не возвращал 404 при пустой БД (например после перезапуска). */
+function ensureDefaultUser(): void {
+  if (db.users.size > 0) return;
+  createUser({
+    first_name: "Клиент",
+    last_name: "",
+    phone: "profile-fallback",
+    email: null,
+    avatar_url: null,
+    social_links: {},
+  });
+}
+
 export function getUsers(): User[] {
+  ensureDefaultUser();
   return Array.from(db.users.values()).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );

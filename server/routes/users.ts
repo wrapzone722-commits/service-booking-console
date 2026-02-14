@@ -43,6 +43,7 @@ export const getUser: RequestHandler<{ id: string }> = (req, res) => {
 
 export const getProfile: RequestHandler = (req, res) => {
   try {
+    db.getUsers(); // ensure at least one user exists (avoids 404 on fresh/restarted server)
     let user = null;
     const token = getApiKeyFromRequest(req);
 
