@@ -45,37 +45,63 @@ export const getBooking: RequestHandler<{ id: string }> = (req, res) => {
   }
 };
 
+/** Нормализует тело запроса от iOS: поддерживаем snake_case и camelCase, date_time/start_iso/slot/time */
+function normalizeCreateBookingBody(
+  body: Record<string, unknown>
+): { service_id: string; date_time: string; post_id?: string; notes?: string | null; user_id?: string } | null {
+  const service_id =
+    (body.service_id as string) ?? (body.serviceId as string) ?? null;
+  const date_time =
+    (body.date_time as string) ??
+    (body.start_iso as string) ??
+    (body.startIso as string) ??
+    (body.slot as string) ??
+    (body.time as string) ??
+    (body.dateTime as string) ??
+    null;
+  const post_id = (body.post_id as string) ?? (body.postId as string) ?? undefined;
+  const notes = (body.notes as string | null) ?? null;
+  const user_id = (body.user_id as string) ?? (body.userId as string) ?? undefined;
+  if (!service_id || !date_time) return null;
+  return { service_id, date_time, post_id, notes, user_id };
+}
+
 export const createBooking: RequestHandler = (req, res) => {
   try {
-    const body = req.body as CreateBookingRequest & { start_iso?: string } | null;
-    if (!body || typeof body !== "object") {
-      console.warn("[bookings] Create failed: empty or invalid body (iOS: отправьте Content-Type: application/json и JSON в теле)");
-      return res.status(400).json({
-        error: "Validation error",
-        message: "Request body must be JSON with service_id and date_time (or start_iso). Send Content-Type: application/json.",
-      });
-    }
-    const date_time = body.date_time ?? body.start_iso;
-    const { service_id, notes, post_id, user_id: bodyUserId } = body;
-
-    // Логирование для отладки iOS/клиентов (почему «ничего не происходит»)
-    console.log("[bookings] POST create", {
-      hasBody: true,
-      keys: Object.keys(body),
-      service_id: service_id ?? null,
-      date_time: date_time ?? null,
-      start_iso: body.start_iso ?? null,
-      hasAuth: !!getApiKeyFromRequest(req),
+    // Логируем каждый входящий запрос (чтобы убедиться, что iOS доходит до сервера)
+    console.log("[bookings] POST create request", {
+      url: req.url,
+      path: req.path,
+      contentType: req.headers["content-type"],
+      bodyKeys: req.body && typeof req.body === "object" ? Object.keys(req.body) : "no-body",
     });
 
-    if (!service_id || !date_time) {
-      const message = "Missing required fields: service_id and date_time (or start_iso)";
-      console.warn("[bookings] Validation failed:", message);
+    const rawBody = req.body;
+    if (!rawBody || typeof rawBody !== "object") {
+      console.warn("[bookings] Create failed: empty or invalid body");
       return res.status(400).json({
         error: "Validation error",
-        message,
+        message: "Request body must be JSON. Send Content-Type: application/json and body: { service_id, date_time } or { serviceId, dateTime } (or start_iso / slot / time).",
       });
     }
+
+    const parsed = normalizeCreateBookingBody(rawBody as Record<string, unknown>);
+    if (!parsed) {
+      const keys = Object.keys(rawBody).join(", ");
+      console.warn("[bookings] Create failed: missing service_id or date_time. Received keys:", keys);
+      return res.status(400).json({
+        error: "Validation error",
+        message: `Missing required fields: service_id (or serviceId) and date_time (or start_iso, slot, time, dateTime). Received: ${keys || "none"}`,
+      });
+    }
+
+    const { service_id, date_time, post_id, notes, user_id: bodyUserId } = parsed;
+
+    console.log("[bookings] POST create parsed", {
+      service_id,
+      date_time: date_time?.slice(0, 25),
+      hasAuth: !!getApiKeyFromRequest(req),
+    });
 
     const service = db.getService(service_id);
     if (!service) {

@@ -47,6 +47,7 @@ export function createServer() {
 
   // API v1 routes (Bookings)
   app.get("/api/v1/bookings", bookingsRoutes.getBookings);
+  app.get("/api/v1/bookings/check", (_req, res) => res.json({ ok: true, message: "Booking API reachable from iOS" }));
   app.get("/api/v1/bookings/:id", bookingsRoutes.getBooking);
   app.get("/api/v1/bookings/:id/act", bookingsRoutes.getBookingAct);
   app.post("/api/v1/bookings", bookingsRoutes.createBooking);

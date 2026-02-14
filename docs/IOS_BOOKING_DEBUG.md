@@ -32,8 +32,9 @@
 
 ## 3. Тело запроса (JSON)
 
-Минимум:
+Сервер принимает **snake_case** и **camelCase**, а также разные имена для даты/времени.
 
+**Вариант 1 (snake_case):**
 ```json
 {
   "service_id": "svc_123...",
@@ -41,23 +42,37 @@
 }
 ```
 
-Либо вместо `date_time` можно передать **start_iso** (то же значение в ISO 8601):
-
+**Вариант 2 (camelCase для iOS):**
 ```json
 {
-  "service_id": "svc_123...",
-  "start_iso": "2026-02-15T10:00:00.000Z"
+  "serviceId": "svc_123...",
+  "dateTime": "2026-02-15T10:00:00.000Z"
 }
 ```
 
-Опционально: `post_id` (по умолчанию `post_1`), `notes`.
+**Вариант 3 (поле slot / time / start_iso):**
+```json
+{
+  "service_id": "svc_123...",
+  "slot": "2026-02-15T10:00:00.000Z"
+}
+```
 
-- `service_id` — id выбранной услуги из `GET .../services`.
-- `date_time` / `start_iso` — дата и время слота в формате ISO 8601 (как в ответе `GET .../slots`).
+Поддерживаемые поля времени: `date_time`, `start_iso`, `startIso`, `slot`, `time`, `dateTime`.  
+Поддерживаемые поля услуги: `service_id`, `serviceId`.  
+Опционально: `post_id` / `postId` (по умолчанию `post_1`), `notes`.
 
 ---
 
-## 4. Проверка с сервера (curl)
+## 4. Проверка доступности API с iOS
+
+В приложении можно проверить, доходит ли запрос до сервера:
+
+- **GET** `{base_url}/bookings/check`  
+  Ответ: `{ "ok": true, "message": "Booking API reachable from iOS" }`.  
+  Если этот запрос с тем же base_url и заголовками проходит — сеть и URL настроены верно.
+
+## 5. Проверка с сервера (curl)
 
 Подставьте свой `BASE_URL` и `API_KEY` и выполните:
 
@@ -73,7 +88,7 @@ curl -X POST "$BASE_URL/bookings" \
 
 ---
 
-## 5. Что проверить в iOS-приложении
+## 6. Что проверить в iOS-приложении
 
 1. **Кнопка «Записаться» реально вызывает запрос**
    - Поставьте breakpoint или логирование в обработчик нажатия и в метод, который выполняет `POST .../bookings` (или `.../api/client/appointments`).
@@ -101,16 +116,17 @@ curl -X POST "$BASE_URL/bookings" \
 
 ---
 
-## 6. Логи на сервере (консоль)
+## 7. Логи на сервере (консоль)
 
-При включённом логе на бэкенде при каждом `POST .../bookings` пишется, например:
+При каждом запросе создания записи на бэкенде пишется:
 
-- `[bookings] POST create` — есть ли тело, какие ключи, есть ли авторизация.
-- При ошибке валидации: `[bookings] Validation failed: ...`
-- При неверном/просроченном токене: `[bookings] Create failed: invalid or expired token ...`
+- `[bookings] POST create request` — url, path, Content-Type, список ключей тела (или "no-body"). Если этой строки нет — запрос до сервера не доходит (проверьте URL и сеть в iOS).
+- `[bookings] POST create parsed` — после разбора тела: service_id, date_time, есть ли авторизация.
+- При пустом теле: `[bookings] Create failed: empty or invalid body`
+- При нехватке полей: `[bookings] Create failed: missing service_id or date_time. Received keys: ...`
 - При успехе: `[bookings] Created <id> <service_name> <user_name>`
 
-По этим сообщениям можно понять: пришёл ли запрос, хватает ли полей, прошла ли авторизация.
+По ним можно понять: доходит ли запрос, правильно ли разбирается тело, прошла ли авторизация.
 
 ---
 
