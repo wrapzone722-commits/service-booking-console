@@ -1,9 +1,11 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Booking } from "@shared/api";
 import { NetworkStatus } from "./NetworkStatus";
 import { Switch } from "./ui/switch";
 import { useTheme, type ThemeId } from "@/hooks/use-theme";
+import { toast } from "@/hooks/use-toast";
 
 interface LayoutProps {
   children: ReactNode;
@@ -54,6 +56,9 @@ export default function Layout({ children }: LayoutProps) {
   const { theme, setTheme } = useTheme();
   const [accountName, setAccountName] = useState("Admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [latestBookingAlert, setLatestBookingAlert] = useState<Booking | null>(null);
+  const seenBookingIdsRef = useRef<Set<string>>(new Set());
+  const initializedBookingsRef = useRef(false);
   const { data: stats = { bookingsToday: 0 } } = useQuery({
     queryKey: ["stats", "dashboard"],
     queryFn: async () => {
@@ -71,6 +76,96 @@ export default function Layout({ children }: LayoutProps) {
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const playNotificationSound = () => {
+      try {
+        const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(880, now);
+        gain1.gain.setValueAtTime(0.0001, now);
+        gain1.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+        osc1.connect(gain1).connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.2);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "triangle";
+        osc2.frequency.setValueAtTime(1175, now + 0.1);
+        gain2.gain.setValueAtTime(0.0001, now + 0.1);
+        gain2.gain.exponentialRampToValueAtTime(0.1, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+        osc2.connect(gain2).connect(ctx.destination);
+        osc2.start(now + 0.1);
+        osc2.stop(now + 0.3);
+
+        setTimeout(() => {
+          ctx.close().catch(() => undefined);
+        }, 350);
+      } catch {
+        // Ignore audio errors (autoplay policy, unavailable API, etc.)
+      }
+    };
+
+    const checkNewBookings = async () => {
+      try {
+        const res = await fetch("/api/v1/bookings");
+        if (!res.ok) return;
+        const bookings = (await res.json()) as Booking[];
+
+        if (!initializedBookingsRef.current) {
+          seenBookingIdsRef.current = new Set(bookings.map((b) => b._id));
+          initializedBookingsRef.current = true;
+          return;
+        }
+
+        const newBookings = bookings
+          .filter((b) => !seenBookingIdsRef.current.has(b._id))
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        if (!newBookings.length) return;
+
+        for (const booking of newBookings) {
+          seenBookingIdsRef.current.add(booking._id);
+        }
+
+        const booking = newBookings[newBookings.length - 1];
+        if (!isMounted) return;
+
+        setLatestBookingAlert(booking);
+        playNotificationSound();
+        toast({
+          title: "Новая запись",
+          description: `${booking.user_name} • ${booking.service_name} • ${new Date(booking.date_time).toLocaleString("ru-RU", {
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`,
+        });
+      } catch {
+        // Silent fail for background polling.
+      }
+    };
+
+    checkNewBookings();
+    const timer = window.setInterval(checkNewBookings, 10000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -277,6 +372,44 @@ export default function Layout({ children }: LayoutProps) {
           </button>
         </nav>
       </main>
+
+      {latestBookingAlert && (
+        <div className="fixed right-4 top-16 md:top-16 z-[70] w-[min(92vw,360px)] ios-card p-4 animate-slide-in">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Новая запись</p>
+              <p className="text-xs text-muted-foreground mt-1">{latestBookingAlert.user_name}</p>
+              <p className="text-xs text-muted-foreground">{latestBookingAlert.service_name}</p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(latestBookingAlert.date_time).toLocaleString("ru-RU", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+            <button
+              onClick={() => setLatestBookingAlert(null)}
+              className="text-muted-foreground hover:text-foreground text-sm"
+              aria-label="Закрыть уведомление"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              onClick={() => {
+                navigate("/bookings");
+                setLatestBookingAlert(null);
+              }}
+              className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90"
+            >
+              Открыть записи
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

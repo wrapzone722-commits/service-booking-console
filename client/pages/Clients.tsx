@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { User } from "@shared/api";
 import {
   Dialog,
@@ -11,6 +11,45 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 
+const statusLabelMap: Record<string, string> = {
+  active: "Активный",
+  inactive: "Неактивный",
+  vip: "VIP",
+};
+
+function toCsvValue(value: string | number | null | undefined): string {
+  const str = value == null ? "" : String(value);
+  if (/[;"\n]/.test(str)) return `"${str.replace(/"/g, "\"\"")}"`;
+  return str;
+}
+
+function parseCsvLine(line: string, delimiter: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = line[i + 1];
+    if (ch === '"' && inQuotes && next === '"') {
+      cur += '"';
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === delimiter && !inQuotes) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
 export default function Clients() {
   const [clients, setClients] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +59,9 @@ export default function Clients() {
   const [messageTitle, setMessageTitle] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [messageSending, setMessageSending] = useState(false);
+  const [search, setSearch] = useState("");
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchClients();
@@ -73,6 +115,147 @@ export default function Clients() {
     }
   };
 
+  const filteredClients = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((client) =>
+      [client.first_name, client.last_name, client.phone, client.email || "", client._id]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [clients, search]);
+
+  const exportClientsToExcel = () => {
+    if (!clients.length) {
+      setError("Список клиентов пуст, экспортировать нечего");
+      return;
+    }
+    const headers = [
+      "ID",
+      "Имя",
+      "Фамилия",
+      "Телефон",
+      "Email",
+      "Статус",
+      "Накопительные баллы",
+      "Telegram",
+      "WhatsApp",
+      "Instagram",
+      "VK",
+      "Дата регистрации",
+    ];
+    const rows = clients.map((c) => [
+      c._id,
+      c.first_name,
+      c.last_name,
+      c.phone,
+      c.email || "",
+      c.status || "active",
+      Number.isFinite(Number(c.loyalty_points)) ? Number(c.loyalty_points) : 0,
+      c.social_links?.telegram || "",
+      c.social_links?.whatsapp || "",
+      c.social_links?.instagram || "",
+      c.social_links?.vk || "",
+      c.created_at,
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => toCsvValue(cell)).join(";"))
+      .join("\n");
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `clients-export-${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => fileInputRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setImporting(true);
+      setError(null);
+      const text = await file.text();
+      const lines = text
+        .replace(/^\uFEFF/, "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (lines.length < 2) throw new Error("Файл пуст или содержит только заголовок");
+
+      const delimiter = lines[0].includes(";") ? ";" : ",";
+      const headers = parseCsvLine(lines[0], delimiter).map((h) => h.trim().toLowerCase());
+
+      const indexOfAny = (...keys: string[]) => headers.findIndex((h) => keys.includes(h));
+
+      const idx = {
+        first_name: indexOfAny("имя", "first_name", "firstname"),
+        last_name: indexOfAny("фамилия", "last_name", "lastname"),
+        phone: indexOfAny("телефон", "phone"),
+        email: indexOfAny("email", "e-mail"),
+        status: indexOfAny("статус", "status"),
+        loyalty_points: indexOfAny("накопительные баллы", "баллы", "loyalty_points", "points"),
+        telegram: indexOfAny("telegram"),
+        whatsapp: indexOfAny("whatsapp"),
+        instagram: indexOfAny("instagram"),
+        vk: indexOfAny("vk"),
+        created_at: indexOfAny("дата регистрации", "created_at"),
+      };
+
+      if (idx.first_name < 0 || idx.phone < 0) {
+        throw new Error("В файле обязательно должны быть столбцы: Имя и Телефон");
+      }
+
+      const clientsPayload = lines.slice(1).map((line) => {
+        const cells = parseCsvLine(line, delimiter);
+        const get = (i: number) => (i >= 0 ? (cells[i] || "").trim() : "");
+        const statusRaw = get(idx.status).toLowerCase();
+        const status = statusRaw === "inactive" || statusRaw === "vip" ? statusRaw : "active";
+        const points = Number(get(idx.loyalty_points) || "0");
+
+        return {
+          first_name: get(idx.first_name),
+          last_name: get(idx.last_name) || "-",
+          phone: get(idx.phone),
+          email: get(idx.email) || null,
+          status,
+          loyalty_points: Number.isFinite(points) ? points : 0,
+          social_links: {
+            telegram: get(idx.telegram) || null,
+            whatsapp: get(idx.whatsapp) || null,
+            instagram: get(idx.instagram) || null,
+            vk: get(idx.vk) || null,
+          },
+          created_at: get(idx.created_at) || undefined,
+        };
+      });
+
+      const res = await fetch("/api/v1/users/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clients: clientsPayload }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Ошибка импорта");
+
+      await fetchClients();
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Ошибка импорта");
+    } finally {
+      setImporting(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -80,16 +263,48 @@ export default function Clients() {
         <div className="px-4 md:px-6 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Клиенты</h1>
-            <p className="text-xs text-muted-foreground">База и контакты</p>
+            <p className="text-xs text-muted-foreground">База, контакты, импорт и экспорт</p>
           </div>
-          <div className="text-sm font-semibold text-primary">
-            Всего: {clients.length}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportClientsToExcel}
+              className="px-3 py-1.5 text-sm rounded-lg bg-primary text-primary-foreground font-semibold hover:opacity-90"
+            >
+              Экспорт Excel
+            </button>
+            <button
+              onClick={handleImportClick}
+              disabled={importing}
+              className="px-3 py-1.5 text-sm rounded-lg border border-border bg-card text-foreground font-semibold hover:bg-muted disabled:opacity-60"
+            >
+              {importing ? "Импорт..." : "Импорт Excel"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              aria-label="Импорт клиентов из CSV"
+              onChange={handleImportFile}
+            />
+            <div className="text-sm font-semibold text-primary">
+              Всего: {clients.length}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-4 md:p-6">
+      <div className="p-4 md:p-6 space-y-3">
+        <div className="ios-card p-3">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск: имя, телефон, email, ID"
+            aria-label="Поиск клиента"
+          />
+        </div>
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm animate-slide-in">
             {error}
@@ -111,7 +326,7 @@ export default function Clients() {
                   </h2>
                 </div>
                 <div className="divide-y divide-border max-h-96 overflow-y-auto">
-                  {filteredClients.map((client, idx) => (
+                  {filteredClients.map((client) => (
                     <div
                       key={client._id}
                       onClick={() => setSelectedClient(client)}
@@ -120,7 +335,6 @@ export default function Clients() {
                           ? "bg-blue-100 border-l-4 border-primary"
                           : "hover:translate-x-1"
                       }`}
-                      style={{ animationDelay: `${idx * 20}ms` }}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -128,9 +342,11 @@ export default function Clients() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">
-                            {client.first_name}
+                            {client.first_name} {client.last_name}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate">{client.phone}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {client.phone} • {statusLabelMap[client.status || "active"]} • {client.loyalty_points ?? 0} бал.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -157,7 +373,7 @@ export default function Clients() {
                   </div>
 
                   {/* Contact Details Grid */}
-                  <div className="grid grid-cols-2 gap-3 py-4 border-y border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-4 border-y border-border">
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
                       <p className="text-xs text-blue-700 font-semibold">📞 Телефон</p>
                       <p className="text-sm font-bold text-blue-900 truncate">{selectedClient.phone}</p>
@@ -168,6 +384,18 @@ export default function Clients() {
                         <p className="text-sm font-bold text-purple-900 truncate">{selectedClient.email}</p>
                       </div>
                     )}
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 border border-emerald-200">
+                      <p className="text-xs text-emerald-700 font-semibold">🏷️ Статус</p>
+                      <p className="text-sm font-bold text-emerald-900">
+                        {statusLabelMap[selectedClient.status || "active"]}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-3 border border-amber-200">
+                      <p className="text-xs text-amber-700 font-semibold">⭐ Накопительные баллы</p>
+                      <p className="text-sm font-bold text-amber-900">
+                        {selectedClient.loyalty_points ?? 0}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Registration Info */}

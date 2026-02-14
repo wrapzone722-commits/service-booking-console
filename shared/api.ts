@@ -116,6 +116,10 @@ export interface User {
   email: string | null;
   avatar_url: string | null;
   social_links: SocialLinks;
+  /** Статус клиента для CRM */
+  status?: "active" | "inactive" | "vip";
+  /** Накопительные баллы клиента */
+  loyalty_points?: number;
   created_at: string; // ISO 8601
 }
 
@@ -126,6 +130,8 @@ export interface UpdateUserRequest {
   phone?: string;
   avatar_url?: string | null;
   social_links?: SocialLinks;
+  status?: "active" | "inactive" | "vip";
+  loyalty_points?: number;
 }
 
 // ====== API CONFIG ======

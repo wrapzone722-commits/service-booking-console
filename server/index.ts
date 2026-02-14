@@ -64,6 +64,7 @@ export function createServer() {
   app.get("/api/v1/profile", usersRoutes.getProfile);
   app.put("/api/v1/profile", usersRoutes.updateProfile);
   app.post("/api/v1/users", usersRoutes.createUser);
+  app.post("/api/v1/users/import", usersRoutes.importUsers);
 
   // API v1 routes (Settings / QR)
   app.get("/api/v1/settings/api-url", settingsRoutes.getApiUrl);
