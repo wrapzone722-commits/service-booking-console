@@ -46,6 +46,7 @@ const themes: { id: ThemeId; label: string; icon: string }[] = [
   { id: "gray", label: "Серая", icon: "🌙" },
   { id: "dark", label: "Тёмная", icon: "🌑" },
 ];
+const APP_VERSION = "v2.1 • build 2025-02";
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
@@ -107,14 +108,24 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className="text-lg flex-shrink-0">{item.icon}</span>
-            <span className="font-medium truncate flex-1">{item.label}</span>
+            <span className="font-medium truncate flex-1">
+              {item.label}
+              {item.path === "/settings" && (
+                <span className="block text-[10px] font-normal text-white/60 leading-tight mt-0.5">
+                  {APP_VERSION}
+                </span>
+              )}
+            </span>
             {item.path === "/bookings" && stats.bookingsToday > 0 && (
               <span className="rounded-full bg-white/20 px-1.5 text-xs font-semibold">{stats.bookingsToday}</span>
             )}
           </Link>
         ))}
       </nav>
-      <div className="p-2 border-t border-sidebar-border/50">
+      <div className="px-3 py-2 border-t border-sidebar-border/50 space-y-2">
+        <p className="text-[11px] text-white/60">
+          {APP_VERSION}
+        </p>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-white/10 active:bg-white/20 transition-all text-sm font-medium min-h-[44px]"
@@ -129,7 +140,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="relative flex flex-col min-h-screen bg-background md:flex-row">
       {/* Top bar: theme switcher + clock (desktop) */}
-      <div className="hidden md:flex absolute top-0 left-0 right-0 z-30 h-9 px-4 items-center justify-between bg-background/80 backdrop-blur border-b border-border">
+      <div className="hidden md:flex absolute top-0 left-0 right-0 z-30 h-11 px-4 items-center justify-between ios-surface border-b border-border/60">
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
           {themes.map((t) => (
@@ -236,7 +247,7 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col min-h-0 md:min-h-screen w-full md:pt-9">
+      <main className="flex-1 flex flex-col min-h-0 md:min-h-screen w-full md:pt-11">
         <div className="flex-1 min-h-0 overflow-auto bg-background pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           <div className="min-h-[100dvh]">
             {children}
@@ -244,7 +255,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Bottom navigation (mobile only) */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg z-40 safe-area-bottom flex justify-around items-stretch pb-[env(safe-area-inset-bottom)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 ios-surface border-t border-border/70 shadow-lg z-40 safe-area-bottom flex justify-around items-stretch pb-[env(safe-area-inset-bottom)]">
           {bottomNavItems.map((item) => (
             <Link
               key={item.path}

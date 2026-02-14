@@ -88,6 +88,7 @@ export default function Settings() {
                     value={apiUrl}
                     onChange={(e) => setApiUrl(e.target.value)}
                     placeholder="https://your-domain.com/api/v1"
+                    aria-label="Базовый URL API"
                     className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <button
@@ -107,6 +108,7 @@ export default function Settings() {
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   placeholder="Оставьте пустым для автоматической регистрации"
+                  aria-label="Токен подключения"
                   className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -147,6 +149,7 @@ export default function Settings() {
               <input
                 type="time"
                 defaultValue="09:00"
+                aria-label="Начало работы"
                 className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -157,6 +160,7 @@ export default function Settings() {
               <input
                 type="time"
                 defaultValue="18:00"
+                aria-label="Конец работы"
                 className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -167,6 +171,7 @@ export default function Settings() {
               <input
                 type="number"
                 defaultValue="30"
+                aria-label="Длительность слота"
                 className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -174,7 +179,7 @@ export default function Settings() {
               <label className="block text-xs font-semibold text-foreground mb-1">
                 Выходной день
               </label>
-              <select className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary">
+              <select aria-label="Выходной день" className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="">Не выбрано</option>
                 <option>Понедельник</option>
                 <option>Вторник</option>
@@ -229,6 +234,11 @@ export default function Settings() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="ios-card p-4 text-center">
+          <p className="text-xs text-muted-foreground">Версия приложения</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">v2.1 • build 2025-02</p>
         </div>
       </div>
     </div>
