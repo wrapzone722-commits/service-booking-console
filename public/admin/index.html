@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Service Booking — Админ-панель</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>Service Booking</h1>
+      <nav class="nav">
+        <button data-page="services">Услуги</button>
+        <button data-page="bookings">Записи</button>
+        <button data-page="clients">Клиенты</button>
+        <button data-page="settings">Настройки</button>
+      </nav>
+      <div class="auth">
+        <input type="password" id="adminPass" placeholder="Пароль" value="admin123">
+        <button id="btnLogin">Вход</button>
+      </div>
+    </header>
+
+    <main id="content">
+      <div id="loginScreen" class="screen">
+        <p>Введите пароль администратора и нажмите «Вход»</p>
+      </div>
+
+      <div id="servicesScreen" class="screen hidden">
+        <h2>Услуги</h2>
+        <button id="btnAddService">+ Добавить услугу</button>
+        <div id="servicesList"></div>
+      </div>
+
+      <div id="bookingsScreen" class="screen hidden">
+        <h2>Записи</h2>
+        <div class="filters">
+          <select id="filterStatus">
+            <option value="">Все статусы</option>
+            <option value="pending">Ожидает</option>
+            <option value="confirmed">Подтверждена</option>
+            <option value="in_progress">В процессе</option>
+            <option value="completed">Завершена</option>
+            <option value="cancelled">Отменена</option>
+          </select>
+          <input type="date" id="filterDate">
+        </div>
+        <div id="bookingsList"></div>
+      </div>
+
+      <div id="clientsScreen" class="screen hidden">
+        <h2>Клиенты</h2>
+        <div id="clientsList"></div>
+      </div>
+
+      <div id="settingsScreen" class="screen hidden">
+        <h2>Настройки</h2>
+        <div class="settings-form">
+          <label>Базовый URL API (для QR)</label>
+          <input type="url" id="apiBaseUrl" placeholder="https://your-domain.com/api/v1">
+          <p class="hint">Этот URL отображается в QR-коде. На реальном сервере укажите ваш домен.</p>
+          <button id="btnSaveSettings">Сохранить</button>
+        </div>
+        <hr>
+        <h3>QR-код для подключения iOS</h3>
+        <p>Отсканируйте QR-код в приложении для подключения к этой веб-консоли.</p>
+        <div id="qrcodeContainer"></div>
+        <p class="hint">Локально: <code id="localUrl"></code></p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Service form -->
+  <div id="serviceModal" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="serviceModalTitle">Добавить услугу</h3>
+      <form id="serviceForm">
+        <input type="hidden" id="serviceId">
+        <label>Название *</label>
+        <input type="text" id="serviceName" required>
+        <label>Описание</label>
+        <textarea id="serviceDescription"></textarea>
+        <label>Цена (₽)</label>
+        <input type="number" id="servicePrice" value="0" step="0.01">
+        <label>Длительность (мин)</label>
+        <input type="number" id="serviceDuration" value="60">
+        <label>Категория</label>
+        <input type="text" id="serviceCategory" placeholder="Автоуслуги">
+        <label><input type="checkbox" id="serviceActive" checked> Активна</label>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelService">Отмена</button>
+          <button type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Send notification -->
+  <div id="notifyModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Отправить сообщение клиенту</h3>
+      <form id="notifyForm">
+        <input type="hidden" id="notifyClientId">
+        <label>Заголовок</label>
+        <input type="text" id="notifyTitle" placeholder="Сообщение">
+        <label>Текст *</label>
+        <textarea id="notifyBody" required></textarea>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelNotify">Отмена</button>
+          <button type="submit">Отправить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
