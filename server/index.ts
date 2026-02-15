@@ -121,6 +121,9 @@ export function createServer() {
 
   // API v1 routes (Authentication) — только вход по телефону + пароль
   app.post("/api/v1/auth/login/phone", authRoutes.loginByPhone);
+  // Telegram Login Widget (для web-клиента/консоли)
+  app.get("/api/v1/auth/telegram/widget-config", authRoutes.getTelegramWidgetConfig);
+  app.post("/api/v1/auth/login/telegram", authRoutes.loginByTelegram);
   app.get("/api/v1/auth/me", authRoutes.getMe);
   app.put("/api/v1/auth/organization", authRoutes.updateOrganization);
   app.post("/api/v1/auth/logout", authRoutes.logout);
