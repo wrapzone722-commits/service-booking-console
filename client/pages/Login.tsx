@@ -1,9 +1,19 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
+const ACCEPTED_AT_KEY = "sb_console_legal_accepted_at";
+const VERSION_KEY = "sb_console_legal_version";
+const LEGAL_VERSION = "2026-02-15";
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
+  const [accepted, setAccepted] = useState(() => {
+    const v = localStorage.getItem(VERSION_KEY);
+    const at = localStorage.getItem(ACCEPTED_AT_KEY);
+    return !!at && v === LEGAL_VERSION;
+  });
 
   useEffect(() => {
     document.title = "ServiceBooking — Вход";
@@ -94,9 +104,36 @@ export default function Login() {
               />
             </div>
 
+            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={accepted}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setAccepted(next);
+                  if (next) {
+                    localStorage.setItem(ACCEPTED_AT_KEY, new Date().toISOString());
+                    localStorage.setItem(VERSION_KEY, LEGAL_VERSION);
+                  } else {
+                    localStorage.removeItem(ACCEPTED_AT_KEY);
+                    localStorage.removeItem(VERSION_KEY);
+                  }
+                }}
+                disabled={loading}
+              />
+              <span>
+                Принимаю{" "}
+                <Link to="/legal" className="underline text-primary">
+                  документы по персональным данным
+                </Link>{" "}
+                (152‑ФЗ/242‑ФЗ).
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !accepted}
               className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-blue-600 transition-colors font-semibold disabled:opacity-50"
             >
               {loading ? "Вход..." : "Войти"}

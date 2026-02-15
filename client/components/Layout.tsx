@@ -221,6 +221,12 @@ export default function Layout({ children }: LayoutProps) {
         <p className="text-[11px] text-white/60">
           {APP_VERSION}
         </p>
+        <Link
+          to="/legal"
+          className="block text-[11px] text-white/70 hover:text-white underline underline-offset-2"
+        >
+          Документы / Персональные данные
+        </Link>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-white/10 active:bg-white/20 transition-all text-sm font-medium min-h-[44px]"
