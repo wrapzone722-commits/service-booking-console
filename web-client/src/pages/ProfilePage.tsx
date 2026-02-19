@@ -357,17 +357,23 @@ export function ProfilePage() {
           <p className="text-xs text-muted-fg mt-1">
             Принято: {acceptedAt ?? "не принято"}
           </p>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <Link
               to="/legal"
-              className="flex-1 py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
+              className="py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
             >
               Открыть
+            </Link>
+            <Link
+              to="/agreement"
+              className="py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
+            >
+              Соглашение
             </Link>
             <button
               type="button"
               onClick={revoke}
-              className="flex-1 py-2 rounded-xl bg-muted text-fg text-sm"
+              className="col-span-2 py-2 rounded-xl bg-muted text-fg text-sm"
             >
               Отозвать
             </button>

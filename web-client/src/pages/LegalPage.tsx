@@ -21,14 +21,12 @@ export function LegalPage() {
       <div className="bg-card/70 backdrop-blur-xl border border-border rounded-2xl shadow-ios p-2 flex gap-2 overflow-auto">
         <Tab to="?doc=privacy" active={doc === "privacy"}>Политика</Tab>
         <Tab to="?doc=consent" active={doc === "consent"}>Согласие</Tab>
-        <Tab to="?doc=terms" active={doc === "terms"}>Соглашение</Tab>
         <Tab to="?doc=cookies" active={doc === "cookies"}>Cookies</Tab>
       </div>
 
       <div className="mt-3 bg-card/70 backdrop-blur-xl border border-border rounded-2xl shadow-ios p-4">
         {doc === "privacy" && <PrivacyText />}
         {doc === "consent" && <ConsentText />}
-        {doc === "terms" && <TermsText />}
         {doc === "cookies" && <CookiesText />}
       </div>
 
@@ -52,7 +50,7 @@ export function LegalPage() {
         {accepted ? (
           <>Принято: <span className="font-medium">{acceptedAt}</span></>
         ) : (
-          "Чтобы пользоваться сервисом, нужно принять документы."
+          "Чтобы пользоваться сервисом, нужно принять Политику и Согласие."
         )}
       </p>
     </div>
@@ -81,9 +79,8 @@ function PrivacyText() {
         Настоящая политика составлена во исполнение требований Федерального закона РФ №152‑ФЗ
         «О персональных данных», а также требований локализации (№242‑ФЗ) при применимости.
       </p>
-      <p className="text-muted-fg">
-        <span className="font-medium text-fg">Оператор</span>: укажите юридическое лицо/ИП, ИНН/ОГРН, адрес,
-        контактный email/телефон. (Заполните в тексте для продакшена.)
+      <p className="text-[11px] leading-4 text-muted-fg/80">
+        Оператор: <span className="text-muted-fg/80">&lt;название, реквизиты, контакты&gt;</span>
       </p>
       <p className="text-muted-fg">
         <span className="font-medium text-fg">Цели</span>: предоставление сервиса записи, управление записями,
@@ -101,8 +98,8 @@ function PrivacyText() {
         <span className="font-medium text-fg">Третьи лица</span>: Telegram (Login Widget/бот) как внешний сервис
         аутентификации/уведомлений. Иные подрядчики — при наличии должны быть перечислены отдельно.
       </p>
-      <p className="text-xs text-muted-fg">
-        Это шаблон. Для юридически корректной публикации под РФ замените «Оператор» и уточните состав/цели/сроки.
+      <p className="text-[11px] leading-4 text-muted-fg/70">
+        Шаблон. Перед публикацией заполните реквизиты оператора и актуализируйте разделы.
       </p>
     </div>
   );
@@ -119,21 +116,6 @@ function ConsentText() {
       </p>
       <p className="text-muted-fg">
         Согласие может быть отозвано путём обращения к Оператору по контактам, указанным в Политике.
-      </p>
-    </div>
-  );
-}
-
-function TermsText() {
-  return (
-    <div className="space-y-3 text-sm">
-      <h2 className="text-lg font-semibold text-fg">Пользовательское соглашение</h2>
-      <p className="text-muted-fg">
-        Сервис предоставляет возможность записаться на услуги и управлять своими записями. Пользователь обязуется
-        предоставлять достоверные данные и не нарушать права третьих лиц.
-      </p>
-      <p className="text-muted-fg">
-        Оператор вправе изменять функциональность и документы сервиса. Актуальная версия доступна на этой странице.
       </p>
     </div>
   );

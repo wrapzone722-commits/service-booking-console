@@ -10,6 +10,7 @@ import { BookingsPage } from "@/pages/BookingsPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { ConnectPage } from "@/pages/ConnectPage";
 import { LegalPage } from "@/pages/LegalPage";
+import { AgreementPage } from "@/pages/AgreementPage";
 
 function GuardedRoutes() {
   const { apiBaseUrl } = useBackend();
@@ -18,6 +19,7 @@ function GuardedRoutes() {
       <Routes>
         <Route path="/connect" element={<ConnectPage />} />
         <Route path="/legal" element={<LegalPage />} />
+        <Route path="/agreement" element={<AgreementPage />} />
         <Route path="*" element={<Navigate to="/connect" replace />} />
       </Routes>
     );
@@ -28,6 +30,7 @@ function GuardedRoutes() {
         <Route index element={<HomePage />} />
         <Route path="connect" element={<ConnectPage />} />
         <Route path="legal" element={<LegalPage />} />
+        <Route path="agreement" element={<AgreementPage />} />
         <Route path="services/:id" element={<ServiceDetailPage />} />
         <Route path="services/:id/book" element={<BookingCreatePage />} />
         <Route path="bookings" element={<BookingsPage />} />

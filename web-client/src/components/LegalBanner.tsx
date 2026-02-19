@@ -10,7 +10,7 @@ export function LegalBanner() {
       <div className="mx-auto max-w-md px-4">
         <div className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-ios p-3">
           <p className="text-xs text-muted-fg">
-            Для работы сервиса нужно принять документы (Политика, Согласие, Соглашение).
+            Для работы сервиса нужно принять документы (Политика и Согласие).
           </p>
           <div className="mt-2 flex gap-2">
             <Link

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
 import { setApiBaseUrl } from "@/api/client";
 
 const STORAGE_KEY = "sb_web_api_base_url";
@@ -47,6 +47,16 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
       typeof window !== "undefined" ? (window as Window & { __API_BASE_URL__?: string }).__API_BASE_URL__ : null;
     return fromWindow ? normalizeBaseUrl(fromWindow) : null;
   });
+
+  // Важно: api/client.ts хранит BASE на уровне модуля.
+  // Если URL пришёл из localStorage (а не через setAndPersist), надо синхронизировать BASE при старте.
+  useLayoutEffect(() => {
+    if (typeof window !== "undefined") {
+      if (apiBaseUrl) (window as Window & { __API_BASE_URL__?: string }).__API_BASE_URL__ = apiBaseUrl;
+      else delete (window as Window & { __API_BASE_URL__?: string }).__API_BASE_URL__;
+    }
+    setApiBaseUrl(apiBaseUrl ?? "");
+  }, [apiBaseUrl]);
 
   const setAndPersist = useCallback((value: string) => {
     const normalized = normalizeBaseUrl(value);
