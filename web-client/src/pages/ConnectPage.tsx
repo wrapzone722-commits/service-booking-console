@@ -117,21 +117,28 @@ export function ConnectPage() {
         <div className="mt-4 bg-card/70 backdrop-blur-xl border border-border rounded-2xl shadow-ios p-4 space-y-3">
           {!accepted && (
             <div className="p-3 rounded-2xl bg-card/70 border border-border">
-              <label className="flex items-start gap-2 text-sm text-fg">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={false}
-                  onChange={() => accept()}
-                />
-                <span>
-                  Я ознакомился(ась) и принимаю{" "}
-                  <Link to="/legal" className="text-accent font-medium underline">
-                    Политику и Согласие
-                  </Link>
-                  .
-                </span>
-              </label>
+              <p className="text-sm text-fg">
+                Для работы приложения нужно принять{" "}
+                <Link to="/legal" className="text-accent font-medium underline">
+                  Политику и Согласие
+                </Link>
+                .
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Link
+                  to="/legal"
+                  className="py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
+                >
+                  Открыть
+                </Link>
+                <button
+                  type="button"
+                  onClick={accept}
+                  className="py-2 rounded-xl bg-accent text-accent-fg text-sm font-semibold shadow-ios2"
+                >
+                  Принять
+                </button>
+              </div>
             </div>
           )}
           {apiBaseUrl && (

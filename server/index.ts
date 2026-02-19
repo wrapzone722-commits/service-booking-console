@@ -15,6 +15,7 @@ import * as newsRoutes from "./routes/news";
 import * as settingsRoutes from "./routes/settings";
 import * as statsRoutes from "./routes/stats";
 import * as carsRoutes from "./routes/cars";
+import * as companyRoutes from "./routes/company";
 import { optionalBearerAuth, requireAuth } from "./middleware/auth";
 
 export function createServer() {
@@ -88,6 +89,9 @@ export function createServer() {
 
   // API v1 routes (Clients Registration)
   app.post("/api/v1/clients/register", clientsRoutes.registerClient);
+
+  // API v1 routes (Public company/operator info for clients)
+  app.get("/api/v1/company", companyRoutes.getPublicCompany);
 
   // API v1 routes (Notifications — iOS client + admin)
   app.get("/api/v1/notifications", notificationsRoutes.getNotifications);

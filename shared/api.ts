@@ -217,6 +217,24 @@ export interface OrganizationUpdateRequest {
   director_name?: string;
 }
 
+// ====== PUBLIC COMPANY INFO (for clients) ======
+export interface PublicCompanyInfo {
+  name: string;
+  phone: string | null;
+  phone_extra: string | null;
+  email: string | null;
+  website: string | null;
+  address: string | null;
+  legal_address: string | null;
+  inn: string | null;
+  ogrn: string | null;
+  kpp: string | null;
+  bank_name: string | null;
+  bank_bik: string | null;
+  bank_account: string | null;
+  director_name: string | null;
+}
+
 export interface LoginRequest {
   email?: string;
   password?: string;

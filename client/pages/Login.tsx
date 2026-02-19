@@ -104,32 +104,29 @@ export default function Login() {
               />
             </div>
 
-            <label className="flex items-start gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={accepted}
-                onChange={(e) => {
-                  const next = e.target.checked;
-                  setAccepted(next);
-                  if (next) {
+            {!accepted && (
+              <div className="rounded-lg border border-border bg-background p-3">
+                <p className="text-xs text-muted-foreground">
+                  Для входа нужно принять{" "}
+                  <Link to="/legal" className="underline text-primary font-medium">
+                    документы по персональным данным
+                  </Link>{" "}
+                  (152‑ФЗ/242‑ФЗ).
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
                     localStorage.setItem(ACCEPTED_AT_KEY, new Date().toISOString());
                     localStorage.setItem(VERSION_KEY, LEGAL_VERSION);
-                  } else {
-                    localStorage.removeItem(ACCEPTED_AT_KEY);
-                    localStorage.removeItem(VERSION_KEY);
-                  }
-                }}
-                disabled={loading}
-              />
-              <span>
-                Принимаю{" "}
-                <Link to="/legal" className="underline text-primary">
-                  документы по персональным данным
-                </Link>{" "}
-                (152‑ФЗ/242‑ФЗ).
-              </span>
-            </label>
+                    setAccepted(true);
+                  }}
+                  className="mt-2 w-full py-2 rounded-lg bg-primary text-primary-foreground font-semibold"
+                  disabled={loading}
+                >
+                  Принять
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"

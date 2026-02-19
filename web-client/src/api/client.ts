@@ -169,6 +169,7 @@ import type {
   CarFolder,
   Notification,
   ClientNewsItem,
+  CompanyInfo,
   TelegramWidgetConfigResponse,
   TelegramLoginResponse,
 } from "./types";
@@ -253,6 +254,10 @@ export async function markNotificationRead(id: string): Promise<void> {
 
 export async function fetchNews(): Promise<ClientNewsItem[]> {
   return apiGet<ClientNewsItem[]>("/news");
+}
+
+export async function fetchCompany(): Promise<CompanyInfo> {
+  return apiGet<CompanyInfo>("/company");
 }
 
 // ——— Telegram Login Widget ———

@@ -1,5 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { LEGAL_VERSION, useLegal } from "@/context/LegalContext";
+import { useEffect, useMemo, useState } from "react";
+import { fetchCompany } from "@/api/client";
+import type { CompanyInfo } from "@/api/types";
 
 function useQuery() {
   const { search } = useLocation();
@@ -10,6 +13,24 @@ export function LegalPage() {
   const { accepted, acceptedAt, accept } = useLegal();
   const q = useQuery();
   const doc = q.get("doc") ?? "privacy";
+  const [company, setCompany] = useState<CompanyInfo | null>(null);
+
+  useEffect(() => {
+    fetchCompany()
+      .then(setCompany)
+      .catch(() => setCompany(null));
+  }, []);
+
+  const operatorLine = useMemo(() => {
+    if (!company) return null;
+    const bits: string[] = [];
+    if (company.inn) bits.push(`ИНН ${company.inn}`);
+    if (company.ogrn) bits.push(`ОГРН/ОГРНИП ${company.ogrn}`);
+    const contacts = [company.phone, company.email].filter(Boolean).join(", ");
+    const addr = company.legal_address || company.address;
+    const tail = [addr, contacts].filter(Boolean).join(" • ");
+    return `${company.name}${bits.length ? " (" + bits.join(", ") + ")" : ""}${tail ? " — " + tail : ""}`;
+  }, [company]);
 
   return (
     <div className="p-4 max-w-md mx-auto">
@@ -25,8 +46,8 @@ export function LegalPage() {
       </div>
 
       <div className="mt-3 bg-card/70 backdrop-blur-xl border border-border rounded-2xl shadow-ios p-4">
-        {doc === "privacy" && <PrivacyText />}
-        {doc === "consent" && <ConsentText />}
+        {doc === "privacy" && <PrivacyText operatorLine={operatorLine} />}
+        {doc === "consent" && <ConsentText operatorName={company?.name ?? "Оператор"} />}
         {doc === "cookies" && <CookiesText />}
       </div>
 
@@ -71,48 +92,47 @@ function Tab({ to, active, children }: { to: string; active: boolean; children: 
   );
 }
 
-function PrivacyText() {
+function PrivacyText({ operatorLine }: { operatorLine: string | null }) {
   return (
     <div className="space-y-3 text-sm">
       <h2 className="text-lg font-semibold text-fg">Политика обработки персональных данных</h2>
       <p className="text-muted-fg">
-        Настоящая политика составлена во исполнение требований Федерального закона РФ №152‑ФЗ
-        «О персональных данных», а также требований локализации (№242‑ФЗ) при применимости.
+        Политика определяет порядок и условия обработки персональных данных пользователей сервиса в соответствии с
+        Федеральным законом РФ №152‑ФЗ «О персональных данных» (а также требованиями локализации №242‑ФЗ — при применимости).
       </p>
-      <p className="text-[11px] leading-4 text-muted-fg/80">
-        Оператор: <span className="text-muted-fg/80">&lt;название, реквизиты, контакты&gt;</span>
+      {operatorLine ? (
+        <p className="text-[11px] leading-4 text-muted-fg/70">Оператор: {operatorLine}</p>
+      ) : (
+        <p className="text-[11px] leading-4 text-muted-fg/50">Оператор: данные будут показаны после настройки компании в консоли.</p>
+      )}
+      <p className="text-muted-fg">
+        <span className="font-medium text-fg">Цели обработки</span>: предоставление сервиса записи и управления записями,
+        коммуникация и уведомления, поддержка, обеспечение безопасности и улучшение качества сервиса.
       </p>
       <p className="text-muted-fg">
-        <span className="font-medium text-fg">Цели</span>: предоставление сервиса записи, управление записями,
-        уведомления, поддержка, улучшение качества, выполнение требований законодательства.
+        <span className="font-medium text-fg">Категории данных</span>: имя, контактные данные (телефон/e‑mail — если указаны),
+        данные о записях (дата/время/услуга/пост), комментарии, технические идентификаторы устройства; данные Telegram — при входе через Telegram.
       </p>
       <p className="text-muted-fg">
-        <span className="font-medium text-fg">Состав данных</span>: имя, телефон/e-mail (если указаны), данные о
-        записях, комментарии, технические идентификаторы устройства, данные Telegram (если вход через Telegram).
-      </p>
-      <p className="text-muted-fg">
-        <span className="font-medium text-fg">Права субъекта</span>: запрос сведений, уточнение, блокирование,
-        удаление, отзыв согласия. Обращения направлять оператору по контактам выше.
+        <span className="font-medium text-fg">Права субъекта</span>: получение сведений, уточнение, блокирование, удаление,
+        отзыв согласия (если применимо). Обращения направляются оператору по контактам, указанным выше.
       </p>
       <p className="text-muted-fg">
         <span className="font-medium text-fg">Третьи лица</span>: Telegram (Login Widget/бот) как внешний сервис
         аутентификации/уведомлений. Иные подрядчики — при наличии должны быть перечислены отдельно.
       </p>
-      <p className="text-[11px] leading-4 text-muted-fg/70">
-        Шаблон. Перед публикацией заполните реквизиты оператора и актуализируйте разделы.
-      </p>
     </div>
   );
 }
 
-function ConsentText() {
+function ConsentText({ operatorName }: { operatorName: string }) {
   return (
     <div className="space-y-3 text-sm">
       <h2 className="text-lg font-semibold text-fg">Согласие на обработку персональных данных</h2>
       <p className="text-muted-fg">
-        Нажимая «Принять», я даю согласие Оператору на обработку моих персональных данных в целях использования
-        сервиса записи, включая сбор, запись, систематизацию, хранение, уточнение, использование, обезличивание,
-        блокирование и удаление, в соответствии с №152‑ФЗ.
+        Нажимая «Принять», я выражаю согласие {operatorName} (Оператору) на обработку моих персональных данных
+        в целях предоставления сервиса записи и управления записями, включая сбор, запись, систематизацию, хранение,
+        уточнение, использование, обезличивание, блокирование и удаление, в соответствии с №152‑ФЗ.
       </p>
       <p className="text-muted-fg">
         Согласие может быть отозвано путём обращения к Оператору по контактам, указанным в Политике.

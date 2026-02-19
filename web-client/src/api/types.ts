@@ -128,6 +128,23 @@ export interface ClientNewsItem extends NewsItem {
   notification_id: string | null;
 }
 
+export interface CompanyInfo {
+  name: string;
+  phone: string | null;
+  phone_extra: string | null;
+  email: string | null;
+  website: string | null;
+  address: string | null;
+  legal_address: string | null;
+  inn: string | null;
+  ogrn: string | null;
+  kpp: string | null;
+  bank_name: string | null;
+  bank_bik: string | null;
+  bank_account: string | null;
+  director_name: string | null;
+}
+
 export interface RegisterClientResponse {
   client_id: string;
   api_key: string;

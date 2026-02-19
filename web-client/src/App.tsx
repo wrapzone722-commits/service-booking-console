@@ -12,6 +12,7 @@ import { ProfilePage } from "@/pages/ProfilePage";
 import { ConnectPage } from "@/pages/ConnectPage";
 import { LegalPage } from "@/pages/LegalPage";
 import { AgreementPage } from "@/pages/AgreementPage";
+import { CompanyPage } from "@/pages/CompanyPage";
 
 function GuardedRoutes() {
   const { apiBaseUrl } = useBackend();
@@ -32,6 +33,7 @@ function GuardedRoutes() {
         <Route path="connect" element={<ConnectPage />} />
         <Route path="legal" element={<LegalPage />} />
         <Route path="agreement" element={<AgreementPage />} />
+        <Route path="company" element={<CompanyPage />} />
         <Route path="services/:id" element={<ServiceDetailPage />} />
         <Route path="services/:id/book" element={<BookingCreatePage />} />
         <Route path="news" element={<NewsPage />} />

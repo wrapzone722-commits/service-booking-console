@@ -379,6 +379,18 @@ export function ProfilePage() {
             </button>
           </div>
         </div>
+        <div className="mb-3 bg-card/70 backdrop-blur-xl rounded-2xl border border-border shadow-ios p-4">
+          <p className="font-medium text-fg">Компания</p>
+          <p className="text-xs text-muted-fg mt-1">Реквизиты и контакты оператора</p>
+          <div className="mt-3">
+            <Link
+              to="/company"
+              className="block w-full py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
+            >
+              О компании
+            </Link>
+          </div>
+        </div>
         <button
           type="button"
           onClick={logout}
