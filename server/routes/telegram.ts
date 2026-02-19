@@ -3,15 +3,42 @@ import * as db from "../db";
 import { sendTelegramMessage, sendWelcomeMessage } from "../lib/telegram";
 import type { TelegramBotSettings } from "../db";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "";
-
 export const getBotInfo: RequestHandler = (_req, res) => {
+  const token = db.getTelegramBotToken();
+  const username = db.getTelegramBotUsername();
   res.json({
-    configured: !!TELEGRAM_BOT_TOKEN,
-    bot_username: TELEGRAM_BOT_USERNAME || null,
-    bot_link: TELEGRAM_BOT_USERNAME ? `https://t.me/${TELEGRAM_BOT_USERNAME}` : null,
+    configured: !!token,
+    bot_username: username || null,
+    bot_link: username ? `https://t.me/${username}` : null,
   });
+};
+
+export const setBotToken: RequestHandler = async (req, res) => {
+  try {
+    const token = String(req.body?.token ?? "").trim();
+    if (!token) {
+      return res.status(400).json({ error: "Validation error", message: "Token is required" });
+    }
+
+    // Validate token & derive bot username
+    const url = `https://api.telegram.org/bot${token}/getMe`;
+    const r = await fetch(url);
+    const json = (await r.json().catch(() => ({}))) as { ok?: boolean; result?: { username?: string } };
+    if (!json.ok) {
+      return res.status(400).json({ error: "Invalid token", message: "Неверный токен Telegram бота" });
+    }
+    const username = json.result?.username ? String(json.result.username) : null;
+    db.setTelegramBotCredentials(token, username);
+
+    res.json({
+      configured: true,
+      bot_username: username,
+      bot_link: username ? `https://t.me/${username}` : null,
+    });
+  } catch (e) {
+    console.error("Set telegram bot token:", e);
+    res.status(500).json({ error: "Internal server error", message: "Failed to save token" });
+  }
 };
 
 export const getSettings: RequestHandler = (_req, res) => {
@@ -53,7 +80,8 @@ export const updateSettings: RequestHandler = (req, res) => {
 
 export const sendTest: RequestHandler = async (req, res) => {
   try {
-    if (!TELEGRAM_BOT_TOKEN) {
+    const botToken = db.getTelegramBotToken();
+    if (!botToken) {
       return res.status(503).json({ error: "Bot не настроен", message: "Укажите TELEGRAM_BOT_TOKEN" });
     }
     const settings = db.getTelegramBotSettings();
@@ -64,7 +92,7 @@ export const sendTest: RequestHandler = async (req, res) => {
     const text = "✅ <b>Тест уведомлений</b>\n\nБот подключен и работает.";
     let sent = 0;
     for (const chatId of chatIds) {
-      if (await sendTelegramMessage(TELEGRAM_BOT_TOKEN, chatId, text)) sent++;
+      if (await sendTelegramMessage(botToken, chatId, text)) sent++;
     }
     res.json({ success: true, sent, total: chatIds.length });
   } catch (e) {
@@ -81,8 +109,9 @@ export const webhook: RequestHandler = async (req, res) => {
     const text = update?.message?.text;
     if (chatId && text?.trim().toLowerCase() === "/start") {
       db.addTelegramAdminChatId(String(chatId));
-      if (TELEGRAM_BOT_TOKEN) {
-        await sendWelcomeMessage(TELEGRAM_BOT_TOKEN, String(chatId));
+      const botToken = db.getTelegramBotToken();
+      if (botToken) {
+        await sendWelcomeMessage(botToken, String(chatId));
       }
     }
   } catch (e) {
@@ -94,7 +123,8 @@ export const webhook: RequestHandler = async (req, res) => {
 /** Set Telegram webhook so bot receives /start etc. — call once after deploy */
 export const setWebhook: RequestHandler = async (req, res) => {
   try {
-    if (!TELEGRAM_BOT_TOKEN) {
+    const botToken = db.getTelegramBotToken();
+    if (!botToken) {
       return res.status(503).json({ error: "Bot не настроен" });
     }
     const host = req.get("host") || req.headers.host || "";
@@ -104,7 +134,7 @@ export const setWebhook: RequestHandler = async (req, res) => {
       return res.status(500).json({ error: "Не удалось определить URL" });
     }
     const webhookUrl = `${baseUrl}/api/v1/telegram/webhook`;
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
+    const url = `https://api.telegram.org/bot${botToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
     const r = await fetch(url);
     const json = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
     if (!json.ok) {

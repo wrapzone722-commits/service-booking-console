@@ -43,7 +43,7 @@ function formatBookingDate(iso: string): string {
 
 /** Send booking notifications to all configured admin chat IDs */
 export async function notifyNewBooking(booking: Booking): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = db.getTelegramBotToken();
   if (!token) return;
   const s = db.getTelegramBotSettings();
   if (!s.enabled || !s.notify_new_booking || !s.admin_chat_ids.length) return;
@@ -73,7 +73,7 @@ export async function notifyNewBooking(booking: Booking): Promise<void> {
 }
 
 export async function notifyBookingCancelled(booking: Booking): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = db.getTelegramBotToken();
   if (!token) return;
   const s = db.getTelegramBotSettings();
   if (!s.enabled || !s.notify_booking_cancelled || !s.admin_chat_ids.length) return;
@@ -106,7 +106,7 @@ export async function sendWelcomeMessage(botToken: string, chatId: string): Prom
 }
 
 export async function notifyBookingConfirmed(booking: Booking): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = db.getTelegramBotToken();
   if (!token) return;
   const s = db.getTelegramBotSettings();
   if (!s.enabled || !s.notify_booking_confirmed || !s.admin_chat_ids.length) return;

@@ -58,6 +58,14 @@ export default function Company() {
         navigate("/login", { replace: true });
         return;
       }
+      if (res.status === 404) {
+        // Сервер потерял аккаунт (например, после перезапуска без сохранения) — считаем сессию недействительной
+        localStorage.removeItem("session_token");
+        localStorage.removeItem("account_id");
+        localStorage.removeItem("account_name");
+        navigate("/login", { replace: true });
+        return;
+      }
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || "Ошибка загрузки");
@@ -103,6 +111,13 @@ export default function Company() {
         },
         body: JSON.stringify(form),
       });
+      if (res.status === 401 || res.status === 404) {
+        localStorage.removeItem("session_token");
+        localStorage.removeItem("account_id");
+        localStorage.removeItem("account_name");
+        navigate("/login", { replace: true });
+        return;
+      }
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.message || "Ошибка сохранения");

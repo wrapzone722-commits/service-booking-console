@@ -7,6 +7,18 @@ import path from "path";
 const DATA_DIR = path.join(process.cwd(), "data");
 const CAR_FOLDERS_FILE = path.join(DATA_DIR, "car-folders.json");
 const DISPLAY_SETTINGS_FILE = path.join(DATA_DIR, "display-settings.json");
+const ACCOUNTS_FILE = path.join(DATA_DIR, "accounts.json");
+const TELEGRAM_CREDENTIALS_FILE = path.join(DATA_DIR, "telegram-bot.json");
+
+type TelegramBotCredentials = {
+  bot_token: string;
+  bot_username: string | null;
+};
+
+const telegramCredentialsStore: TelegramBotCredentials = {
+  bot_token: "",
+  bot_username: null,
+};
 
 const DEFAULT_DISPLAY_PHOTO_RULE: DisplayPhotoRule = {
   days_01: 3,
@@ -122,6 +134,68 @@ let db: Database = {
 // База данных стартует пустой (без демо-данных)
 // Данные создаются при авторизации пользователей
 
+function loadAccountsFromFile(): void {
+  try {
+    if (!fs.existsSync(ACCOUNTS_FILE)) return;
+    const raw = fs.readFileSync(ACCOUNTS_FILE, "utf-8");
+    const arr = JSON.parse(raw) as Account[];
+    if (!Array.isArray(arr)) return;
+
+    db.accounts.clear();
+    db.accountsByEmail.clear();
+    db.accountsByYandexId.clear();
+    db.accountsByTelegramId.clear();
+    db.accountsByPhone.clear();
+
+    for (const acc of arr) {
+      if (!acc?._id || !acc.email) continue;
+      db.accounts.set(acc._id, acc);
+      db.accountsByEmail.set(String(acc.email).trim().toLowerCase(), acc);
+      if (acc.yandex_id) db.accountsByYandexId.set(acc.yandex_id, acc);
+      if (acc.telegram_id) db.accountsByTelegramId.set(acc.telegram_id, acc);
+      if (acc.phone) {
+        const p = normalizePhone(acc.phone);
+        if (p) db.accountsByPhone.set(p, acc);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load accounts from file:", e);
+  }
+}
+
+function saveAccountsToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const arr = Array.from(db.accounts.values());
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(arr, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save accounts to file:", e);
+  }
+}
+
+function loadTelegramCredentialsFromFile(): void {
+  try {
+    if (!fs.existsSync(TELEGRAM_CREDENTIALS_FILE)) return;
+    const raw = fs.readFileSync(TELEGRAM_CREDENTIALS_FILE, "utf-8");
+    const o = JSON.parse(raw) as Partial<TelegramBotCredentials>;
+    if (typeof o.bot_token === "string") telegramCredentialsStore.bot_token = o.bot_token;
+    if (o.bot_username === null || typeof o.bot_username === "string") {
+      telegramCredentialsStore.bot_username = o.bot_username ?? null;
+    }
+  } catch (e) {
+    console.error("Failed to load telegram bot credentials:", e);
+  }
+}
+
+function saveTelegramCredentialsToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(TELEGRAM_CREDENTIALS_FILE, JSON.stringify(telegramCredentialsStore, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save telegram bot credentials:", e);
+  }
+}
+
 // Загрузка папок автомобилей из файла (сохраняются между перезапусками)
 function loadCarFoldersFromFile(): void {
   try {
@@ -155,6 +229,8 @@ function saveCarFoldersToFile(): void {
   }
 }
 
+loadAccountsFromFile();
+loadTelegramCredentialsFromFile();
 loadCarFoldersFromFile();
 
 function loadDisplaySettingsFromFile(): void {
@@ -845,6 +921,22 @@ export function addTelegramAdminChatId(chatId: string): void {
   if (!ids.includes(chatId)) ids.push(chatId);
 }
 
+/** Bot token comes from saved credentials (preferred) or env var */
+export function getTelegramBotToken(): string {
+  return telegramCredentialsStore.bot_token || process.env.TELEGRAM_BOT_TOKEN || "";
+}
+
+/** Bot username comes from saved credentials (preferred) or env var */
+export function getTelegramBotUsername(): string | null {
+  return telegramCredentialsStore.bot_username || process.env.TELEGRAM_BOT_USERNAME || null;
+}
+
+export function setTelegramBotCredentials(token: string, username: string | null): void {
+  telegramCredentialsStore.bot_token = token;
+  telegramCredentialsStore.bot_username = username ?? null;
+  saveTelegramCredentialsToFile();
+}
+
 export function getApiBaseUrl(): string {
   return db.api_base_url;
 }
@@ -871,9 +963,11 @@ export function getApiUrlFromRequest(req: { headers: { host?: string }; protocol
 export function createAccount(data: Omit<Account, "_id" | "created_at" | "updated_at">): Account {
   const id = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = new Date().toISOString();
+  const email = String(data.email ?? "").trim().toLowerCase();
 
   const account: Account = {
     ...data,
+    email,
     _id: id,
     created_at: now,
     updated_at: now,
@@ -881,7 +975,7 @@ export function createAccount(data: Omit<Account, "_id" | "created_at" | "update
   };
 
   db.accounts.set(id, account);
-  db.accountsByEmail.set(data.email, account);
+  db.accountsByEmail.set(email, account);
 
   if (data.yandex_id) {
     db.accountsByYandexId.set(data.yandex_id, account);
@@ -892,9 +986,11 @@ export function createAccount(data: Omit<Account, "_id" | "created_at" | "update
   }
 
   if (data.phone) {
-    db.accountsByPhone.set(normalizePhone(data.phone), account);
+    const p = normalizePhone(data.phone);
+    if (p) db.accountsByPhone.set(p, account);
   }
 
+  saveAccountsToFile();
   return account;
 }
 
@@ -938,14 +1034,15 @@ export function updateAccount(id: string, data: Partial<Account>): Account | nul
 
   // Update email index if changed
   if (data.email && data.email !== account.email) {
-    db.accountsByEmail.delete(account.email);
-    db.accountsByEmail.set(data.email.toLowerCase(), updated);
+    db.accountsByEmail.delete(String(account.email).trim().toLowerCase());
+    db.accountsByEmail.set(String(data.email).trim().toLowerCase(), updated);
   }
 
   // Update phone index if changed
   if (data.phone !== undefined && normalizePhone(data.phone) !== (account.phone ? normalizePhone(account.phone) : "")) {
     if (account.phone) db.accountsByPhone.delete(normalizePhone(account.phone));
-    db.accountsByPhone.set(normalizePhone(data.phone), updated);
+    const p = data.phone ? normalizePhone(data.phone) : "";
+    if (p) db.accountsByPhone.set(p, updated);
   }
 
   // Update Yandex ID index if changed
@@ -966,6 +1063,7 @@ export function updateAccount(id: string, data: Partial<Account>): Account | nul
     }
   }
 
+  saveAccountsToFile();
   return updated;
 }
 

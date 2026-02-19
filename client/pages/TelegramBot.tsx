@@ -9,11 +9,13 @@ const VAR_HINT = "{{user_name}} {{service_name}} {{date_time}} {{price}} {{notes
 export default function TelegramBot() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tokenSaving, setTokenSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
   const [settings, setSettings] = useState<TelegramBotSettings | null>(null);
   const [accountTelegramId, setAccountTelegramId] = useState<string | null>(null);
+  const [botToken, setBotToken] = useState("");
   const [newChatId, setNewChatId] = useState("");
   const [testLoading, setTestLoading] = useState(false);
   const [webhookLoading, setWebhookLoading] = useState(false);
@@ -62,6 +64,29 @@ export default function TelegramBot() {
       setError("Ошибка загрузки");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveBotToken = async () => {
+    try {
+      setTokenSaving(true);
+      setError(null);
+      setSuccess(null);
+      const token = localStorage.getItem("session_token");
+      const res = await fetch("/api/v1/telegram/bot-token", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ token: botToken.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Ошибка сохранения токена");
+      setBotInfo(data);
+      setBotToken("");
+      setSuccess("Токен сохранён. Бот подключён.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка сохранения токена");
+    } finally {
+      setTokenSaving(false);
     }
   };
 
@@ -168,7 +193,7 @@ export default function TelegramBot() {
 
         <Tabs defaultValue="main" className="w-full">
           <TabsList className="w-full flex flex-wrap h-auto gap-1 p-1 mb-4 bg-muted">
-            <TabsTrigger value="main" className="flex-1 min-w-[90px]">Основные</TabsTrigger>
+            <TabsTrigger value="main" className="flex-1 min-w-[90px]">Подключение</TabsTrigger>
             <TabsTrigger value="notify" className="flex-1 min-w-[90px]">Уведомления</TabsTrigger>
             <TabsTrigger value="templates" className="flex-1 min-w-[90px]">Шаблоны</TabsTrigger>
             <TabsTrigger value="extra" className="flex-1 min-w-[90px]">Дополнительно</TabsTrigger>
@@ -205,10 +230,33 @@ export default function TelegramBot() {
                   </p>
                 </div>
               ) : (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Бот не настроен. Укажите TELEGRAM_BOT_TOKEN и TELEGRAM_BOT_USERNAME в переменных окружения.
-                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400">Бот не подключен. Введите токен ниже.</p>
               )}
+            </div>
+
+            <div className={card}>
+              <h2 className="text-sm font-bold text-foreground mb-3">Подключение по токену</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Введите токен бота из BotFather. Имя бота определим автоматически, ничего больше вводить не нужно.
+              </p>
+              <label className={labelCls}>Bot Token</label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={botToken}
+                  onChange={(e) => setBotToken(e.target.value)}
+                  placeholder="123456:ABCDEF..."
+                  className={`${inputCls} flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={saveBotToken}
+                  disabled={tokenSaving || !botToken.trim()}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold text-sm disabled:opacity-50"
+                >
+                  {tokenSaving ? "..." : "Сохранить"}
+                </button>
+              </div>
             </div>
 
             <div className={card}>

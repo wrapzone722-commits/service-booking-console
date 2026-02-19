@@ -115,6 +115,7 @@ export function createServer() {
 
   // API v1 routes (Telegram Bot)
   app.get("/api/v1/telegram/bot-info", telegramRoutes.getBotInfo);
+  app.put("/api/v1/telegram/bot-token", requireAuth, telegramRoutes.setBotToken);
   app.get("/api/v1/telegram/settings", requireAuth, telegramRoutes.getSettings);
   app.put("/api/v1/telegram/settings", requireAuth, telegramRoutes.updateSettings);
   app.post("/api/v1/telegram/send-test", requireAuth, telegramRoutes.sendTest);
