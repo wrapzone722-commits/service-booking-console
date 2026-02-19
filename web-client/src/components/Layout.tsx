@@ -1,5 +1,4 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { LegalBanner } from "@/components/LegalBanner";
 
 const nav = [
   { to: "/", label: "Услуги", icon: "🏠" },
@@ -18,7 +17,6 @@ export function Layout() {
       <main className={hideNav ? "flex-1" : "flex-1 pb-24"}>
         <Outlet />
       </main>
-      {!hideNav && <LegalBanner />}
       {!hideNav && (
         <nav className="fixed bottom-0 left-0 right-0 z-20">
           <div className="mx-auto max-w-md px-4 pb-3 safe-area-pb">

@@ -1,7 +1,15 @@
 import { RequestHandler } from "express";
 import { Booking, UpdateBookingStatusRequest, type BookingControlStatus } from "@shared/api";
 import * as db from "../db";
-import { notifyNewBooking, notifyBookingCancelled, notifyBookingConfirmed } from "../lib/telegram";
+import {
+  notifyNewBooking,
+  notifyBookingCancelled,
+  notifyBookingConfirmed,
+  notifyClientBookingCancelled,
+  notifyClientBookingCompleted,
+  notifyClientBookingConfirmed,
+  notifyClientBookingInProgress,
+} from "../lib/telegram";
 import { verifyToken } from "./auth";
 import { getApiKeyFromRequest } from "../middleware/auth";
 import { buildActPdf } from "../lib/act-pdf";
@@ -280,9 +288,13 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
     }
 
     if (prev && prev.status !== status) {
-      if (status === "cancelled") notifyBookingCancelled(booking).catch((e) => console.error("Telegram notify:", e));
+      if (status === "cancelled") {
+        notifyBookingCancelled(booking).catch((e) => console.error("Telegram notify:", e));
+        notifyClientBookingCancelled(booking).catch((e) => console.error("Telegram client notify:", e));
+      }
       if (status === "confirmed") {
         notifyBookingConfirmed(booking).catch((e) => console.error("Telegram notify:", e));
+        notifyClientBookingConfirmed(booking).catch((e) => console.error("Telegram client notify:", e));
         db.createNotification({
           client_id: booking.user_id,
           body: `Запись на "${booking.service_name}" подтверждена на ${new Date(booking.date_time).toLocaleString("ru-RU")}.`,
@@ -290,7 +302,11 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
           title: "Запись подтверждена",
         });
       }
+      if (status === "in_progress") {
+        notifyClientBookingInProgress(booking).catch((e) => console.error("Telegram client notify:", e));
+      }
       if (status === "completed") {
+        notifyClientBookingCompleted(booking).catch((e) => console.error("Telegram client notify:", e));
         db.createNotification({
           client_id: booking.user_id,
           body: "Ваш авто готов. Администратор подтвердил завершение услуги.",

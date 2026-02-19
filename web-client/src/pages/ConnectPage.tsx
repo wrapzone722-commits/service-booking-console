@@ -4,13 +4,10 @@ import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser"
 import { useBackend } from "@/context/BackendContext";
 import { useAuth } from "@/context/AuthContext";
 import { fetchTelegramWidgetConfig, loginByTelegramWidget } from "@/api/client";
-import { useLegal } from "@/context/LegalContext";
-import { Link } from "react-router-dom";
 
 export function ConnectPage() {
   const { apiBaseUrl, setFromManual, setFromQr } = useBackend();
   const { setToken, apiKey } = useAuth();
-  const { accepted, accept } = useLegal();
   const navigate = useNavigate();
   const [manual, setManual] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -115,32 +112,6 @@ export function ConnectPage() {
         </p>
 
         <div className="mt-4 bg-card/70 backdrop-blur-xl border border-border rounded-2xl shadow-ios p-4 space-y-3">
-          {!accepted && (
-            <div className="p-3 rounded-2xl bg-card/70 border border-border">
-              <p className="text-sm text-fg">
-                Для работы приложения нужно принять{" "}
-                <Link to="/legal" className="text-accent font-medium underline">
-                  Политику и Согласие
-                </Link>
-                .
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link
-                  to="/legal"
-                  className="py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
-                >
-                  Открыть
-                </Link>
-                <button
-                  type="button"
-                  onClick={accept}
-                  className="py-2 rounded-xl bg-accent text-accent-fg text-sm font-semibold shadow-ios2"
-                >
-                  Принять
-                </button>
-              </div>
-            </div>
-          )}
           {apiBaseUrl && (
             <div className="p-3 rounded-2xl bg-accent/10 border border-accent/25">
               <p className="text-sm text-fg">
@@ -176,7 +147,6 @@ export function ConnectPage() {
               setFromManual(manual);
             }}
             className="w-full py-2 bg-accent text-accent-fg rounded-2xl text-sm shadow-ios2"
-            disabled={!accepted}
           >
             Сохранить
           </button>
@@ -186,7 +156,6 @@ export function ConnectPage() {
               type="button"
               onClick={() => setScanning((v) => !v)}
               className="w-full py-2 border border-border bg-card/50 rounded-2xl text-sm text-fg"
-              disabled={!accepted}
             >
               {scanning ? "Остановить сканер" : "Сканировать QR-код"}
             </button>
@@ -203,7 +172,7 @@ export function ConnectPage() {
             )}
           </div>
 
-          {apiBaseUrl && tgBot && accepted && (
+          {apiBaseUrl && tgBot && (
             <div className="pt-2 border-t border-border">
               <p className="text-sm font-medium text-fg mb-2">Авторизация</p>
               {apiKey && (

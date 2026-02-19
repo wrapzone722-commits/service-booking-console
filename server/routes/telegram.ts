@@ -104,14 +104,33 @@ export const sendTest: RequestHandler = async (req, res) => {
 /** Telegram webhook — receives updates when users write to bot (e.g. /start) */
 export const webhook: RequestHandler = async (req, res) => {
   try {
-    const update = req.body as { message?: { chat?: { id: number }; text?: string } };
+    const update = req.body as {
+      message?: {
+        chat?: { id: number };
+        text?: string;
+        from?: { id?: number; username?: string };
+      };
+    };
     const chatId = update?.message?.chat?.id;
+    const fromUsername = update?.message?.from?.username;
     const text = update?.message?.text;
     if (chatId && text?.trim().toLowerCase() === "/start") {
-      db.addTelegramAdminChatId(String(chatId));
+      const chatIdStr = String(chatId);
+
+      // Auto-add admin chat id only for the configured organization owner (if they linked Telegram Login)
+      const acc = db.getFirstAccount();
+      if (acc?.telegram_id && String(acc.telegram_id) === chatIdStr) {
+        db.addTelegramAdminChatId(chatIdStr);
+      }
+
+      // Link client chat id by username (if client filled it in profile)
+      if (fromUsername) {
+        db.linkTelegramChatIdByHandle(fromUsername, chatIdStr);
+      }
+
       const botToken = db.getTelegramBotToken();
       if (botToken) {
-        await sendWelcomeMessage(botToken, String(chatId));
+        await sendWelcomeMessage(botToken, chatIdStr);
       }
     }
   } catch (e) {

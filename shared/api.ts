@@ -125,6 +125,10 @@ export interface User {
   email: string | null;
   avatar_url: string | null;
   social_links: SocialLinks;
+  /** Internal: Telegram private chat id, set after user presses /start in bot */
+  telegram_chat_id?: string | null;
+  /** When telegram_chat_id was linked (ISO) */
+  telegram_linked_at?: string | null;
   /** Доступ к записям: active / inactive */
   status?: "active" | "inactive" | "vip";
   /** Уровень в программе лояльности (Клиент / Постоянный клиент / Прайд) */

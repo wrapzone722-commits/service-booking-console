@@ -9,6 +9,8 @@ const CAR_FOLDERS_FILE = path.join(DATA_DIR, "car-folders.json");
 const DISPLAY_SETTINGS_FILE = path.join(DATA_DIR, "display-settings.json");
 const ACCOUNTS_FILE = path.join(DATA_DIR, "accounts.json");
 const TELEGRAM_CREDENTIALS_FILE = path.join(DATA_DIR, "telegram-bot.json");
+const USERS_FILE = path.join(DATA_DIR, "users.json");
+const CLIENT_AUTH_FILE = path.join(DATA_DIR, "client-auth.json");
 
 type TelegramBotCredentials = {
   bot_token: string;
@@ -196,6 +198,60 @@ function saveTelegramCredentialsToFile(): void {
   }
 }
 
+function loadUsersFromFile(): void {
+  try {
+    if (!fs.existsSync(USERS_FILE)) return;
+    const raw = fs.readFileSync(USERS_FILE, "utf-8");
+    const arr = JSON.parse(raw) as User[];
+    if (!Array.isArray(arr)) return;
+    db.users.clear();
+    for (const u of arr) {
+      if (!u?._id) continue;
+      db.users.set(u._id, u);
+    }
+  } catch (e) {
+    console.error("Failed to load users from file:", e);
+  }
+}
+
+function saveUsersToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const arr = Array.from(db.users.values());
+    fs.writeFileSync(USERS_FILE, JSON.stringify(arr, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save users to file:", e);
+  }
+}
+
+function loadClientAuthFromFile(): void {
+  try {
+    if (!fs.existsSync(CLIENT_AUTH_FILE)) return;
+    const raw = fs.readFileSync(CLIENT_AUTH_FILE, "utf-8");
+    const arr = JSON.parse(raw) as ClientAuth[];
+    if (!Array.isArray(arr)) return;
+    db.clientAuthByDeviceId.clear();
+    db.clientAuthByApiKey.clear();
+    for (const a of arr) {
+      if (!a?.device_id || !a?.api_key || !a?.client_id) continue;
+      db.clientAuthByDeviceId.set(a.device_id, a);
+      db.clientAuthByApiKey.set(a.api_key, a);
+    }
+  } catch (e) {
+    console.error("Failed to load client auth from file:", e);
+  }
+}
+
+function saveClientAuthToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const arr = Array.from(db.clientAuthByDeviceId.values());
+    fs.writeFileSync(CLIENT_AUTH_FILE, JSON.stringify(arr, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save client auth to file:", e);
+  }
+}
+
 // Загрузка папок автомобилей из файла (сохраняются между перезапусками)
 function loadCarFoldersFromFile(): void {
   try {
@@ -231,6 +287,8 @@ function saveCarFoldersToFile(): void {
 
 loadAccountsFromFile();
 loadTelegramCredentialsFromFile();
+loadUsersFromFile();
+loadClientAuthFromFile();
 loadCarFoldersFromFile();
 
 function loadDisplaySettingsFromFile(): void {
@@ -381,6 +439,8 @@ export function deleteBooking(id: string): boolean {
 
 /** Один пользователь по умолчанию, чтобы GET /profile не возвращал 404 при пустой БД (например после перезапуска). */
 function ensureDefaultUser(): void {
+  // В продакшене не создаём "фейковый" профиль — клиент обязан пройти регистрацию /clients/register
+  if (process.env.NODE_ENV === "production") return;
   if (db.users.size > 0) return;
   createUser({
     first_name: "Клиент",
@@ -406,7 +466,7 @@ export function getUser(id: string): User | null {
 }
 
 export function createUser(data: Omit<User, "_id" | "created_at">): User {
-  const id = `usr_${Date.now()}`;
+  const id = `usr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const user: User = {
     ...data,
     _id: id,
@@ -415,6 +475,7 @@ export function createUser(data: Omit<User, "_id" | "created_at">): User {
     loyalty_points: data.loyalty_points ?? 0,
   };
   db.users.set(id, user);
+  saveUsersToFile();
   return user;
 }
 
@@ -423,7 +484,38 @@ export function updateUser(id: string, data: Partial<User>): User | null {
   if (!user) return null;
   const updated = { ...user, ...data, _id: id };
   db.users.set(id, updated);
+  saveUsersToFile();
   return updated;
+}
+
+function normalizeTelegramHandle(value: string): string {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  let out = s.replace(/^https?:\/\//i, "");
+  out = out.replace(/^t\.me\//i, "").replace(/^telegram\.me\//i, "");
+  out = out.replace(/^@+/, "");
+  out = out.replace(/\/+$/, "");
+  return out.trim().toLowerCase();
+}
+
+export function getUserByTelegramHandle(handle: string): User | null {
+  const h = normalizeTelegramHandle(handle);
+  if (!h) return null;
+  for (const u of db.users.values()) {
+    const t = u.social_links?.telegram;
+    if (t && normalizeTelegramHandle(t) === h) return u;
+  }
+  return null;
+}
+
+/** Link telegram chat id to user by their telegram handle (username). */
+export function linkTelegramChatIdByHandle(handle: string, chatId: string): User | null {
+  const u = getUserByTelegramHandle(handle);
+  if (!u) return null;
+  return updateUser(u._id, {
+    telegram_chat_id: chatId,
+    telegram_linked_at: new Date().toISOString(),
+  });
 }
 
 /** Начислить баллы лояльности клиенту (например за завершённую запись). */
@@ -456,6 +548,7 @@ export function registerClientDevice(params: {
     };
     db.clientAuthByDeviceId.set(params.device_id, updated);
     db.clientAuthByApiKey.set(updated.api_key, updated);
+    saveClientAuthToFile();
     return { client_id: updated.client_id, api_key: updated.api_key };
   }
 
@@ -484,6 +577,7 @@ export function registerClientDevice(params: {
   db.clientAuthByDeviceId.set(params.device_id, record);
   db.clientAuthByApiKey.set(api_key, record);
 
+  saveClientAuthToFile();
   return { client_id: record.client_id, api_key: record.api_key };
 }
 

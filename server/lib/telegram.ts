@@ -41,6 +41,51 @@ function formatBookingDate(iso: string): string {
   }
 }
 
+async function sendToClientIfLinked(clientId: string, text: string): Promise<void> {
+  const token = db.getTelegramBotToken();
+  if (!token) return;
+  const user = db.getUser(clientId);
+  const chatId = user?.telegram_chat_id ? String(user.telegram_chat_id) : "";
+  if (!chatId) return;
+  await sendTelegramMessage(token, chatId, text);
+}
+
+export async function notifyClientBookingConfirmed(booking: Booking): Promise<void> {
+  await sendToClientIfLinked(
+    booking.user_id,
+    [
+      "✅ <b>Запись подтверждена</b>",
+      "",
+      `📋 ${booking.service_name}`,
+      `📅 ${formatBookingDate(booking.date_time)}`,
+      booking.notes ? `\n📝 ${booking.notes}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+}
+
+export async function notifyClientBookingCancelled(booking: Booking): Promise<void> {
+  await sendToClientIfLinked(
+    booking.user_id,
+    ["❌ <b>Запись отменена</b>", "", `📋 ${booking.service_name}`, `📅 ${formatBookingDate(booking.date_time)}`].join("\n")
+  );
+}
+
+export async function notifyClientBookingInProgress(booking: Booking): Promise<void> {
+  await sendToClientIfLinked(
+    booking.user_id,
+    ["🚗 <b>Услуга в работе</b>", "", `📋 ${booking.service_name}`, "Мы начали выполнять вашу услугу."] .join("\n")
+  );
+}
+
+export async function notifyClientBookingCompleted(booking: Booking): Promise<void> {
+  await sendToClientIfLinked(
+    booking.user_id,
+    ["🏁 <b>Услуга завершена</b>", "", `📋 ${booking.service_name}`, "Ваш авто готов."] .join("\n")
+  );
+}
+
 /** Send booking notifications to all configured admin chat IDs */
 export async function notifyNewBooking(booking: Booking): Promise<void> {
   const token = db.getTelegramBotToken();

@@ -9,7 +9,6 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import type { User, CarFolder, Notification } from "@/api/types";
 import { Link } from "react-router-dom";
-import { useLegal } from "@/context/LegalContext";
 
 const clientTierLabel: Record<string, string> = {
   client: "Клиент",
@@ -22,7 +21,6 @@ const THEME_KEY = "sb_web_theme";
 
 export function ProfilePage() {
   const { apiKey, logout } = useAuth();
-  const { acceptedAt, revoke } = useLegal();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -352,33 +350,6 @@ export function ProfilePage() {
       ) : null}
 
       <div className="mt-6">
-        <div className="mb-3 bg-card/70 backdrop-blur-xl rounded-2xl border border-border shadow-ios p-4">
-          <p className="font-medium text-fg">Документы</p>
-          <p className="text-xs text-muted-fg mt-1">
-            Принято: {acceptedAt ?? "не принято"}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Link
-              to="/legal"
-              className="py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
-            >
-              Открыть
-            </Link>
-            <Link
-              to="/agreement"
-              className="py-2 text-center rounded-xl border border-border bg-card/60 text-fg text-sm"
-            >
-              Соглашение
-            </Link>
-            <button
-              type="button"
-              onClick={revoke}
-              className="col-span-2 py-2 rounded-xl bg-muted text-fg text-sm"
-            >
-              Отозвать
-            </button>
-          </div>
-        </div>
         <div className="mb-3 bg-card/70 backdrop-blur-xl rounded-2xl border border-border shadow-ios p-4">
           <p className="font-medium text-fg">Компания</p>
           <p className="text-xs text-muted-fg mt-1">Реквизиты и контакты оператора</p>

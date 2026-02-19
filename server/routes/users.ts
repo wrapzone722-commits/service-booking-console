@@ -45,7 +45,6 @@ export const getUser: RequestHandler<{ id: string }> = (req, res) => {
 
 export const getProfile: RequestHandler = (req, res) => {
   try {
-    db.getUsers(); // ensure at least one user exists (avoids 404 on fresh/restarted server)
     let user = null;
     const token = getApiKeyFromRequest(req);
 
@@ -87,6 +86,9 @@ export const getProfile: RequestHandler = (req, res) => {
       car_plate: user.car_plate ?? null,
       promo_code: user.promo_code ?? null,
       telegram,
+      // internal fields
+      telegram_chat_id: undefined,
+      telegram_linked_at: undefined,
       client_tier: clientTier,
       is_vip: clientTier === "pride" || user.status === "vip",
       display_photo_name,
@@ -168,6 +170,9 @@ export const updateProfile: RequestHandler = (req, res) => {
       car_plate: user.car_plate ?? null,
       promo_code: user.promo_code ?? null,
       telegram: user.social_links?.telegram ?? null,
+      // internal fields
+      telegram_chat_id: undefined,
+      telegram_linked_at: undefined,
       client_tier: clientTier,
       is_vip: clientTier === "pride" || user.status === "vip",
       display_photo_name: display_photo_name_upd,
