@@ -114,23 +114,33 @@ export const webhook: RequestHandler = async (req, res) => {
     const chatId = update?.message?.chat?.id;
     const fromUsername = update?.message?.from?.username;
     const text = update?.message?.text;
-    if (chatId && text?.trim().toLowerCase() === "/start") {
+    if (chatId) {
       const chatIdStr = String(chatId);
+      const textNorm = String(text ?? "")
+        .trim()
+        .toLowerCase();
+      const isStart = textNorm === "/start" || textNorm.startsWith("/start ");
 
-      // Auto-add admin chat id only for the configured organization owner (if they linked Telegram Login)
-      const acc = db.getFirstAccount();
-      if (acc?.telegram_id && String(acc.telegram_id) === chatIdStr) {
-        db.addTelegramAdminChatId(chatIdStr);
-      }
-
-      // Link client chat id by username (if client filled it in profile)
+      // Link client chat id by username (if client filled it in profile).
+      // Do this for any message (not only /start) to make linking more reliable.
       if (fromUsername) {
-        db.linkTelegramChatIdByHandle(fromUsername, chatIdStr);
+        const linked = db.linkTelegramChatIdByHandle(fromUsername, chatIdStr);
+        if (linked) {
+          console.log("[telegram] linked client chat_id", { user_id: linked._id, username: fromUsername, chatId: chatIdStr });
+        }
       }
 
-      const botToken = db.getTelegramBotToken();
-      if (botToken) {
-        await sendWelcomeMessage(botToken, chatIdStr);
+      if (isStart) {
+        // Auto-add admin chat id only for the configured organization owner (if they linked Telegram Login)
+        const acc = db.getFirstAccount();
+        if (acc?.telegram_id && String(acc.telegram_id) === chatIdStr) {
+          db.addTelegramAdminChatId(chatIdStr);
+        }
+
+        const botToken = db.getTelegramBotToken();
+        if (botToken) {
+          await sendWelcomeMessage(botToken, chatIdStr);
+        }
       }
     }
   } catch (e) {
