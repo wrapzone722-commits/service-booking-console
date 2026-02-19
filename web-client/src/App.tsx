@@ -7,6 +7,7 @@ import { HomePage } from "@/pages/HomePage";
 import { ServiceDetailPage } from "@/pages/ServiceDetailPage";
 import { BookingCreatePage } from "@/pages/BookingCreatePage";
 import { BookingsPage } from "@/pages/BookingsPage";
+import { NewsPage } from "@/pages/NewsPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { ConnectPage } from "@/pages/ConnectPage";
 import { LegalPage } from "@/pages/LegalPage";
@@ -33,6 +34,7 @@ function GuardedRoutes() {
         <Route path="agreement" element={<AgreementPage />} />
         <Route path="services/:id" element={<ServiceDetailPage />} />
         <Route path="services/:id/book" element={<BookingCreatePage />} />
+        <Route path="news" element={<NewsPage />} />
         <Route path="bookings" element={<BookingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

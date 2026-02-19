@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import Company from "./pages/Company";
 import TelegramBot from "./pages/TelegramBot";
 import Legal from "./pages/Legal";
+import News from "./pages/News";
 import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 
@@ -70,6 +71,7 @@ const AppContent = () => (
                     <Route path="/posts" element={<Posts />} />
                     <Route path="/telegram-bot" element={<TelegramBot />} />
                     <Route path="/cars" element={<Cars />} />
+                    <Route path="/news" element={<News />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/legal" element={<Legal />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

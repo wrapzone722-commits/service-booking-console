@@ -3,6 +3,7 @@ import { LegalBanner } from "@/components/LegalBanner";
 
 const nav = [
   { to: "/", label: "Услуги", icon: "🏠" },
+  { to: "/news", label: "Новости", icon: "📰" },
   { to: "/bookings", label: "Записи", icon: "📅" },
   { to: "/profile", label: "Профиль", icon: "👤" },
 ];

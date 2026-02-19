@@ -39,6 +39,7 @@ export default defineConfig({
         "express",
         "cors",
         "nodemailer",
+        "pdfkit",
         "jsonwebtoken",
         "dotenv",
         "dotenv/config",

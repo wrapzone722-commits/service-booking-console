@@ -1,4 +1,4 @@
-import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage } from "@shared/api";
+import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem } from "@shared/api";
 import type { DisplayPhotoRule } from "@shared/api";
 import crypto from "crypto";
 import fs from "fs";
@@ -58,6 +58,7 @@ interface Database {
   api_base_url: string; // for QR code generation
   telegram_bot_settings: TelegramBotSettings;
   notifications: Map<string, Notification>;
+  news: Map<string, NewsItem>;
   carFolders: Map<string, CarFolder>;
 }
 
@@ -97,6 +98,7 @@ let db: Database = {
   slot_duration: 30,
   api_base_url: process.env.API_BASE_URL || "https://www.detailing-studio72.ru/api/v1",
   notifications: new Map(),
+  news: new Map(),
   carFolders: new Map(),
   telegram_bot_settings: {
     enabled: false,
@@ -700,6 +702,8 @@ export function createNotification(data: {
   type: Notification["type"];
   title?: string | null;
   read?: boolean;
+  entity_type?: Notification["entity_type"];
+  entity_id?: Notification["entity_id"];
 }): Notification {
   const id = `ntf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const notification: Notification = {
@@ -708,11 +712,77 @@ export function createNotification(data: {
     type: data.type,
     title: data.title ?? null,
     read: data.read ?? false,
+    entity_type: data.entity_type ?? null,
+    entity_id: data.entity_id ?? null,
     _id: id,
     created_at: new Date().toISOString(),
   };
   db.notifications.set(id, notification);
   return notification;
+}
+
+// News
+export function getNewsAll(): NewsItem[] {
+  return Array.from(db.news.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export function getNewsPublished(): NewsItem[] {
+  return getNewsAll().filter((n) => n.published);
+}
+
+export function getNewsItem(id: string): NewsItem | null {
+  return db.news.get(id) || null;
+}
+
+export function createNews(data: { title: string; body: string; published?: boolean }): NewsItem {
+  const id = `news_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const item: NewsItem = {
+    _id: id,
+    title: data.title.trim(),
+    body: data.body.trim(),
+    published: data.published ?? true,
+    created_at: new Date().toISOString(),
+  };
+  db.news.set(id, item);
+  return item;
+}
+
+export function updateNews(id: string, data: Partial<Pick<NewsItem, "title" | "body" | "published">>): NewsItem | null {
+  const existing = db.news.get(id);
+  if (!existing) return null;
+  const updated: NewsItem = {
+    ...existing,
+    title: data.title !== undefined ? String(data.title).trim() : existing.title,
+    body: data.body !== undefined ? String(data.body).trim() : existing.body,
+    published: data.published !== undefined ? !!data.published : existing.published,
+    _id: id,
+  };
+  db.news.set(id, updated);
+  return updated;
+}
+
+export function ensureNewsNotificationsForClient(clientId: string): void {
+  const published = getNewsPublished();
+  if (published.length === 0) return;
+
+  const existingNewsIds = new Set(
+    Array.from(db.notifications.values())
+      .filter((n) => n.client_id === clientId && n.type === "news" && n.entity_type === "news" && !!n.entity_id)
+      .map((n) => n.entity_id as string)
+  );
+
+  for (const item of published) {
+    if (existingNewsIds.has(item._id)) continue;
+    createNotification({
+      client_id: clientId,
+      type: "news",
+      title: item.title,
+      body: item.body,
+      entity_type: "news",
+      entity_id: item._id,
+      read: false,
+    });
+  }
 }
 
 export function getNotification(id: string): Notification | null {

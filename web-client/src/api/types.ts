@@ -101,7 +101,7 @@ export interface CarFolder {
   profile_preview_thumbnail_url?: string;
 }
 
-export type NotificationType = "service" | "admin";
+export type NotificationType = "service" | "admin" | "news";
 
 export interface Notification {
   _id: string;
@@ -111,6 +111,21 @@ export interface Notification {
   type: NotificationType;
   title: string | null;
   read: boolean;
+  entity_type?: "news" | null;
+  entity_id?: string | null;
+}
+
+export interface NewsItem {
+  _id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  published: boolean;
+}
+
+export interface ClientNewsItem extends NewsItem {
+  read: boolean;
+  notification_id: string | null;
 }
 
 export interface RegisterClientResponse {

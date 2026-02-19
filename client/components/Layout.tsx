@@ -31,6 +31,7 @@ const navItems = [
   { path: "/bookings", label: "Записи", icon: "📅" },
   { path: "/posts", label: "Посты", icon: "🚿" },
   { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
+  { path: "/news", label: "Новости", icon: "📰" },
   { path: "/clients", label: "Клиенты", icon: "👥" },
   { path: "/cars", label: "Автомобили", icon: "🚗" },
   { path: "/settings", label: "Настройки", icon: "⚙️" },

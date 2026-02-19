@@ -168,6 +168,7 @@ import type {
   UpdateProfileRequest,
   CarFolder,
   Notification,
+  ClientNewsItem,
   TelegramWidgetConfigResponse,
   TelegramLoginResponse,
 } from "./types";
@@ -246,6 +247,12 @@ export async function fetchNotifications(): Promise<Notification[]> {
 
 export async function markNotificationRead(id: string): Promise<void> {
   await apiPatch(`/notifications/${id}/read`, {});
+}
+
+// ——— News ———
+
+export async function fetchNews(): Promise<ClientNewsItem[]> {
+  return apiGet<ClientNewsItem[]>("/news");
 }
 
 // ——— Telegram Login Widget ———

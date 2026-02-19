@@ -285,7 +285,7 @@ export interface DisplayPhotoRule {
 }
 
 // ====== NOTIFICATIONS ======
-export type NotificationType = "service" | "admin";
+export type NotificationType = "service" | "admin" | "news";
 
 export interface Notification {
   _id: string;
@@ -295,6 +295,24 @@ export interface Notification {
   type: NotificationType;
   title: string | null;
   read: boolean;
+  /** Optional: связанная сущность (например новость). */
+  entity_type?: "news" | null;
+  entity_id?: string | null;
+}
+
+// ====== NEWS ======
+export interface NewsItem {
+  _id: string;
+  title: string;
+  body: string;
+  created_at: string; // ISO 8601
+  published: boolean;
+}
+
+/** News for a particular client — includes read state via notification. */
+export interface ClientNewsItem extends NewsItem {
+  read: boolean;
+  notification_id: string | null;
 }
 
 // ====== ERROR RESPONSE ======

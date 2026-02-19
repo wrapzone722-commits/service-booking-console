@@ -20,6 +20,9 @@ export const getNotifications: RequestHandler = (req, res) => {
       });
     }
 
+    // Ленивая доставка новостей: новые/старые клиенты увидят все опубликованные новости как уведомления.
+    db.ensureNewsNotificationsForClient(clientAuth.client_id);
+
     const notifications = db.getNotificationsByClientId(clientAuth.client_id);
     res.json(notifications);
   } catch (error) {

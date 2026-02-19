@@ -11,10 +11,11 @@ import * as telegramRoutes from "./routes/telegram";
 import * as connectionsRoutes from "./routes/connections";
 import * as authRoutes from "./routes/auth";
 import * as notificationsRoutes from "./routes/notifications";
+import * as newsRoutes from "./routes/news";
 import * as settingsRoutes from "./routes/settings";
 import * as statsRoutes from "./routes/stats";
 import * as carsRoutes from "./routes/cars";
-import { requireAuth } from "./middleware/auth";
+import { optionalBearerAuth, requireAuth } from "./middleware/auth";
 
 export function createServer() {
   const app = express();
@@ -91,6 +92,11 @@ export function createServer() {
   app.get("/api/v1/notifications", notificationsRoutes.getNotifications);
   app.patch("/api/v1/notifications/:id/read", notificationsRoutes.markNotificationRead);
   app.post("/api/v1/notifications", requireAuth, notificationsRoutes.createNotification);
+
+  // API v1 routes (News — admin creates, clients see as notifications/messages)
+  app.get("/api/v1/news", optionalBearerAuth, newsRoutes.getNews);
+  app.post("/api/v1/news", requireAuth, newsRoutes.createNews);
+  app.put("/api/v1/news/:id", requireAuth, newsRoutes.updateNews);
 
   // API v1 routes (Car wash posts)
   app.get("/api/v1/posts", postsRoutes.getPosts);
