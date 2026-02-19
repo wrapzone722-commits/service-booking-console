@@ -43,6 +43,9 @@ export interface UpdateServiceRequest {
 // ====== BOOKING MODELS ======
 export type BookingStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
+/** Контроль записи: администратор связывается с клиентом для подтверждения актуальности */
+export type BookingControlStatus = "pending" | "confirmed" | "callback" | "no_answer" | "cancelled";
+
 export interface Booking {
   _id: string;
   service_id: string;
@@ -62,6 +65,12 @@ export interface Booking {
   rating?: number | null;
   /** Комментарий к оценке */
   rating_comment?: string | null;
+  /** Статус контроля записи (админка) */
+  control_status?: BookingControlStatus;
+  /** Комментарий администратора после звонка */
+  control_comment?: string | null;
+  /** Когда обновляли control_status/control_comment */
+  control_updated_at?: string | null;
 }
 
 export interface CreateBookingRequest {

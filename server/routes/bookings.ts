@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { Booking, CreateBookingRequest, UpdateBookingStatusRequest } from "@shared/api";
+import { Booking, UpdateBookingStatusRequest, type BookingControlStatus } from "@shared/api";
 import * as db from "../db";
 import { notifyNewBooking, notifyBookingCancelled, notifyBookingConfirmed } from "../lib/telegram";
 import { verifyToken } from "./auth";
@@ -23,7 +23,15 @@ export const getBookings: RequestHandler = (req, res) => {
 
     let bookings = db.getBookings();
     if (clientId) {
-      bookings = bookings.filter((b) => b.user_id === clientId);
+      bookings = bookings
+        .filter((b) => b.user_id === clientId)
+        // не отдаём клиенту внутренние поля контроля записи
+        .map((b) => ({
+          ...b,
+          control_status: undefined,
+          control_comment: undefined,
+          control_updated_at: undefined,
+        }));
     }
     res.json(bookings);
   } catch (error) {
@@ -181,6 +189,9 @@ export const createBooking: RequestHandler = (req, res) => {
       post_id: postId,
       date_time,
       status: "pending",
+      control_status: "pending",
+      control_comment: null,
+      control_updated_at: null,
       price: service.price,
       duration: service.duration,
       notes: notes || null,
@@ -193,6 +204,37 @@ export const createBooking: RequestHandler = (req, res) => {
   } catch (error) {
     console.error("[bookings] Error creating booking:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to create booking" });
+  }
+};
+
+export const updateBookingControl: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const booking = db.getBooking(req.params.id);
+    if (!booking) return res.status(404).json({ error: "Not found", message: "Booking not found" });
+
+    const { status, comment } = (req.body ?? {}) as { status?: BookingControlStatus; comment?: string | null };
+    const allowed: BookingControlStatus[] = ["pending", "confirmed", "callback", "no_answer", "cancelled"];
+
+    if (status === undefined && comment === undefined) {
+      return res.status(400).json({ error: "Validation error", message: "Provide status and/or comment" });
+    }
+    if (status !== undefined && !allowed.includes(status)) {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Invalid status. Valid: pending, confirmed, callback, no_answer, cancelled",
+      });
+    }
+
+    const updated = db.updateBooking(req.params.id, {
+      control_status: status ?? booking.control_status ?? "pending",
+      control_comment: comment === undefined ? booking.control_comment ?? null : (comment ? String(comment) : null),
+      control_updated_at: new Date().toISOString(),
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating booking control:", error);
+    res.status(500).json({ error: "Internal server error", message: "Failed to update booking control" });
   }
 };
 
