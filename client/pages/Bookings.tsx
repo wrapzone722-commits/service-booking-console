@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Booking, BookingStatus, Employee } from "@shared/api";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const STATUS_OPTIONS: { id: BookingStatus; label: string }[] = [
   { id: "pending", label: "Ожидает" },
@@ -25,6 +28,11 @@ export default function Bookings() {
   const [filterStatus, setFilterStatus] = useState<"all" | BookingStatus>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const refreshInFlightRef = useRef(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteBookingId, setDeleteBookingId] = useState<string | null>(null);
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [ownerPasswordError, setOwnerPasswordError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchBookings();
@@ -176,18 +184,42 @@ export default function Bookings() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Удалить запись?")) return;
+  const requestDelete = (id: string) => {
     const token = localStorage.getItem("session_token");
     if (!token) {
       setError("Войдите в аккаунт для удаления записи");
       return;
     }
+    setDeleteBookingId(id);
+    setOwnerPassword("");
+    setOwnerPasswordError(null);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteBookingId) return;
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Войдите в аккаунт для удаления записи");
+      setDeleteModalOpen(false);
+      return;
+    }
+    const pw = ownerPassword.trim();
+    if (!pw) {
+      setOwnerPasswordError("Введите пароль");
+      return;
+    }
+
+    setDeleting(true);
     try {
       setError(null);
-      const res = await fetch(`/api/v1/bookings/${id}`, {
+      setOwnerPasswordError(null);
+      const res = await fetch(`/api/v1/bookings/${deleteBookingId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-Owner-Password": pw,
+        },
       });
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       if (!res.ok) {
@@ -198,12 +230,21 @@ export default function Bookings() {
           window.location.replace("/login");
           return;
         }
+        if (res.status === 403) {
+          setOwnerPasswordError("Неверный пароль");
+          return;
+        }
         throw new Error(data.message || "Не удалось удалить запись");
       }
-      await fetchBookings();
+      setDeleteModalOpen(false);
+      setDeleteBookingId(null);
+      setOwnerPassword("");
+      await fetchBookings(false);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Не удалось удалить запись");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -248,8 +289,9 @@ export default function Bookings() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-20 ios-surface border-b border-border/70">
+    <>
+      <div className="min-h-screen bg-background">
+        <div className="sticky top-0 z-20 ios-surface border-b border-border/70">
         <div className="px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Записи</h1>
@@ -295,7 +337,7 @@ export default function Bookings() {
         </div>
       </div>
 
-      <div className="p-4 md:p-6 space-y-3">
+        <div className="p-4 md:p-6 space-y-3">
         {error && (
           <div className="ios-card p-3 text-sm text-rose-700 border-rose-200 bg-rose-50/80">
             {error}
@@ -418,7 +460,7 @@ export default function Bookings() {
                       </button>
                     )}
                     <button
-                      onClick={() => handleDelete(booking._id)}
+                      onClick={() => requestDelete(booking._id)}
                       className="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition"
                     >
                       Удалить
@@ -429,7 +471,62 @@ export default function Bookings() {
             );
           })
         )}
+        </div>
       </div>
-    </div>
+
+      <Dialog
+        open={deleteModalOpen}
+        onOpenChange={(open) => {
+          setDeleteModalOpen(open);
+          if (!open) {
+            setOwnerPassword("");
+            setOwnerPasswordError(null);
+            setDeleteBookingId(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Пароль</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Input
+              type="password"
+              aria-label="Пароль владельца"
+              value={ownerPassword}
+              onChange={(e) => setOwnerPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void confirmDelete();
+              }}
+            />
+            {ownerPasswordError && (
+              <div className="text-sm text-rose-700">
+                {ownerPasswordError}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={deleting}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmDelete()}
+              disabled={deleting}
+            >
+              {deleting ? "Удаление…" : "Удалить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

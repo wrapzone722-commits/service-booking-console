@@ -367,6 +367,16 @@ export const deleteBooking: RequestHandler<{ id: string }> = (req, res) => {
       return res.status(404).json({ error: "Not found", message: "Booking not found" });
     }
 
+    // Требуется пароль владельца для удаления любой записи (без подсказок)
+    const ownerPasswordExpected = process.env.OWNER_DELETE_PASSWORD || "230490";
+    const ownerPasswordProvided = String(req.headers["x-owner-password"] ?? "").trim();
+    if (!ownerPasswordProvided || ownerPasswordProvided !== ownerPasswordExpected) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Forbidden",
+      });
+    }
+
     const token = getApiKeyFromRequest(req);
     if (token) {
       const clientAuth = db.getClientAuthByApiKey(token);
