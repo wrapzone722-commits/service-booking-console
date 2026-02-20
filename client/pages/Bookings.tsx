@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Booking, BookingStatus, Employee } from "@shared/api";
 
 const STATUS_OPTIONS: { id: BookingStatus; label: string }[] = [
@@ -24,6 +24,7 @@ export default function Bookings() {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | BookingStatus>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     fetchBookings();
@@ -55,10 +56,12 @@ export default function Bookings() {
     }
   };
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (showLoading = true) => {
+    if (refreshInFlightRef.current) return;
     const token = localStorage.getItem("session_token");
+    refreshInFlightRef.current = true;
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const res = await fetch("/api/v1/bookings", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -68,11 +71,34 @@ export default function Bookings() {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError("Не удалось загрузить записи");
+      // Не “шумим” ошибками при тихом фоне, чтобы не ломать UI
+      if (showLoading) setError("Не удалось загрузить записи");
     } finally {
-      setLoading(false);
+      refreshInFlightRef.current = false;
+      if (showLoading) setLoading(false);
     }
   };
+
+  // Авто-обновление списка каждые 30 секунд
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!navigator.onLine) return;
+      void fetchBookings(false);
+    };
+
+    const t = window.setInterval(tick, 30_000);
+    const onVisibility = () => tick();
+    const onOnline = () => tick();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
 
   const handleAssignEmployee = async (id: string, employeeId: string | null) => {
     if (updatingId) return;

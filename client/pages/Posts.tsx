@@ -6,7 +6,11 @@ type WorkingHours = { start: number; end: number; start_time: string; end_time: 
 
 function toHHMM(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // Время слота хранится как ISO (UTC). Показываем часы/минуты в UTC,
+  // чтобы при запуске сервера в UTC не было сдвига (например 09:00 → 14:00 в UTC+5).
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 function todayYMD() {
@@ -290,6 +294,7 @@ export default function Posts() {
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold">Начало</label>
                 <input
+                  aria-label="Общее рабочее время: начало (час)"
                   type="number"
                   min={0}
                   max={23}
@@ -302,6 +307,7 @@ export default function Posts() {
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold">Конец</label>
                 <input
+                  aria-label="Общее рабочее время: конец (час)"
                   type="number"
                   min={0}
                   max={24}
@@ -336,6 +342,7 @@ export default function Posts() {
                 <div key={p._id} className="flex items-center gap-1">
                   {editingNameId === p._id ? (
                     <input
+                      aria-label="Название поста"
                       type="text"
                       value={editingNameValue}
                       onChange={(e) => setEditingNameValue(e.target.value)}
@@ -397,6 +404,7 @@ export default function Posts() {
                         <div>
                           <label className="block text-xs text-muted-foreground mb-1">Начало</label>
                           <input
+                            aria-label="Начало рабочего времени поста"
                             type="time"
                             value={selected.start_time}
                             onChange={(e) => patchPost({ start_time: e.target.value })}
@@ -406,6 +414,7 @@ export default function Posts() {
                         <div>
                           <label className="block text-xs text-muted-foreground mb-1">Конец</label>
                           <input
+                            aria-label="Конец рабочего времени поста"
                             type="time"
                             value={selected.end_time}
                             onChange={(e) => patchPost({ end_time: e.target.value })}
@@ -417,6 +426,7 @@ export default function Posts() {
                     <div>
                       <label className="block text-xs text-muted-foreground mb-1">Интервал (мин)</label>
                       <select
+                        aria-label="Интервал слотов (минуты)"
                         value={selected.interval_minutes}
                         onChange={(e) => patchPost({ interval_minutes: Number(e.target.value) as PostIntervalMinutes })}
                         className="w-full px-2 py-1.5 text-sm rounded border border-border"
@@ -438,6 +448,7 @@ export default function Posts() {
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <h2 className="text-sm font-bold">Слоты на {date}</h2>
                     <input
+                      aria-label="Дата для слотов"
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
