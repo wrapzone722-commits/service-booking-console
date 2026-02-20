@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CreateEmployeeRequest, CreateShiftRequest, Employee, EmployeesAnalyticsResponse, Shift, UpdateEmployeeRequest, UpdateShiftRequest } from "@shared/api";
+import type {
+  CreateEmployeeRequest,
+  CreateShiftRequest,
+  Employee,
+  EmployeesAnalyticsResponse,
+  EmployeesImportPayload,
+  EmployeesTimesheetExport,
+  Shift,
+  UpdateEmployeeRequest,
+  UpdateShiftRequest,
+} from "@shared/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,10 +90,16 @@ export default function Employees() {
 
   const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [employeeForm, setEmployeeForm] = useState<CreateEmployeeRequest & { is_active: boolean }>({
+  const [employeeForm, setEmployeeForm] = useState<
+    CreateEmployeeRequest & { is_active: boolean; pay_rate_hour_text: string; pay_rate_work_text: string }
+  >({
     name: "",
     phone: "",
     role: "",
+    pay_rate_hour: null,
+    pay_rate_work: null,
+    pay_rate_hour_text: "",
+    pay_rate_work_text: "",
     is_active: true,
   });
   const [employeeSaving, setEmployeeSaving] = useState(false);
@@ -166,7 +182,16 @@ export default function Employees() {
 
   const openNewEmployee = () => {
     setEditingEmployee(null);
-    setEmployeeForm({ name: "", phone: "", role: "", is_active: true });
+    setEmployeeForm({
+      name: "",
+      phone: "",
+      role: "",
+      pay_rate_hour: null,
+      pay_rate_work: null,
+      pay_rate_hour_text: "",
+      pay_rate_work_text: "",
+      is_active: true,
+    });
     setEmployeeModalOpen(true);
   };
 
@@ -176,9 +201,21 @@ export default function Employees() {
       name: e.name ?? "",
       phone: e.phone ?? "",
       role: e.role ?? "",
+      pay_rate_hour: e.pay_rate_hour ?? null,
+      pay_rate_work: e.pay_rate_work ?? null,
+      pay_rate_hour_text: e.pay_rate_hour == null ? "" : String(e.pay_rate_hour),
+      pay_rate_work_text: e.pay_rate_work == null ? "" : String(e.pay_rate_work),
       is_active: e.is_active ?? true,
     });
     setEmployeeModalOpen(true);
+  };
+
+  const parseRate = (raw: string): number | null => {
+    const s = String(raw ?? "").trim().replace(",", ".");
+    if (!s) return null;
+    const n = Number(s);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, n);
   };
 
   const saveEmployee = async () => {
@@ -189,11 +226,15 @@ export default function Employees() {
     }
     setEmployeeSaving(true);
     try {
+      const pay_rate_hour = parseRate(employeeForm.pay_rate_hour_text);
+      const pay_rate_work = parseRate(employeeForm.pay_rate_work_text);
       if (editingEmployee) {
         const payload: UpdateEmployeeRequest = {
           name,
           phone: employeeForm.phone ? String(employeeForm.phone).trim() : null,
           role: employeeForm.role ? String(employeeForm.role).trim() : null,
+          pay_rate_hour,
+          pay_rate_work,
           is_active: !!employeeForm.is_active,
         };
         await apiJson<Employee>(`/api/v1/employees/${editingEmployee._id}`, {
@@ -206,6 +247,8 @@ export default function Employees() {
           name,
           phone: employeeForm.phone ? String(employeeForm.phone).trim() : null,
           role: employeeForm.role ? String(employeeForm.role).trim() : null,
+          pay_rate_hour,
+          pay_rate_work,
           is_active: !!employeeForm.is_active,
         };
         await apiJson<Employee>("/api/v1/employees", {
@@ -346,11 +389,21 @@ export default function Employees() {
           </div>
           <div className="flex items-center gap-2">
             {activeTab === "employees" ? (
-              <Button onClick={openNewEmployee}>Добавить</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => void fetchEmployees()} disabled={employeesLoading}>
+                  Обновить
+                </Button>
+                <Button onClick={openNewEmployee}>Добавить</Button>
+              </div>
             ) : activeTab === "schedule" ? (
-              <Button onClick={openNewShift} disabled={!employees.length}>
-                Создать смену
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => void fetchShifts()} disabled={shiftsLoading}>
+                  Обновить
+                </Button>
+                <Button onClick={openNewShift} disabled={!employees.length}>
+                  Создать смену
+                </Button>
+              </div>
             ) : null}
           </div>
         </div>
@@ -386,9 +439,9 @@ export default function Employees() {
                 <p className="text-sm font-semibold">Список сотрудников</p>
                 <p className="text-xs text-muted-foreground">Смены и “кол-во работ” считаются по назначенным записям.</p>
               </div>
-              <Button variant="secondary" onClick={() => void fetchEmployees()} disabled={employeesLoading}>
-                Обновить
-              </Button>
+              <div className="text-xs text-muted-foreground">
+                Тарифы: ₽/час + ₽/работа (опционально)
+              </div>
             </div>
 
             <div className="mt-4 space-y-2">
@@ -410,6 +463,10 @@ export default function Employees() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {e.role ? e.role : "—"} {e.phone ? `• ${e.phone}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ₽/час: <span className="font-semibold text-foreground">{(e.pay_rate_hour ?? 0).toFixed(2)}</span>{" "}
+                        · ₽/работа: <span className="font-semibold text-foreground">{(e.pay_rate_work ?? 0).toFixed(2)}</span>
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
@@ -510,6 +567,57 @@ export default function Employees() {
                 <Button variant="secondary" onClick={() => void fetchAnalytics()} disabled={analyticsLoading}>
                   Рассчитать
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const { fromIso, toIso } = dateRangeToIso(analyticsFrom, analyticsTo);
+                    window.open(
+                      `/api/v1/employees/timesheet?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }}
+                  disabled={analyticsLoading}
+                >
+                  Экспорт HTML
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const { fromIso, toIso } = dateRangeToIso(analyticsFrom, analyticsTo);
+                      const data = await apiJson<EmployeesTimesheetExport>(
+                        `/api/v1/employees/timesheet?format=json&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(
+                          toIso
+                        )}`
+                      );
+                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `timesheet-${analyticsFrom}-${analyticsTo}.json`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      setTimeout(() => URL.revokeObjectURL(url), 30000);
+                    } catch (e) {
+                      console.error(e);
+                      setError(e instanceof Error ? e.message : "Не удалось экспортировать JSON");
+                    }
+                  }}
+                  disabled={analyticsLoading}
+                >
+                  Экспорт JSON
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const input = document.getElementById("timesheetImportInput") as HTMLInputElement | null;
+                    input?.click();
+                  }}
+                >
+                  Импорт JSON
+                </Button>
               </div>
               <div className="text-xs text-muted-foreground">
                 Работы считаются по <span className="font-semibold text-foreground">завершённым</span> записям, где выбран сотрудник.
@@ -522,13 +630,15 @@ export default function Employees() {
                   <tr className="text-left text-xs text-muted-foreground">
                     <th className="py-2 pr-4">Сотрудник</th>
                     <th className="py-2 pr-4">Смен</th>
+                    <th className="py-2 pr-4">Часы</th>
                     <th className="py-2 pr-4">Работ</th>
+                    <th className="py-2 pr-4">Начислено, ₽</th>
                   </tr>
                 </thead>
                 <tbody>
                   {analyticsLoading ? (
                     <tr>
-                      <td colSpan={3} className="py-6 text-muted-foreground animate-pulse-soft">
+                      <td colSpan={5} className="py-6 text-muted-foreground animate-pulse-soft">
                         Загрузка…
                       </td>
                     </tr>
@@ -537,12 +647,14 @@ export default function Employees() {
                       <tr key={r.employee_id} className="border-t border-border/70">
                         <td className="py-3 pr-4 font-medium">{r.employee_name}</td>
                         <td className="py-3 pr-4">{r.shifts}</td>
+                        <td className="py-3 pr-4">{r.hours.toFixed(2)}</td>
                         <td className="py-3 pr-4">{r.works}</td>
+                        <td className="py-3 pr-4 font-semibold">{(r.salary ?? 0).toFixed(2)}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={3} className="py-6 text-muted-foreground">
+                      <td colSpan={5} className="py-6 text-muted-foreground">
                         Нет данных для выбранного периода.
                       </td>
                     </tr>
@@ -553,6 +665,38 @@ export default function Employees() {
           </div>
         )}
       </div>
+
+      <input
+        id="timesheetImportInput"
+        type="file"
+        accept="application/json"
+        className="hidden"
+        aria-label="Импорт табеля (JSON)"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          try {
+            const raw = await file.text();
+            const parsed = JSON.parse(raw) as EmployeesImportPayload | EmployeesTimesheetExport;
+            const payload: EmployeesImportPayload =
+              (parsed as EmployeesTimesheetExport)?.employees || (parsed as EmployeesTimesheetExport)?.shifts
+                ? { employees: (parsed as EmployeesTimesheetExport).employees, shifts: (parsed as EmployeesTimesheetExport).shifts }
+                : (parsed as EmployeesImportPayload);
+            await apiJson<{ ok: true; employees: number; shifts: number }>("/api/v1/employees/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            await fetchEmployees();
+            if (activeTab === "schedule") await fetchShifts();
+            await fetchAnalytics();
+          } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : "Не удалось импортировать JSON");
+          }
+        }}
+      />
 
       <Dialog open={employeeModalOpen} onOpenChange={setEmployeeModalOpen}>
         <DialogContent>
@@ -573,6 +717,26 @@ export default function Employees() {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Роль (необязательно)</p>
                 <Input value={employeeForm.role ?? ""} onChange={(e) => setEmployeeForm((s) => ({ ...s, role: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">₽/час (необязательно)</p>
+                <Input
+                  inputMode="decimal"
+                  placeholder="например 350"
+                  value={employeeForm.pay_rate_hour_text}
+                  onChange={(e) => setEmployeeForm((s) => ({ ...s, pay_rate_hour_text: e.target.value }))}
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">₽/работа (необязательно)</p>
+                <Input
+                  inputMode="decimal"
+                  placeholder="например 150"
+                  value={employeeForm.pay_rate_work_text}
+                  onChange={(e) => setEmployeeForm((s) => ({ ...s, pay_rate_work_text: e.target.value }))}
+                />
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm">

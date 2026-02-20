@@ -267,11 +267,15 @@ function loadEmployeesFromFile(): void {
     db.employees.clear();
     for (const e of arr) {
       if (!e?._id || !e?.name) continue;
+      const rateHour = e.pay_rate_hour === null || e.pay_rate_hour === undefined ? null : Number(e.pay_rate_hour);
+      const rateWork = e.pay_rate_work === null || e.pay_rate_work === undefined ? null : Number(e.pay_rate_work);
       db.employees.set(e._id, {
         ...e,
         is_active: e.is_active ?? true,
         phone: e.phone ?? null,
         role: e.role ?? null,
+        pay_rate_hour: Number.isFinite(rateHour as number) ? Math.max(0, rateHour as number) : null,
+        pay_rate_work: Number.isFinite(rateWork as number) ? Math.max(0, rateWork as number) : null,
       });
     }
   } catch (e) {
@@ -515,6 +519,8 @@ export function getEmployee(id: string): Employee | null {
 
 export function createEmployee(data: Omit<Employee, "_id" | "created_at">): Employee {
   const id = `emp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const rateHour = data.pay_rate_hour === null || data.pay_rate_hour === undefined ? null : Number(data.pay_rate_hour);
+  const rateWork = data.pay_rate_work === null || data.pay_rate_work === undefined ? null : Number(data.pay_rate_work);
   const employee: Employee = {
     ...data,
     _id: id,
@@ -522,6 +528,8 @@ export function createEmployee(data: Omit<Employee, "_id" | "created_at">): Empl
     is_active: data.is_active ?? true,
     phone: data.phone ?? null,
     role: data.role ?? null,
+    pay_rate_hour: Number.isFinite(rateHour as number) ? Math.max(0, rateHour as number) : null,
+    pay_rate_work: Number.isFinite(rateWork as number) ? Math.max(0, rateWork as number) : null,
   };
   db.employees.set(id, employee);
   saveEmployeesToFile();
@@ -531,6 +539,10 @@ export function createEmployee(data: Omit<Employee, "_id" | "created_at">): Empl
 export function updateEmployee(id: string, data: Partial<Employee>): Employee | null {
   const employee = db.employees.get(id);
   if (!employee) return null;
+  const rateHour =
+    data.pay_rate_hour === undefined ? undefined : data.pay_rate_hour === null ? null : Number(data.pay_rate_hour);
+  const rateWork =
+    data.pay_rate_work === undefined ? undefined : data.pay_rate_work === null ? null : Number(data.pay_rate_work);
   const updated: Employee = {
     ...employee,
     ...data,
@@ -538,10 +550,51 @@ export function updateEmployee(id: string, data: Partial<Employee>): Employee | 
     phone: data.phone === undefined ? employee.phone ?? null : data.phone,
     role: data.role === undefined ? employee.role ?? null : data.role,
     is_active: data.is_active === undefined ? employee.is_active : data.is_active,
+    pay_rate_hour:
+      rateHour === undefined
+        ? employee.pay_rate_hour ?? null
+        : rateHour === null
+          ? null
+          : Number.isFinite(rateHour)
+            ? Math.max(0, rateHour)
+            : employee.pay_rate_hour ?? null,
+    pay_rate_work:
+      rateWork === undefined
+        ? employee.pay_rate_work ?? null
+        : rateWork === null
+          ? null
+          : Number.isFinite(rateWork)
+            ? Math.max(0, rateWork)
+            : employee.pay_rate_work ?? null,
   };
   db.employees.set(id, updated);
   saveEmployeesToFile();
   return updated;
+}
+
+export function replaceEmployees(employees: Employee[]): void {
+  db.employees.clear();
+  for (const e of employees) {
+    if (!e?._id || !e?.name) continue;
+    db.employees.set(e._id, {
+      ...e,
+      is_active: e.is_active ?? true,
+      phone: e.phone ?? null,
+      role: e.role ?? null,
+      pay_rate_hour: e.pay_rate_hour === undefined ? null : e.pay_rate_hour,
+      pay_rate_work: e.pay_rate_work === undefined ? null : e.pay_rate_work,
+    });
+  }
+  saveEmployeesToFile();
+}
+
+export function replaceShifts(shifts: Shift[]): void {
+  db.shifts.clear();
+  for (const s of shifts) {
+    if (!s?._id || !s?.employee_id || !s?.start_iso || !s?.end_iso) continue;
+    db.shifts.set(s._id, { ...s, notes: s.notes ?? null });
+  }
+  saveShiftsToFile();
 }
 
 export function deleteEmployee(id: string): boolean {

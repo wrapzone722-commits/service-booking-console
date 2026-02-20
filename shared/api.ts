@@ -360,6 +360,10 @@ export interface Employee {
   name: string;
   phone?: string | null;
   role?: string | null;
+  /** Ставка за час (₽). Если null/undefined — 0. */
+  pay_rate_hour?: number | null;
+  /** Ставка за выполненную работу/запись (₽). Если null/undefined — 0. */
+  pay_rate_work?: number | null;
   is_active: boolean;
   created_at: string; // ISO 8601
 }
@@ -368,6 +372,8 @@ export interface CreateEmployeeRequest {
   name: string;
   phone?: string | null;
   role?: string | null;
+  pay_rate_hour?: number | null;
+  pay_rate_work?: number | null;
   is_active?: boolean;
 }
 
@@ -375,6 +381,8 @@ export interface UpdateEmployeeRequest {
   name?: string;
   phone?: string | null;
   role?: string | null;
+  pay_rate_hour?: number | null;
+  pay_rate_work?: number | null;
   is_active?: boolean;
 }
 
@@ -406,12 +414,30 @@ export interface EmployeeAnalyticsRow {
   employee_name: string;
   shifts: number;
   works: number;
+  /** Часы смен в периоде (с учётом пересечения диапазона). */
+  hours: number;
+  /** Начисление (₽) = hours*rate_hour + works*rate_work */
+  salary: number;
 }
 
 export interface EmployeesAnalyticsResponse {
   from: string;
   to: string;
   rows: EmployeeAnalyticsRow[];
+}
+
+export interface EmployeesTimesheetExport {
+  from: string;
+  to: string;
+  generated_at: string;
+  employees: Employee[];
+  shifts: Shift[];
+  analytics: EmployeesAnalyticsResponse;
+}
+
+export interface EmployeesImportPayload {
+  employees?: Employee[];
+  shifts?: Shift[];
 }
 
 // ====== ERROR RESPONSE ======

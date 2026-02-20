@@ -80,6 +80,8 @@ export function createServer() {
   // API v1 routes (Employees / Shifts)
   app.get("/api/v1/employees", requireAuth, employeesRoutes.getEmployees);
   app.get("/api/v1/employees/analytics", requireAuth, employeesRoutes.getEmployeesAnalytics);
+  app.get("/api/v1/employees/timesheet", requireAuth, employeesRoutes.getTimesheet);
+  app.post("/api/v1/employees/import", requireAuth, employeesRoutes.importEmployeesData);
   app.post("/api/v1/employees", requireAuth, employeesRoutes.createEmployee);
   app.put("/api/v1/employees/:id", requireAuth, employeesRoutes.updateEmployee);
   app.delete("/api/v1/employees/:id", requireAuth, employeesRoutes.deleteEmployee);
