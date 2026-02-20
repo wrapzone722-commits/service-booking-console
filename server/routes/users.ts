@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { UpdateUserRequest } from "@shared/api";
+import { LoyaltyAdjustRequest, UpdateUserRequest } from "@shared/api";
 import type { ClientTier } from "@shared/api";
 import * as db from "../db";
 import { verifyToken } from "./auth";
@@ -214,6 +214,66 @@ export const updateUserById: RequestHandler<{ id: string }> = (req, res) => {
   } catch (error) {
     console.error("Error updating user:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to update user" });
+  }
+};
+
+// GET /api/v1/users/:id/visits — история посещений (записей) клиента
+export const getUserVisits: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = db.getUser(userId);
+    if (!user) return res.status(404).json({ error: "Not found", message: "User not found" });
+
+    const visits = db
+      .getBookings()
+      .filter((b) => b.user_id === userId)
+      .sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime());
+    res.json(visits);
+  } catch (e) {
+    console.error("Error fetching user visits:", e);
+    res.status(500).json({ error: "Internal server error", message: "Failed to fetch visits" });
+  }
+};
+
+// POST /api/v1/users/:id/loyalty/adjust — ручное начисление/списание баллов
+export const adjustUserLoyalty: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = db.getUser(userId);
+    if (!user) return res.status(404).json({ error: "Not found", message: "User not found" });
+
+    const body = (req.body ?? {}) as Partial<LoyaltyAdjustRequest>;
+    const delta = Number(body.delta);
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    if (!Number.isFinite(delta) || Math.trunc(delta) === 0) {
+      return res.status(400).json({ error: "Validation error", message: "delta must be a non-zero number" });
+    }
+    if (!reason) {
+      return res.status(400).json({ error: "Validation error", message: "reason is required" });
+    }
+
+    const result = db.adjustLoyaltyPoints(userId, Math.trunc(delta), reason);
+    if (!result.user) return res.status(404).json({ error: "Not found", message: "User not found" });
+    res.json({ user: result.user, tx: result.tx });
+  } catch (e) {
+    console.error("Error adjusting loyalty:", e);
+    res.status(500).json({ error: "Internal server error", message: "Failed to adjust loyalty" });
+  }
+};
+
+// GET /api/v1/users/:id/loyalty/transactions — журнал баллов
+export const getUserLoyaltyTransactions: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = db.getUser(userId);
+    if (!user) return res.status(404).json({ error: "Not found", message: "User not found" });
+
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 50;
+    const tx = db.getLoyaltyTransactionsByUser(userId, Number.isFinite(limit) ? limit : 50);
+    res.json(tx);
+  } catch (e) {
+    console.error("Error fetching loyalty transactions:", e);
+    res.status(500).json({ error: "Internal server error", message: "Failed to fetch transactions" });
   }
 };
 

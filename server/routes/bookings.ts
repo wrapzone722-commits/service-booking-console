@@ -314,9 +314,16 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
           type: "service",
           title: "Услуга завершена",
         });
-        // Начисление баллов лояльности: 1 балл за каждые 100 ₽, минимум 1
-        const points = Math.max(1, Math.floor((booking.price ?? 0) / 100));
-        db.addLoyaltyPoints(booking.user_id, points);
+        // Начисление баллов лояльности: 10% от суммы услуги (по правилам), минимум min_earn_points
+        const rules = db.getLoyaltyRules();
+        const percent = Number(rules.earn_percent ?? 10) || 0;
+        const minPoints = Math.max(0, Number(rules.min_earn_points ?? 1) || 0);
+        const sum = Number(booking.price ?? 0) || 0;
+        const calc = Math.floor((sum * percent) / 100);
+        const points = Math.max(minPoints, calc);
+        if (points > 0) {
+          db.adjustLoyaltyPoints(booking.user_id, points, `Начисление ${percent}% после услуги`);
+        }
       }
     }
 

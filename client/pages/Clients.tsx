@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { User, type ClientTier } from "@shared/api";
+import { Booking, LoyaltyRules, LoyaltyTransaction, User, type ClientTier } from "@shared/api";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,14 @@ const tierLabelMap: Record<ClientTier, string> = {
   client: "Клиент",
   regular: "Постоянный клиент",
   pride: "Прайд",
+};
+
+const bookingStatusLabel: Record<string, string> = {
+  pending: "Ожидает",
+  confirmed: "Подтверждена",
+  in_progress: "В процессе",
+  completed: "Завершена",
+  cancelled: "Отменена",
 };
 
 function getClientTier(user: User): ClientTier {
@@ -65,6 +73,18 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<User | null>(null);
+  const [visits, setVisits] = useState<Booking[]>([]);
+  const [visitsLoading, setVisitsLoading] = useState(false);
+  const [loyaltyTx, setLoyaltyTx] = useState<LoyaltyTransaction[]>([]);
+  const [loyaltyTxLoading, setLoyaltyTxLoading] = useState(false);
+  const [loyaltyRules, setLoyaltyRules] = useState<LoyaltyRules | null>(null);
+  const [loyaltyRulesLoading, setLoyaltyRulesLoading] = useState(false);
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [rulesDraft, setRulesDraft] = useState<LoyaltyRules | null>(null);
+  const [savingRules, setSavingRules] = useState(false);
+  const [adjustPointsText, setAdjustPointsText] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
   const [showSendMessage, setShowSendMessage] = useState(false);
   const [messageTitle, setMessageTitle] = useState("");
   const [messageBody, setMessageBody] = useState("");
@@ -75,12 +95,92 @@ export default function Clients() {
   const [savingTier, setSavingTier] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const apiAuth = async <T,>(url: string, init: RequestInit = {}): Promise<T> => {
+    const token = localStorage.getItem("session_token");
+    const headers: Record<string, string> = {
+      ...(init.headers as Record<string, string> | undefined),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const res = await fetch(url, { ...init, headers });
+    if (res.status === 401) {
+      localStorage.removeItem("session_token");
+      localStorage.removeItem("account_id");
+      localStorage.removeItem("account_name");
+      window.location.replace("/login");
+      throw new Error("Unauthorized");
+    }
+    const data = (await res.json().catch(() => ({}))) as unknown;
+    if (!res.ok) {
+      const message = (data as { message?: string })?.message || "Ошибка запроса";
+      throw new Error(message);
+    }
+    return data as T;
+  };
+
   useEffect(() => {
     fetchClients();
   }, []);
 
   useEffect(() => {
     setEditingTier(null);
+  }, [selectedClient?._id]);
+
+  const fetchLoyaltyRules = async () => {
+    const token = localStorage.getItem("session_token");
+    if (!token) return;
+    setLoyaltyRulesLoading(true);
+    try {
+      const data = await apiAuth<LoyaltyRules>("/api/v1/loyalty/rules");
+      setLoyaltyRules(data);
+      setRulesDraft(data);
+    } catch (e) {
+      console.error(e);
+      // не блокируем вкладку клиентов
+    } finally {
+      setLoyaltyRulesLoading(false);
+    }
+  };
+
+  const fetchVisits = async (userId: string) => {
+    const token = localStorage.getItem("session_token");
+    if (!token) return;
+    setVisitsLoading(true);
+    try {
+      const data = await apiAuth<Booking[]>(`/api/v1/users/${userId}/visits`);
+      setVisits(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+      setVisits([]);
+    } finally {
+      setVisitsLoading(false);
+    }
+  };
+
+  const fetchLoyaltyTransactions = async (userId: string) => {
+    const token = localStorage.getItem("session_token");
+    if (!token) return;
+    setLoyaltyTxLoading(true);
+    try {
+      const data = await apiAuth<LoyaltyTransaction[]>(`/api/v1/users/${userId}/loyalty/transactions?limit=30`);
+      setLoyaltyTx(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+      setLoyaltyTx([]);
+    } finally {
+      setLoyaltyTxLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchLoyaltyRules();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedClient?._id) return;
+    void fetchVisits(selectedClient._id);
+    void fetchLoyaltyTransactions(selectedClient._id);
+    setAdjustPointsText("");
+    setAdjustReason("");
   }, [selectedClient?._id]);
 
   const fetchClients = async () => {
@@ -128,6 +228,66 @@ export default function Clients() {
       setError(err instanceof Error ? err.message : "Ошибка сохранения");
     } finally {
       setSavingTier(false);
+    }
+  };
+
+  const applyAdjustPoints = async (delta: number, reason: string) => {
+    if (!selectedClient) return;
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Нужна авторизация");
+      return;
+    }
+    setAdjusting(true);
+    try {
+      setError(null);
+      const payload = { delta, reason };
+      const data = await apiAuth<{ user: User }>(`/api/v1/users/${selectedClient._id}/loyalty/adjust`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const updated = data.user;
+      setClients((prev) => prev.map((c) => (c._id === updated._id ? updated : c)));
+      setSelectedClient(updated);
+      await fetchLoyaltyTransactions(updated._id);
+      setAdjustPointsText("");
+      setAdjustReason("");
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Ошибка операции");
+    } finally {
+      setAdjusting(false);
+    }
+  };
+
+  const saveLoyaltyRules = async () => {
+    if (!rulesDraft) return;
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Нужна авторизация");
+      return;
+    }
+    setSavingRules(true);
+    try {
+      setError(null);
+      const data = await apiAuth<LoyaltyRules>("/api/v1/loyalty/rules", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          earn_percent: Number(rulesDraft.earn_percent),
+          min_earn_points: Number(rulesDraft.min_earn_points),
+          bonuses: rulesDraft.bonuses,
+        }),
+      });
+      setLoyaltyRules(data);
+      setRulesDraft(data);
+      setRulesModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Ошибка сохранения правил");
+    } finally {
+      setSavingRules(false);
     }
   };
 
@@ -475,6 +635,139 @@ export default function Clients() {
                       <p className="text-sm font-bold text-amber-900">
                         {selectedClient.loyalty_points ?? 0}
                       </p>
+                      <p className="text-[11px] text-amber-800/70 mt-0.5">1 балл = 1 ₽</p>
+                    </div>
+                  </div>
+
+                  {/* Loyalty tools */}
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-foreground">Лояльность — баллы</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => selectedClient?._id && void fetchLoyaltyTransactions(selectedClient._id)}
+                          disabled={loyaltyTxLoading}
+                        >
+                          Обновить
+                        </Button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Баллы</p>
+                          <Input
+                            inputMode="numeric"
+                            aria-label="Баллы для начисления или списания"
+                            placeholder="Например 100"
+                            value={adjustPointsText}
+                            onChange={(e) => setAdjustPointsText(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Причина</p>
+                          <Input
+                            aria-label="Причина начисления или списания"
+                            placeholder="Например: ручная корректировка"
+                            value={adjustReason}
+                            onChange={(e) => setAdjustReason(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const n = Number(String(adjustPointsText).trim().replace(",", "."));
+                            if (!Number.isFinite(n) || n <= 0) return;
+                            void applyAdjustPoints(Math.trunc(n), adjustReason.trim() || "Начисление");
+                          }}
+                          disabled={adjusting}
+                        >
+                          Начислить
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            const n = Number(String(adjustPointsText).trim().replace(",", "."));
+                            if (!Number.isFinite(n) || n <= 0) return;
+                            void applyAdjustPoints(-Math.trunc(n), adjustReason.trim() || "Списание");
+                          }}
+                          disabled={adjusting}
+                        >
+                          Списать
+                        </Button>
+                      </div>
+
+                      {loyaltyTxLoading ? (
+                        <div className="mt-3 text-xs text-muted-foreground animate-pulse-soft">Загрузка операций…</div>
+                      ) : loyaltyTx.length ? (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs text-muted-foreground">Последние операции</p>
+                          {loyaltyTx.slice(0, 8).map((t) => (
+                            <div key={t._id} className="flex items-start justify-between gap-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-foreground truncate">{t.reason}</p>
+                                <p className="text-muted-foreground">
+                                  {new Date(t.created_at).toLocaleString("ru-RU")}
+                                </p>
+                              </div>
+                              <div className={`font-bold tabular-nums ${t.delta >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                                {t.delta >= 0 ? `+${t.delta}` : t.delta}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-3 text-xs text-muted-foreground">Операций пока нет</div>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-foreground">Правила лояльности</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setRulesDraft(loyaltyRules);
+                            setRulesModalOpen(true);
+                          }}
+                          disabled={loyaltyRulesLoading || !loyaltyRules}
+                        >
+                          Редактировать
+                        </Button>
+                      </div>
+                      {loyaltyRules ? (
+                        <>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Начисление после услуги: <span className="font-semibold text-foreground">{loyaltyRules.earn_percent}%</span>{" "}
+                            от суммы, минимум <span className="font-semibold text-foreground">{loyaltyRules.min_earn_points}</span>.
+                          </p>
+                          <div className="mt-2 space-y-2">
+                            <p className="text-xs text-muted-foreground">Бонусы (клиент показывает подтверждение администратору)</p>
+                            <div className="flex flex-wrap gap-2">
+                              {(loyaltyRules.bonuses || [])
+                                .filter((b) => b.enabled)
+                                .map((b) => (
+                                  <Button
+                                    key={b.id}
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => void applyAdjustPoints(Math.trunc(Number(b.points) || 0), b.title)}
+                                    disabled={adjusting || !b.points}
+                                    title={b.description}
+                                  >
+                                    +{b.points} • {b.title}
+                                  </Button>
+                                ))}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-2 text-xs text-muted-foreground">Правила пока не загружены</div>
+                      )}
                     </div>
                   </div>
 
@@ -504,6 +797,48 @@ export default function Clients() {
                       📩 Отправить сообщение клиенту
                     </Button>
                   </div>
+                </div>
+
+                {/* Visits history */}
+                <div className="bg-white rounded-lg shadow-sm border border-border p-4 animate-slide-in">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <h3 className="text-sm font-bold text-foreground">🧾 История посещений</h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => selectedClient?._id && void fetchVisits(selectedClient._id)}
+                      disabled={visitsLoading}
+                    >
+                      Обновить
+                    </Button>
+                  </div>
+                  {visitsLoading ? (
+                    <div className="text-xs text-muted-foreground animate-pulse-soft">Загрузка…</div>
+                  ) : visits.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Записей пока нет</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {visits.slice(0, 15).map((b) => (
+                        <div key={b._id} className="rounded-lg border border-border p-3 bg-card">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground truncate">{b.service_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(b.date_time).toLocaleString("ru-RU")} • {bookingStatusLabel[b.status] ?? b.status}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-primary tabular-nums">{Number(b.price ?? 0).toFixed(0)} ₽</p>
+                              <p className="text-xs text-muted-foreground">{b.duration} мин</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {visits.length > 15 && (
+                        <div className="text-xs text-muted-foreground">Показаны последние 15 записей</div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Social Links */}
@@ -602,6 +937,133 @@ export default function Clients() {
             </Button>
             <Button onClick={handleSendMessage} disabled={!messageBody.trim() || messageSending}>
               {messageSending ? "Отправка..." : "Отправить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Loyalty Rules Dialog */}
+      <Dialog open={rulesModalOpen} onOpenChange={setRulesModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Правила лояльности</DialogTitle>
+          </DialogHeader>
+          {!rulesDraft ? (
+            <div className="text-sm text-muted-foreground">Загрузка…</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Начисление после услуги (%)</label>
+                  <Input
+                    inputMode="numeric"
+                    value={String(rulesDraft.earn_percent)}
+                    onChange={(e) =>
+                      setRulesDraft((s) =>
+                        s ? { ...s, earn_percent: Math.max(0, Number(e.target.value || "0")) } : s
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">Минимум баллов за услугу</label>
+                  <Input
+                    inputMode="numeric"
+                    value={String(rulesDraft.min_earn_points)}
+                    onChange={(e) =>
+                      setRulesDraft((s) =>
+                        s ? { ...s, min_earn_points: Math.max(0, Number(e.target.value || "0")) } : s
+                      )
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold mb-2">Бонусы</p>
+                <div className="space-y-3">
+                  {(rulesDraft.bonuses || []).map((b) => (
+                    <div key={b.id} className="rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold truncate">{b.title}</p>
+                          <p className="text-xs text-muted-foreground">{b.id}</p>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={!!b.enabled}
+                            onChange={(e) =>
+                              setRulesDraft((s) =>
+                                s
+                                  ? {
+                                      ...s,
+                                      bonuses: (s.bonuses || []).map((x) => (x.id === b.id ? { ...x, enabled: e.target.checked } : x)),
+                                    }
+                                  : s
+                              )
+                            }
+                          />
+                          Включено
+                        </label>
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold mb-1">Баллы</label>
+                          <Input
+                            inputMode="numeric"
+                            value={String(b.points)}
+                            onChange={(e) => {
+                              const n = Math.max(0, Number(e.target.value || "0"));
+                              setRulesDraft((s) =>
+                                s
+                                  ? { ...s, bonuses: (s.bonuses || []).map((x) => (x.id === b.id ? { ...x, points: n } : x)) }
+                                  : s
+                              );
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold mb-1">Заголовок</label>
+                          <Input
+                            value={b.title}
+                            onChange={(e) =>
+                              setRulesDraft((s) =>
+                                s
+                                  ? { ...s, bonuses: (s.bonuses || []).map((x) => (x.id === b.id ? { ...x, title: e.target.value } : x)) }
+                                  : s
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <label className="block text-xs font-semibold mb-1">Описание (что показать администратору)</label>
+                        <Textarea
+                          value={b.description}
+                          onChange={(e) =>
+                            setRulesDraft((s) =>
+                              s
+                                ? { ...s, bonuses: (s.bonuses || []).map((x) => (x.id === b.id ? { ...x, description: e.target.value } : x)) }
+                                : s
+                            )
+                          }
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRulesModalOpen(false)} disabled={savingRules}>
+              Отмена
+            </Button>
+            <Button onClick={() => void saveLoyaltyRules()} disabled={savingRules || !rulesDraft}>
+              {savingRules ? "Сохранение…" : "Сохранить"}
             </Button>
           </DialogFooter>
         </DialogContent>

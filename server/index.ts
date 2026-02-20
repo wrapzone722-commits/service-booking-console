@@ -18,7 +18,8 @@ import * as carsRoutes from "./routes/cars";
 import * as companyRoutes from "./routes/company";
 import * as employeesRoutes from "./routes/employees";
 import * as shiftsRoutes from "./routes/shifts";
-import { optionalBearerAuth, requireAuth } from "./middleware/auth";
+import * as loyaltyRoutes from "./routes/loyalty";
+import { optionalBearerAuth, requireAuth, requireBearerAuth } from "./middleware/auth";
 
 export function createServer() {
   const app = express();
@@ -72,10 +73,17 @@ export function createServer() {
   app.get("/api/v1/users", usersRoutes.getUsers);
   app.get("/api/v1/users/:id", usersRoutes.getUser);
   app.put("/api/v1/users/:id", requireAuth, usersRoutes.updateUserById);
+  app.get("/api/v1/users/:id/visits", requireAuth, usersRoutes.getUserVisits);
+  app.post("/api/v1/users/:id/loyalty/adjust", requireAuth, usersRoutes.adjustUserLoyalty);
+  app.get("/api/v1/users/:id/loyalty/transactions", requireAuth, usersRoutes.getUserLoyaltyTransactions);
   app.get("/api/v1/profile", usersRoutes.getProfile);
   app.put("/api/v1/profile", usersRoutes.updateProfile);
   app.post("/api/v1/users", usersRoutes.createUser);
   app.post("/api/v1/users/import", usersRoutes.importUsers);
+
+  // API v1 routes (Loyalty rules for clients + admin)
+  app.get("/api/v1/loyalty/rules", requireBearerAuth, loyaltyRoutes.getRules);
+  app.put("/api/v1/loyalty/rules", requireAuth, loyaltyRoutes.updateRules);
 
   // API v1 routes (Employees / Shifts)
   app.get("/api/v1/employees", requireAuth, employeesRoutes.getEmployees);

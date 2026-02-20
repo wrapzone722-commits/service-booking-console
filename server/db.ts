@@ -1,4 +1,4 @@
-import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem, Employee, Shift } from "@shared/api";
+import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem, Employee, Shift, LoyaltyRules, LoyaltyTransaction } from "@shared/api";
 import type { DisplayPhotoRule } from "@shared/api";
 import crypto from "crypto";
 import fs from "fs";
@@ -13,6 +13,8 @@ const USERS_FILE = path.join(DATA_DIR, "users.json");
 const CLIENT_AUTH_FILE = path.join(DATA_DIR, "client-auth.json");
 const EMPLOYEES_FILE = path.join(DATA_DIR, "employees.json");
 const SHIFTS_FILE = path.join(DATA_DIR, "shifts.json");
+const LOYALTY_RULES_FILE = path.join(DATA_DIR, "loyalty-rules.json");
+const LOYALTY_TX_FILE = path.join(DATA_DIR, "loyalty-transactions.json");
 
 type TelegramBotCredentials = {
   bot_token: string;
@@ -78,6 +80,7 @@ interface Database {
   notifications: Map<string, Notification>;
   news: Map<string, NewsItem>;
   carFolders: Map<string, CarFolder>;
+  loyaltyTransactions: LoyaltyTransaction[];
 }
 
 export interface TelegramBotSettings {
@@ -120,6 +123,7 @@ let db: Database = {
   notifications: new Map(),
   news: new Map(),
   carFolders: new Map(),
+  loyaltyTransactions: [],
   telegram_bot_settings: {
     enabled: false,
     notify_new_booking: true,
@@ -359,6 +363,130 @@ loadClientAuthFromFile();
 loadEmployeesFromFile();
 loadShiftsFromFile();
 loadCarFoldersFromFile();
+
+const DEFAULT_LOYALTY_RULES: LoyaltyRules = {
+  earn_percent: 10,
+  min_earn_points: 1,
+  bonuses: [
+    {
+      id: "referral",
+      title: "Привёл нового клиента",
+      description: "Покажите администратору подтверждение (контакт/запись нового клиента).",
+      points: 500,
+      enabled: true,
+    },
+    {
+      id: "review_2gis",
+      title: "Отзыв в 2ГИС",
+      description: "Покажите администратору отзыв в 2ГИС со своего аккаунта.",
+      points: 500,
+      enabled: true,
+    },
+    {
+      id: "review_yandex",
+      title: "Отзыв в Яндекс Картах",
+      description: "Покажите администратору отзыв в Яндекс Картах со своего аккаунта.",
+      points: 500,
+      enabled: true,
+    },
+    {
+      id: "social_checkin",
+      title: "Отметка в социальных сетях",
+      description: "Покажите администратору публикацию/сторис с отметкой.",
+      points: 500,
+      enabled: true,
+    },
+  ],
+  updated_at: new Date().toISOString(),
+};
+
+let loyaltyRulesStore: LoyaltyRules = { ...DEFAULT_LOYALTY_RULES };
+
+function loadLoyaltyRulesFromFile(): void {
+  try {
+    if (!fs.existsSync(LOYALTY_RULES_FILE)) return;
+    const raw = fs.readFileSync(LOYALTY_RULES_FILE, "utf-8");
+    const o = JSON.parse(raw) as Partial<LoyaltyRules>;
+    if (typeof o.earn_percent === "number") loyaltyRulesStore.earn_percent = Math.max(0, o.earn_percent);
+    if (typeof o.min_earn_points === "number") loyaltyRulesStore.min_earn_points = Math.max(0, o.min_earn_points);
+    if (Array.isArray(o.bonuses)) loyaltyRulesStore.bonuses = o.bonuses as LoyaltyRules["bonuses"];
+    loyaltyRulesStore.updated_at = typeof o.updated_at === "string" ? o.updated_at : new Date().toISOString();
+  } catch (e) {
+    console.error("Failed to load loyalty rules:", e);
+  }
+}
+
+function saveLoyaltyRulesToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(LOYALTY_RULES_FILE, JSON.stringify(loyaltyRulesStore, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save loyalty rules:", e);
+  }
+}
+
+function loadLoyaltyTransactionsFromFile(): void {
+  try {
+    if (!fs.existsSync(LOYALTY_TX_FILE)) return;
+    const raw = fs.readFileSync(LOYALTY_TX_FILE, "utf-8");
+    const arr = JSON.parse(raw) as LoyaltyTransaction[];
+    if (Array.isArray(arr)) db.loyaltyTransactions = arr;
+  } catch (e) {
+    console.error("Failed to load loyalty transactions:", e);
+  }
+}
+
+function saveLoyaltyTransactionsToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(LOYALTY_TX_FILE, JSON.stringify(db.loyaltyTransactions, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save loyalty transactions:", e);
+  }
+}
+
+loadLoyaltyRulesFromFile();
+loadLoyaltyTransactionsFromFile();
+
+export function getLoyaltyRules(): LoyaltyRules {
+  return { ...loyaltyRulesStore, bonuses: Array.isArray(loyaltyRulesStore.bonuses) ? [...loyaltyRulesStore.bonuses] : [] };
+}
+
+export function setLoyaltyRules(patch: Partial<LoyaltyRules>): LoyaltyRules {
+  if (patch.earn_percent !== undefined) loyaltyRulesStore.earn_percent = Math.max(0, Number(patch.earn_percent) || 0);
+  if (patch.min_earn_points !== undefined) loyaltyRulesStore.min_earn_points = Math.max(0, Number(patch.min_earn_points) || 0);
+  if (patch.bonuses !== undefined && Array.isArray(patch.bonuses)) loyaltyRulesStore.bonuses = patch.bonuses as LoyaltyRules["bonuses"];
+  loyaltyRulesStore.updated_at = new Date().toISOString();
+  saveLoyaltyRulesToFile();
+  return getLoyaltyRules();
+}
+
+export function adjustLoyaltyPoints(userId: string, delta: number, reason: string): { user: User | null; tx: LoyaltyTransaction | null } {
+  const user = db.users.get(userId);
+  if (!user) return { user: null, tx: null };
+  const current = Number.isFinite(Number(user.loyalty_points)) ? Number(user.loyalty_points) : 0;
+  const d = Number(delta);
+  const safeDelta = Number.isFinite(d) ? Math.trunc(d) : 0;
+  if (safeDelta === 0) return { user: updateUser(userId, { loyalty_points: current }), tx: null };
+  const next = Math.max(0, current + safeDelta);
+  const updated = updateUser(userId, { loyalty_points: next });
+  const tx: LoyaltyTransaction = {
+    _id: `lxt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    user_id: userId,
+    delta: safeDelta,
+    reason: String(reason || "").trim() || "Adjustment",
+    created_at: new Date().toISOString(),
+  };
+  db.loyaltyTransactions.unshift(tx);
+  // keep last 2000 to avoid unbounded growth
+  if (db.loyaltyTransactions.length > 2000) db.loyaltyTransactions.length = 2000;
+  saveLoyaltyTransactionsToFile();
+  return { user: updated, tx };
+}
+
+export function getLoyaltyTransactionsByUser(userId: string, limit = 50): LoyaltyTransaction[] {
+  return db.loyaltyTransactions.filter((t) => t.user_id === userId).slice(0, Math.max(1, Math.min(200, limit)));
+}
 
 function loadDisplaySettingsFromFile(): void {
   try {

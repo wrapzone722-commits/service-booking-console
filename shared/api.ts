@@ -152,6 +152,49 @@ export interface User {
   created_at: string; // ISO 8601
 }
 
+// ====== LOYALTY ======
+export type LoyaltyBonusId = "referral" | "review_2gis" | "review_yandex" | "social_checkin";
+
+export interface LoyaltyBonusRule {
+  id: LoyaltyBonusId;
+  title: string;
+  description: string;
+  points: number;
+  enabled: boolean;
+}
+
+export interface LoyaltyRules {
+  /** Процент начисления от суммы услуги (например 10 = 10%) */
+  earn_percent: number;
+  /** Минимальное начисление за завершённую услугу */
+  min_earn_points: number;
+  /** Бонусы за действия (подтверждение клиент показывает администратору) */
+  bonuses: LoyaltyBonusRule[];
+  updated_at: string; // ISO
+}
+
+export interface UpdateLoyaltyRulesRequest {
+  earn_percent?: number;
+  min_earn_points?: number;
+  bonuses?: LoyaltyBonusRule[];
+}
+
+export interface LoyaltyAdjustRequest {
+  /** + начислить, - списать */
+  delta: number;
+  /** Причина (например: "Отзыв 2ГИС") */
+  reason: string;
+}
+
+export interface LoyaltyTransaction {
+  _id: string;
+  user_id: string;
+  delta: number;
+  reason: string;
+  created_at: string; // ISO
+}
+
+
 export interface UpdateUserRequest {
   first_name?: string;
   last_name?: string;
