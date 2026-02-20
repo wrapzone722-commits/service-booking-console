@@ -33,6 +33,8 @@ const PRIMARY_TABS = [
   { path: "/clients", label: "Клиенты", icon: "👥" },
 ] as const;
 
+const TABS_UNLOCK_STORAGE_KEY = "tabs_unlocked_2300";
+
 // Все остальные вкладки требуют ввода пароля (2300)
 const EXTRA_TABS = [
   { path: "/", label: "Главная", icon: "📊" },
@@ -65,7 +67,7 @@ export default function Layout({ children }: LayoutProps) {
   const { theme, setTheme } = useTheme();
   const [accountName, setAccountName] = useState("Admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [tabsUnlocked, setTabsUnlocked] = useState(() => localStorage.getItem("tabs_unlocked_2300") === "1");
+  const [tabsUnlocked, setTabsUnlocked] = useState(() => localStorage.getItem(TABS_UNLOCK_STORAGE_KEY) === "1");
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [adminPass, setAdminPass] = useState("");
   const [adminError, setAdminError] = useState(false);
@@ -97,9 +99,13 @@ export default function Layout({ children }: LayoutProps) {
   const isExtraTab = (path: string) =>
     EXTRA_TABS.some((t) => (t.path === "/" ? path === "/" : path === t.path || path.startsWith(t.path + "/")));
 
+  // Главная без пароля (и без повторных запросов при быстрых переходах)
+  const requiresTabPassword = (path: string) => isExtraTab(path) && path !== "/";
+  const isTabsUnlockedNow = () => tabsUnlocked || localStorage.getItem(TABS_UNLOCK_STORAGE_KEY) === "1";
+
   useEffect(() => {
     // Гейт для "прочих вкладок" — без подсказок, только пароль 2300.
-    if (!tabsUnlocked && isExtraTab(location.pathname)) {
+    if (!isTabsUnlockedNow() && requiresTabPassword(location.pathname)) {
       pendingPathRef.current = location.pathname;
       setAdminModalOpen(true);
       setAdminPass("");
@@ -201,6 +207,10 @@ export default function Layout({ children }: LayoutProps) {
   const isActive = (path: string) => location.pathname === path;
 
   const openAdminGate = (to: string) => {
+    if (!requiresTabPassword(to) || isTabsUnlockedNow()) {
+      navigate(to);
+      return;
+    }
     pendingPathRef.current = to;
     setAdminModalOpen(true);
     setAdminPass("");
@@ -209,14 +219,17 @@ export default function Layout({ children }: LayoutProps) {
 
   const submitAdminPass = () => {
     if ((adminPass || "").trim() === "2300") {
-      localStorage.setItem("tabs_unlocked_2300", "1");
+      localStorage.setItem(TABS_UNLOCK_STORAGE_KEY, "1");
       setTabsUnlocked(true);
       setAdminModalOpen(false);
       setAdminPass("");
       setAdminError(false);
       const to = pendingPathRef.current;
       pendingPathRef.current = null;
-      if (to) navigate(to);
+      if (to) {
+        // Navigate after localStorage is set to avoid re-opening the gate due to async state update.
+        queueMicrotask(() => navigate(to));
+      }
       return;
     }
     setAdminError(true);
@@ -247,7 +260,7 @@ export default function Layout({ children }: LayoutProps) {
       </div>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
-          const locked = isExtraTab(item.path) && !tabsUnlocked;
+          const locked = requiresTabPassword(item.path) && !isTabsUnlockedNow();
           return (
             <Link
               key={item.path}
@@ -258,10 +271,10 @@ export default function Layout({ children }: LayoutProps) {
                   openAdminGate(item.path);
                 }
               }}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm min-h-[44px] transition-colors ${
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm min-h-[44px] transition-all duration-200 ease-out active:scale-[0.99] ${
                 isActive(item.path)
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/90 hover:bg-white/10"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                  : "text-sidebar-foreground/90 hover:bg-white/10 hover:translate-x-[1px]"
               }`}
             >
               <span className="text-lg flex-shrink-0">{item.icon}</span>
@@ -469,17 +482,17 @@ export default function Layout({ children }: LayoutProps) {
               key={item.path}
               to={item.path}
               onClick={(e) => {
-                const locked = isExtraTab(item.path) && !tabsUnlocked;
+                const locked = requiresTabPassword(item.path) && !isTabsUnlockedNow();
                 if (locked) {
                   e.preventDefault();
                   openAdminGate(item.path);
                 }
               }}
-              className={`flex flex-col items-center justify-center flex-1 py-2 min-h-[48px] px-1 ${
-                isActive(item.path) ? "text-primary font-semibold" : "text-muted-foreground"
+              className={`flex flex-col items-center justify-center flex-1 py-2 min-h-[48px] px-1 transition-all duration-200 ease-out active:scale-[0.98] ${
+                isActive(item.path) ? "text-primary font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span className="text-xl">{item.icon}</span>
+              <span className={`text-xl transition-transform duration-200 ${isActive(item.path) ? "scale-[1.08]" : ""}`}>{item.icon}</span>
               <span className="text-[10px] mt-0.5 truncate max-w-full">{item.label}</span>
             </Link>
           ))}
