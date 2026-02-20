@@ -12,7 +12,6 @@ npm start
 
 - **API:** http://localhost:3000/api/v1
 - **Админ-панель:** http://localhost:3000/admin
-- **Пароль по умолчанию:** `admin123`
 
 ## Подключение iOS-приложения
 
@@ -48,5 +47,23 @@ npm start
 
 ## Данные
 
-- **БД:** SQLite (`web-console/data/service_booking.db`)
+- **БД:** SQLite (по умолчанию `web-console/data/service_booking.db`)
 - При первом запуске создаются демо-услуги и посты
+
+### Важно: как не потерять данные после деплоя
+
+Если вы деплоите в Docker/на хостинг, где процесс/контейнер пересоздаётся, файл SQLite внутри
+контейнера **не сохраняется**. Для сохранности данных используйте:
+
+- **Переменную окружения** `DB_PATH` — путь к файлу SQLite на постоянном диске/volume.
+  Пример: `DB_PATH=/data/service_booking.db`.
+- **Volume/постоянный диск** примонтированный к `/data`.
+
+#### Docker Compose (рекомендуется)
+
+В папке `web-console` есть `docker-compose.yml`, который уже монтирует volume для `/data`:
+
+```bash
+cd web-console
+docker compose up -d --build
+```

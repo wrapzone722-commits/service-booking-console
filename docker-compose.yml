@@ -1,0 +1,20 @@
+services:
+  service-booking-console:
+    image: service-booking-console:local
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    environment:
+      # ВАЖНО: БД должна жить на volume, а не внутри контейнера
+      - DB_PATH=/data/service_booking.db
+      - PORT=3000
+      # при необходимости
+      # - NODE_ENV=production
+    volumes:
+      - service_booking_data:/data
+    restart: unless-stopped
+
+volumes:
+  service_booking_data:
+

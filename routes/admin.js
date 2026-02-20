@@ -1,26 +1,23 @@
 /**
  * Admin API - для админ-панели
- * Простая авторизация: заголовок X-Admin-Key (пароль из настроек)
+ * Пароль только для защищённых вкладок (прочие разделы).
  */
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
+import { getBookingActAdmin } from './act.js';
 
 const ADMIN_HEADER = 'x-admin-key';
+const ADMIN_PASSWORD = '2300';
 
 function requireAdmin(req, res, next) {
   const key = req.headers[ADMIN_HEADER];
-  const db = getDb();
-  const setting = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get();
-  const expected = setting?.value || 'admin123';
-  if (key !== expected) {
+  if (key !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'Необходима авторизация администратора' });
   }
   next();
 }
 
 export function setupAdminRoutes(router) {
-  router.use(requireAdmin);
-
   // === Services ===
   router.get('/services', (req, res) => {
     const db = getDb();
@@ -118,6 +115,9 @@ export function setupAdminRoutes(router) {
     });
   });
 
+  // === Act (HTML/PDF) ===
+  router.get('/bookings/:id/act', getBookingActAdmin);
+
   // === Clients ===
   router.get('/clients', (req, res) => {
     const db = getDb();
@@ -154,6 +154,61 @@ export function setupAdminRoutes(router) {
     res.json({ ...updated, is_enabled: !!updated.is_enabled });
   });
 
+  // === News ===
+  router.get('/news', (req, res) => {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM news ORDER BY created_at DESC').all();
+    res.json(rows.map(r => ({ ...r, published: !!r.published })));
+  });
+
+  router.post('/news', (req, res) => {
+    const { title, body, published } = req.body || {};
+    if (!title || !body) return res.status(400).json({ error: 'title и body обязательны' });
+    const db = getDb();
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const pub = published !== false ? 1 : 0;
+    db.prepare('INSERT INTO news (id, title, body, published, created_at) VALUES (?,?,?,?,?)')
+      .run(id, title, body, pub, now);
+
+    if (pub === 1) {
+      broadcastNews(db, id, title, body, now);
+    }
+
+    const row = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+    res.status(201).json({ ...row, published: !!row.published });
+  });
+
+  router.put('/news/:id', (req, res) => {
+    const db = getDb();
+    const { title, body, published } = req.body || {};
+    const row = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Новость не найдена' });
+
+    const nextTitle = title ?? row.title;
+    const nextBody = body ?? row.body;
+    const nextPublished = published === undefined ? row.published : (published !== false ? 1 : 0);
+
+    db.prepare('UPDATE news SET title=?, body=?, published=? WHERE id=?')
+      .run(nextTitle, nextBody, nextPublished, req.params.id);
+
+    // если новость стала опубликованной — разослать тем, кому ещё не разослана
+    if (nextPublished === 1) {
+      const createdAt = row.created_at;
+      broadcastNews(db, req.params.id, nextTitle, nextBody, createdAt);
+    }
+
+    const updated = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
+    res.json({ ...updated, published: !!updated.published });
+  });
+
+  router.delete('/news/:id', (req, res) => {
+    const db = getDb();
+    db.prepare('DELETE FROM news WHERE id = ?').run(req.params.id);
+    db.prepare("DELETE FROM notifications WHERE news_id = ? AND type = 'news'").run(req.params.id);
+    res.status(204).send();
+  });
+
   // === Notifications - отправка от админа ===
   router.post('/notifications', (req, res) => {
     const { client_id, body, title } = req.body || {};
@@ -169,7 +224,7 @@ export function setupAdminRoutes(router) {
   });
 
   // === Settings ===
-  router.get('/settings', (req, res) => {
+  router.get('/settings', requireAdmin, (req, res) => {
     const db = getDb();
     const rows = db.prepare('SELECT key, value FROM settings').all();
     const obj = {};
@@ -177,14 +232,11 @@ export function setupAdminRoutes(router) {
     res.json(obj);
   });
 
-  router.put('/settings', (req, res) => {
+  router.put('/settings', requireAdmin, (req, res) => {
     const db = getDb();
-    const { api_base_url, admin_password } = req.body || {};
+    const { api_base_url } = req.body || {};
     if (api_base_url !== undefined) {
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('api_base_url', ?)").run(api_base_url);
-    }
-    if (admin_password !== undefined) {
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_password', ?)").run(admin_password);
     }
     const rows = db.prepare('SELECT key, value FROM settings').all();
     const obj = {};
@@ -200,4 +252,20 @@ function createNotification(db, clientId, body, title, type) {
     INSERT INTO notifications (id, client_id, body, title, type, read, created_at)
     VALUES (?, ?, ?, ?, ?, 0, ?)
   `).run(id, clientId, body, title || null, type || 'service', now);
+}
+
+function broadcastNews(db, newsId, title, body, createdAt) {
+  const clients = db.prepare('SELECT id FROM clients').all();
+  const ins = db.prepare(`
+    INSERT INTO notifications (id, client_id, body, title, type, read, created_at, news_id)
+    VALUES (?, ?, ?, ?, 'news', 0, ?, ?)
+  `);
+  const exists = db.prepare(`
+    SELECT 1 FROM notifications WHERE client_id = ? AND type = 'news' AND news_id = ? LIMIT 1
+  `);
+  for (const c of clients) {
+    const already = exists.get(c.id, newsId);
+    if (already) continue;
+    ins.run(uuidv4(), c.id, body, title || null, createdAt || new Date().toISOString(), newsId);
+  }
 }

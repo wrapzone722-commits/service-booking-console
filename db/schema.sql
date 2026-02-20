@@ -68,9 +68,19 @@ CREATE TABLE IF NOT EXISTS notifications (
   body TEXT NOT NULL,
   title TEXT,
   type TEXT NOT NULL DEFAULT 'service',
+  news_id TEXT,
   read INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   FOREIGN KEY (client_id) REFERENCES clients(id)
+);
+
+-- Новости (для вкладки «Новости»; рассылка через notifications(type='news', news_id=...))
+CREATE TABLE IF NOT EXISTS news (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  published INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
 );
 
 -- Папки автомобилей (клиент выбирает из списка)
@@ -96,5 +106,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date_time);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_notifications_client ON notifications(client_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_news ON notifications(news_id);
 CREATE INDEX IF NOT EXISTS idx_clients_device ON clients(device_id);
 CREATE INDEX IF NOT EXISTS idx_clients_api_key ON clients(api_key);
+CREATE INDEX IF NOT EXISTS idx_news_created ON news(created_at);

@@ -12,7 +12,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let db;
 
 export function initDatabase(dbPath = null) {
-  const path = dbPath || join(__dirname, '..', 'data', 'service_booking.db');
+  // Для продакшн-деплоя обязательно выносите DB_PATH на постоянное хранилище (volume/диск),
+  // иначе при пересоздании контейнера/инстанса данные будут потеряны.
+  const path =
+    dbPath ||
+    process.env.DB_PATH ||
+    join(__dirname, '..', 'data', 'service_booking.db');
   const dataDir = dirname(path);
   if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
@@ -36,6 +41,11 @@ export function initDatabase(dbPath = null) {
   } catch (_) {}
   try {
     db.exec('ALTER TABLE bookings ADD COLUMN rating_comment TEXT');
+  } catch (_) {}
+
+  // Миграция: добавить news_id в notifications если нет
+  try {
+    db.exec('ALTER TABLE notifications ADD COLUMN news_id TEXT');
   } catch (_) {}
 
   seedInitialData();
@@ -81,7 +91,6 @@ function seedInitialData() {
   }
 
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('api_base_url', '')").run();
-  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_password', 'admin123')").run();
 }
 
 export function getDb() {

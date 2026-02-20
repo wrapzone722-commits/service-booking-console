@@ -16,12 +16,16 @@ import { getSlots } from './routes/slots.js';
 import { getProfile, updateProfile } from './routes/profile.js';
 import { listNotifications, markRead } from './routes/notifications.js';
 import { listCars } from './routes/cars.js';
+import { listNews } from './routes/news.js';
+import { getBookingAct } from './routes/act.js';
 import { setupAdminRoutes } from './routes/admin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
-initDatabase();
+// Важно для деплоя: вынесите SQLite на постоянный диск/volume и передайте DB_PATH
+// (например, /data/service_booking.db). Иначе при пересоздании контейнера данные пропадут.
+initDatabase(process.env.DB_PATH || null);
 
 const app = express();
 app.use(cors());
@@ -40,6 +44,7 @@ api.get('/bookings', requireAuth, listBookings);
 api.post('/bookings', requireAuth, createBooking);
 api.delete('/bookings/:id', requireAuth, cancelBooking);
 api.post('/bookings/:id/rating', requireAuth, submitRating);
+api.get('/bookings/:id/act', requireAuth, getBookingAct);
 
 api.get('/posts', requireAuth, listPosts);
 api.get('/slots', requireAuth, getSlots);
@@ -51,6 +56,8 @@ api.get('/cars', requireAuth, listCars);
 
 api.get('/notifications', requireAuth, listNotifications);
 api.patch('/notifications/:id/read', requireAuth, markRead);
+
+api.get('/news', requireAuth, listNews);
 
 app.use('/api/v1', api);
 
@@ -86,7 +93,5 @@ app.listen(PORT, () => {
   ==========================
   API:      http://localhost:${PORT}/api/v1
   Admin:    http://localhost:${PORT}/admin
-  Пароль админа по умолчанию: admin123
-  (заголовок X-Admin-Key)
   `);
 });

@@ -13,19 +13,16 @@
       <nav class="nav">
         <button data-page="services">Услуги</button>
         <button data-page="bookings">Записи</button>
+        <button data-page="posts">Посты</button>
+        <button data-page="news">Новости</button>
+        <button data-page="control">Контроль записи</button>
         <button data-page="clients">Клиенты</button>
         <button data-page="settings">Настройки</button>
       </nav>
-      <div class="auth">
-        <input type="password" id="adminPass" placeholder="Пароль" value="admin123">
-        <button id="btnLogin">Вход</button>
-      </div>
     </header>
 
     <main id="content">
-      <div id="loginScreen" class="screen">
-        <p>Введите пароль администратора и нажмите «Вход»</p>
-      </div>
+      <div id="loginScreen" class="screen hidden"></div>
 
       <div id="servicesScreen" class="screen hidden">
         <h2>Услуги</h2>
@@ -47,6 +44,34 @@
           <input type="date" id="filterDate">
         </div>
         <div id="bookingsList"></div>
+      </div>
+
+      <div id="postsScreen" class="screen hidden">
+        <h2>Посты</h2>
+        <div id="postsList"></div>
+      </div>
+
+      <div id="newsScreen" class="screen hidden">
+        <h2>Новости</h2>
+        <button id="btnAddNews">+ Добавить новость</button>
+        <div id="newsList"></div>
+      </div>
+
+      <div id="controlScreen" class="screen hidden">
+        <h2>Контроль записи</h2>
+        <div class="filters">
+          <input type="date" id="controlDate">
+          <select id="controlStatus">
+            <option value="">Все статусы</option>
+            <option value="pending">Ожидает</option>
+            <option value="confirmed">Подтверждена</option>
+            <option value="in_progress">В процессе</option>
+            <option value="completed">Завершена</option>
+            <option value="cancelled">Отменена</option>
+          </select>
+          <button id="btnControlRefresh">Обновить</button>
+        </div>
+        <div id="controlList"></div>
       </div>
 
       <div id="clientsScreen" class="screen hidden">
@@ -109,6 +134,39 @@
         <div class="modal-actions">
           <button type="button" id="btnCancelNotify">Отмена</button>
           <button type="submit">Отправить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Admin password -->
+  <div id="adminModal" class="modal hidden">
+    <div class="modal-content">
+      <form id="adminForm">
+        <input type="password" id="adminPass" autocomplete="current-password">
+        <div class="modal-actions">
+          <button type="button" id="btnCancelAdmin">Отмена</button>
+          <button type="submit">OK</button>
+        </div>
+      </form>
+      <p id="adminError" class="error hidden"></p>
+    </div>
+  </div>
+
+  <!-- Modal: News form -->
+  <div id="newsModal" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="newsModalTitle">Добавить новость</h3>
+      <form id="newsForm">
+        <input type="hidden" id="newsId">
+        <label>Заголовок *</label>
+        <input type="text" id="newsTitle" required>
+        <label>Текст *</label>
+        <textarea id="newsBody" required></textarea>
+        <label><input type="checkbox" id="newsPublished" checked> Опубликовано</label>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelNews">Отмена</button>
+          <button type="submit">Сохранить</button>
         </div>
       </form>
     </div>
