@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Booking, BookingStatus } from "@shared/api";
+import { Booking, BookingStatus, Employee } from "@shared/api";
 
 const STATUS_OPTIONS: { id: BookingStatus; label: string }[] = [
   { id: "pending", label: "Ожидает" },
@@ -19,6 +19,7 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
 
 export default function Bookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | BookingStatus>("all");
@@ -26,7 +27,33 @@ export default function Bookings() {
 
   useEffect(() => {
     fetchBookings();
+    fetchEmployees();
   }, []);
+
+  const fetchEmployees = async () => {
+    const token = localStorage.getItem("session_token");
+    if (!token) return;
+    try {
+      const res = await fetch("/api/v1/employees?all=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("session_token");
+          localStorage.removeItem("account_id");
+          localStorage.removeItem("account_name");
+          window.location.replace("/login");
+          return;
+        }
+        throw new Error("Failed to fetch employees");
+      }
+      const data = (await res.json()) as Employee[];
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      // не блокируем страницу записей, если сотрудники временно не доступны
+    }
+  };
 
   const fetchBookings = async () => {
     const token = localStorage.getItem("session_token");
@@ -44,6 +71,44 @@ export default function Bookings() {
       setError("Не удалось загрузить записи");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAssignEmployee = async (id: string, employeeId: string | null) => {
+    if (updatingId) return;
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Войдите в аккаунт для назначения сотрудника");
+      return;
+    }
+    setUpdatingId(id);
+    try {
+      setError(null);
+      const res = await fetch(`/api/v1/bookings/${id}/employee`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ employee_id: employeeId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("session_token");
+          localStorage.removeItem("account_id");
+          localStorage.removeItem("account_name");
+          window.location.replace("/login");
+          return;
+        }
+        throw new Error(data.message || "Не удалось назначить сотрудника");
+      }
+      await fetchBookings();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Не удалось назначить сотрудника");
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -282,6 +347,37 @@ export default function Bookings() {
                           {option.label}
                         </option>
                       ))}
+                    </select>
+                    <select
+                      aria-label="Сотрудник"
+                      value={booking.employee_id ?? ""}
+                      disabled={updatingId === booking._id || employees.length === 0}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        void handleAssignEmployee(booking._id, v ? v : null);
+                      }}
+                      className="px-3 py-2 rounded-xl border border-border bg-card text-xs font-medium disabled:opacity-60"
+                      title="Назначить сотрудника (для подсчёта выполненных работ)"
+                    >
+                      <option value="">{employees.length ? "— сотрудник —" : "Нет сотрудников"}</option>
+                      {employees
+                        .filter((e) => e.is_active)
+                        .map((e) => (
+                          <option key={e._id} value={e._id}>
+                            {e.name}
+                          </option>
+                        ))}
+                      {employees.some((e) => !e.is_active) && (
+                        <optgroup label="Неактивные">
+                          {employees
+                            .filter((e) => !e.is_active)
+                            .map((e) => (
+                              <option key={e._id} value={e._id}>
+                                {e.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
                     </select>
                     <div className="text-right px-2">
                       <p className="text-sm font-bold text-primary">{booking.price.toFixed(0)} ₽</p>

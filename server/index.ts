@@ -16,6 +16,8 @@ import * as settingsRoutes from "./routes/settings";
 import * as statsRoutes from "./routes/stats";
 import * as carsRoutes from "./routes/cars";
 import * as companyRoutes from "./routes/company";
+import * as employeesRoutes from "./routes/employees";
+import * as shiftsRoutes from "./routes/shifts";
 import { optionalBearerAuth, requireAuth } from "./middleware/auth";
 
 export function createServer() {
@@ -54,6 +56,7 @@ export function createServer() {
   app.get("/api/v1/bookings/:id/act", bookingsRoutes.getBookingAct);
   app.post("/api/v1/bookings", bookingsRoutes.createBooking);
   app.put("/api/v1/bookings/:id", requireAuth, bookingsRoutes.updateBookingStatus);
+  app.patch("/api/v1/bookings/:id/employee", requireAuth, bookingsRoutes.assignBookingEmployee);
   app.patch("/api/v1/bookings/:id/control", requireAuth, bookingsRoutes.updateBookingControl);
   app.delete("/api/v1/bookings/:id", requireAuth, bookingsRoutes.deleteBooking);
   app.post("/api/v1/bookings/:id/rating", bookingsRoutes.submitBookingRating);
@@ -73,6 +76,18 @@ export function createServer() {
   app.put("/api/v1/profile", usersRoutes.updateProfile);
   app.post("/api/v1/users", usersRoutes.createUser);
   app.post("/api/v1/users/import", usersRoutes.importUsers);
+
+  // API v1 routes (Employees / Shifts)
+  app.get("/api/v1/employees", requireAuth, employeesRoutes.getEmployees);
+  app.get("/api/v1/employees/analytics", requireAuth, employeesRoutes.getEmployeesAnalytics);
+  app.post("/api/v1/employees", requireAuth, employeesRoutes.createEmployee);
+  app.put("/api/v1/employees/:id", requireAuth, employeesRoutes.updateEmployee);
+  app.delete("/api/v1/employees/:id", requireAuth, employeesRoutes.deleteEmployee);
+
+  app.get("/api/v1/shifts", requireAuth, shiftsRoutes.getShifts);
+  app.post("/api/v1/shifts", requireAuth, shiftsRoutes.createShift);
+  app.put("/api/v1/shifts/:id", requireAuth, shiftsRoutes.updateShift);
+  app.delete("/api/v1/shifts/:id", requireAuth, shiftsRoutes.deleteShift);
 
   // API v1 routes (Settings / QR)
   app.get("/api/v1/settings/api-url", settingsRoutes.getApiUrl);

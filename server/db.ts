@@ -1,4 +1,4 @@
-import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem } from "@shared/api";
+import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem, Employee, Shift } from "@shared/api";
 import type { DisplayPhotoRule } from "@shared/api";
 import crypto from "crypto";
 import fs from "fs";
@@ -11,6 +11,8 @@ const ACCOUNTS_FILE = path.join(DATA_DIR, "accounts.json");
 const TELEGRAM_CREDENTIALS_FILE = path.join(DATA_DIR, "telegram-bot.json");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const CLIENT_AUTH_FILE = path.join(DATA_DIR, "client-auth.json");
+const EMPLOYEES_FILE = path.join(DATA_DIR, "employees.json");
+const SHIFTS_FILE = path.join(DATA_DIR, "shifts.json");
 
 type TelegramBotCredentials = {
   bot_token: string;
@@ -57,6 +59,8 @@ interface Database {
   services: Map<string, Service>;
   bookings: Map<string, Booking>;
   users: Map<string, User>;
+  employees: Map<string, Employee>;
+  shifts: Map<string, Shift>;
   posts: Map<string, Post>;
   closedSlotsByPost: Map<string, Set<string>>;
   deviceConnections: Map<string, DeviceConnection>;
@@ -98,6 +102,8 @@ let db: Database = {
   services: new Map(),
   bookings: new Map(),
   users: new Map(),
+  employees: new Map(),
+  shifts: new Map(),
   posts: new Map(),
   closedSlotsByPost: new Map(),
   deviceConnections: new Map(),
@@ -252,6 +258,63 @@ function saveClientAuthToFile(): void {
   }
 }
 
+function loadEmployeesFromFile(): void {
+  try {
+    if (!fs.existsSync(EMPLOYEES_FILE)) return;
+    const raw = fs.readFileSync(EMPLOYEES_FILE, "utf-8");
+    const arr = JSON.parse(raw) as Employee[];
+    if (!Array.isArray(arr)) return;
+    db.employees.clear();
+    for (const e of arr) {
+      if (!e?._id || !e?.name) continue;
+      db.employees.set(e._id, {
+        ...e,
+        is_active: e.is_active ?? true,
+        phone: e.phone ?? null,
+        role: e.role ?? null,
+      });
+    }
+  } catch (e) {
+    console.error("Failed to load employees from file:", e);
+  }
+}
+
+function saveEmployeesToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const arr = Array.from(db.employees.values());
+    fs.writeFileSync(EMPLOYEES_FILE, JSON.stringify(arr, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save employees to file:", e);
+  }
+}
+
+function loadShiftsFromFile(): void {
+  try {
+    if (!fs.existsSync(SHIFTS_FILE)) return;
+    const raw = fs.readFileSync(SHIFTS_FILE, "utf-8");
+    const arr = JSON.parse(raw) as Shift[];
+    if (!Array.isArray(arr)) return;
+    db.shifts.clear();
+    for (const s of arr) {
+      if (!s?._id || !s?.employee_id || !s?.start_iso || !s?.end_iso) continue;
+      db.shifts.set(s._id, { ...s, notes: s.notes ?? null });
+    }
+  } catch (e) {
+    console.error("Failed to load shifts from file:", e);
+  }
+}
+
+function saveShiftsToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const arr = Array.from(db.shifts.values());
+    fs.writeFileSync(SHIFTS_FILE, JSON.stringify(arr, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Failed to save shifts to file:", e);
+  }
+}
+
 // Загрузка папок автомобилей из файла (сохраняются между перезапусками)
 function loadCarFoldersFromFile(): void {
   try {
@@ -289,6 +352,8 @@ loadAccountsFromFile();
 loadTelegramCredentialsFromFile();
 loadUsersFromFile();
 loadClientAuthFromFile();
+loadEmployeesFromFile();
+loadShiftsFromFile();
 loadCarFoldersFromFile();
 
 function loadDisplaySettingsFromFile(): void {
@@ -435,6 +500,114 @@ export function updateBooking(id: string, data: Partial<Booking>): Booking | nul
 
 export function deleteBooking(id: string): boolean {
   return db.bookings.delete(id);
+}
+
+// ====== EMPLOYEES ======
+export function getEmployees(includeInactive = false): Employee[] {
+  const all = Array.from(db.employees.values());
+  const filtered = includeInactive ? all : all.filter((e) => e.is_active);
+  return filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export function getEmployee(id: string): Employee | null {
+  return db.employees.get(id) || null;
+}
+
+export function createEmployee(data: Omit<Employee, "_id" | "created_at">): Employee {
+  const id = `emp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const employee: Employee = {
+    ...data,
+    _id: id,
+    created_at: new Date().toISOString(),
+    is_active: data.is_active ?? true,
+    phone: data.phone ?? null,
+    role: data.role ?? null,
+  };
+  db.employees.set(id, employee);
+  saveEmployeesToFile();
+  return employee;
+}
+
+export function updateEmployee(id: string, data: Partial<Employee>): Employee | null {
+  const employee = db.employees.get(id);
+  if (!employee) return null;
+  const updated: Employee = {
+    ...employee,
+    ...data,
+    _id: id,
+    phone: data.phone === undefined ? employee.phone ?? null : data.phone,
+    role: data.role === undefined ? employee.role ?? null : data.role,
+    is_active: data.is_active === undefined ? employee.is_active : data.is_active,
+  };
+  db.employees.set(id, updated);
+  saveEmployeesToFile();
+  return updated;
+}
+
+export function deleteEmployee(id: string): boolean {
+  const ok = db.employees.delete(id);
+  if (ok) {
+    // каскадно удаляем смены сотрудника
+    for (const s of Array.from(db.shifts.values())) {
+      if (s.employee_id === id) db.shifts.delete(s._id);
+    }
+    saveEmployeesToFile();
+    saveShiftsToFile();
+  }
+  return ok;
+}
+
+// ====== SHIFTS ======
+export function getShifts(params?: { from?: string; to?: string; employee_id?: string }): Shift[] {
+  const fromMs = params?.from ? new Date(params.from).getTime() : null;
+  const toMs = params?.to ? new Date(params.to).getTime() : null;
+  const employeeId = params?.employee_id ?? null;
+  const all = Array.from(db.shifts.values()).filter((s) => {
+    if (employeeId && s.employee_id !== employeeId) return false;
+    const startMs = new Date(s.start_iso).getTime();
+    const endMs = new Date(s.end_iso).getTime();
+    if (fromMs !== null && endMs < fromMs) return false;
+    if (toMs !== null && startMs > toMs) return false;
+    return true;
+  });
+  return all.sort((a, b) => new Date(a.start_iso).getTime() - new Date(b.start_iso).getTime());
+}
+
+export function getShift(id: string): Shift | null {
+  return db.shifts.get(id) || null;
+}
+
+export function createShift(data: Omit<Shift, "_id" | "created_at">): Shift {
+  const id = `shf_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const shift: Shift = {
+    ...data,
+    _id: id,
+    created_at: new Date().toISOString(),
+    notes: data.notes ?? null,
+  };
+  db.shifts.set(id, shift);
+  saveShiftsToFile();
+  return shift;
+}
+
+export function updateShift(id: string, data: Partial<Shift>): Shift | null {
+  const shift = db.shifts.get(id);
+  if (!shift) return null;
+  const updated: Shift = {
+    ...shift,
+    ...data,
+    _id: id,
+    notes: data.notes === undefined ? shift.notes ?? null : data.notes,
+  };
+  db.shifts.set(id, updated);
+  saveShiftsToFile();
+  return updated;
+}
+
+export function deleteShift(id: string): boolean {
+  const ok = db.shifts.delete(id);
+  if (ok) saveShiftsToFile();
+  return ok;
 }
 
 /** Один пользователь по умолчанию, чтобы GET /profile не возвращал 404 при пустой БД (например после перезапуска). */

@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { Booking, UpdateBookingStatusRequest, type BookingControlStatus } from "@shared/api";
+import { AssignBookingEmployeeRequest, Booking, UpdateBookingStatusRequest, type BookingControlStatus } from "@shared/api";
 import * as db from "../db";
 import {
   notifyNewBooking,
@@ -324,6 +324,39 @@ export const updateBookingStatus: RequestHandler<{ id: string }> = (req, res) =>
   } catch (error) {
     console.error("Error updating booking:", error);
     res.status(500).json({ error: "Internal server error", message: "Failed to update booking" });
+  }
+};
+
+// PATCH /api/v1/bookings/:id/employee — назначить сотрудника на запись (для анализа “кол-ва работ”)
+export const assignBookingEmployee: RequestHandler<{ id: string }> = (req, res) => {
+  try {
+    const booking = db.getBooking(req.params.id);
+    if (!booking) return res.status(404).json({ error: "Not found", message: "Booking not found" });
+
+    const body = req.body as AssignBookingEmployeeRequest | null;
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({
+        error: "Validation error",
+        message: "Request body must be JSON with employee_id (string or null).",
+      });
+    }
+    const employee_id = body.employee_id === null ? null : typeof body.employee_id === "string" ? body.employee_id.trim() : undefined;
+    if (employee_id === undefined) {
+      return res.status(400).json({ error: "Validation error", message: "Missing required field: employee_id" });
+    }
+
+    if (employee_id) {
+      const emp = db.getEmployee(employee_id);
+      if (!emp) return res.status(404).json({ error: "Not found", message: "Employee not found" });
+      const updated = db.updateBooking(req.params.id, { employee_id: emp._id, employee_name: emp.name });
+      return res.json(updated);
+    }
+
+    const updated = db.updateBooking(req.params.id, { employee_id: null, employee_name: null });
+    return res.json(updated);
+  } catch (error) {
+    console.error("Error assigning employee to booking:", error);
+    res.status(500).json({ error: "Internal server error", message: "Failed to assign employee" });
   }
 };
 

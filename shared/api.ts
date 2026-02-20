@@ -52,6 +52,10 @@ export interface Booking {
   service_name: string;
   user_id: string;
   user_name: string;
+  /** Сотрудник, который выполнял работу (для аналитики/актов). Назначается из админки. */
+  employee_id?: string | null;
+  /** Удобное отображаемое имя (денормализация для UI). */
+  employee_name?: string | null;
   post_id?: string;
   date_time: string; // ISO 8601
   status: BookingStatus;
@@ -84,6 +88,10 @@ export interface CreateBookingRequest {
 
 export interface UpdateBookingStatusRequest {
   status: BookingStatus;
+}
+
+export interface AssignBookingEmployeeRequest {
+  employee_id: string | null;
 }
 
 // ====== POSTS (CAR WASH BAYS) ======
@@ -344,6 +352,66 @@ export interface NewsItem {
 export interface ClientNewsItem extends NewsItem {
   read: boolean;
   notification_id: string | null;
+}
+
+// ====== EMPLOYEES / SHIFTS ======
+export interface Employee {
+  _id: string;
+  name: string;
+  phone?: string | null;
+  role?: string | null;
+  is_active: boolean;
+  created_at: string; // ISO 8601
+}
+
+export interface CreateEmployeeRequest {
+  name: string;
+  phone?: string | null;
+  role?: string | null;
+  is_active?: boolean;
+}
+
+export interface UpdateEmployeeRequest {
+  name?: string;
+  phone?: string | null;
+  role?: string | null;
+  is_active?: boolean;
+}
+
+export interface Shift {
+  _id: string;
+  employee_id: string;
+  start_iso: string; // ISO 8601
+  end_iso: string; // ISO 8601
+  notes?: string | null;
+  created_at: string; // ISO 8601
+}
+
+export interface CreateShiftRequest {
+  employee_id: string;
+  start_iso: string;
+  end_iso: string;
+  notes?: string | null;
+}
+
+export interface UpdateShiftRequest {
+  employee_id?: string;
+  start_iso?: string;
+  end_iso?: string;
+  notes?: string | null;
+}
+
+export interface EmployeeAnalyticsRow {
+  employee_id: string;
+  employee_name: string;
+  shifts: number;
+  works: number;
+}
+
+export interface EmployeesAnalyticsResponse {
+  from: string;
+  to: string;
+  rows: EmployeeAnalyticsRow[];
 }
 
 // ====== ERROR RESPONSE ======

@@ -31,6 +31,7 @@ const PRIMARY_TABS = [
   { path: "/news", label: "Новости", icon: "📰" },
   { path: "/booking-control", label: "Контроль записи", icon: "📞" },
   { path: "/clients", label: "Клиенты", icon: "👥" },
+  { path: "/employees", label: "Сотрудники", icon: "🧑‍🔧" },
 ] as const;
 
 const TABS_UNLOCK_STORAGE_KEY = "tabs_unlocked_2300";
