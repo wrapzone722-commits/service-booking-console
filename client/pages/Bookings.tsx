@@ -120,24 +120,22 @@ export default function Bookings() {
     const token = localStorage.getItem("session_token");
     try {
       setError(null);
-      const res = await fetch(`/api/v1/bookings/${id}/act`, {
+      const res = await fetch(`/api/v1/bookings/${id}/act?format=html`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error((data as { message?: string }).message || "Не удалось загрузить акт");
       }
-      const blob = await res.blob();
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const url = URL.createObjectURL(blob);
-      const filename = `akt-${id}.pdf`;
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const w = window.open(url, "_blank", "noopener,noreferrer");
+      if (!w) {
+        // Fallback if popups are blocked
+        window.location.href = url;
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Не удалось открыть акт");

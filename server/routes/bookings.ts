@@ -13,6 +13,7 @@ import {
 import { verifyToken } from "./auth";
 import { getApiKeyFromRequest } from "../middleware/auth";
 import { buildActPdf } from "../lib/act-pdf";
+import { buildActHtml } from "../lib/act-html";
 
 /** POST body для оценки записи (iOS RatingView) */
 interface RatingRequestBody {
@@ -390,6 +391,17 @@ export const getBookingAct: RequestHandler<{ id: string }> = async (req, res) =>
           message: "You can only view act for your own booking",
         });
       }
+    }
+
+    const format = String((req.query as Record<string, unknown>)?.format ?? "").toLowerCase();
+    const accept = String(req.headers.accept ?? "").toLowerCase();
+    const wantsHtml = format === "html" || (format !== "pdf" && accept.includes("text/html"));
+
+    if (wantsHtml) {
+      const html = buildActHtml(id);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+      return;
     }
 
     const pdfBuffer = await buildActPdf(id);

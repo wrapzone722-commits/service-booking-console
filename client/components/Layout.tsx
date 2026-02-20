@@ -24,25 +24,32 @@ function Clock() {
   return <span className="tabular-nums font-medium">{time}</span>;
 }
 
-const navItems = [
-  { path: "/", label: "Главная", icon: "📊" },
-  { path: "/company", label: "Компания", icon: "🏢" },
+const PRIMARY_TABS = [
   { path: "/services", label: "Услуги", icon: "💼" },
   { path: "/bookings", label: "Записи", icon: "📅" },
   { path: "/posts", label: "Посты", icon: "🚿" },
-  { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
   { path: "/news", label: "Новости", icon: "📰" },
   { path: "/booking-control", label: "Контроль записи", icon: "📞" },
   { path: "/clients", label: "Клиенты", icon: "👥" },
+] as const;
+
+// Все остальные вкладки требуют ввода пароля (2300)
+const EXTRA_TABS = [
+  { path: "/", label: "Главная", icon: "📊" },
+  { path: "/company", label: "Компания", icon: "🏢" },
+  { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
   { path: "/cars", label: "Автомобили", icon: "🚗" },
   { path: "/settings", label: "Настройки", icon: "⚙️" },
-];
+  { path: "/legal", label: "Документы", icon: "📄" },
+] as const;
+
+const navItems = [...PRIMARY_TABS, ...EXTRA_TABS];
 
 const bottomNavItems = [
-  { path: "/", label: "Главная", icon: "📊" },
-  { path: "/bookings", label: "Записи", icon: "📅" },
   { path: "/services", label: "Услуги", icon: "💼" },
+  { path: "/bookings", label: "Записи", icon: "📅" },
   { path: "/posts", label: "Посты", icon: "🚿" },
+  { path: "/news", label: "Новости", icon: "📰" },
 ];
 
 const themes: { id: ThemeId; label: string; icon: string }[] = [
@@ -58,6 +65,11 @@ export default function Layout({ children }: LayoutProps) {
   const { theme, setTheme } = useTheme();
   const [accountName, setAccountName] = useState("Admin");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tabsUnlocked, setTabsUnlocked] = useState(() => localStorage.getItem("tabs_unlocked_2300") === "1");
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [adminPass, setAdminPass] = useState("");
+  const [adminError, setAdminError] = useState(false);
+  const pendingPathRef = useRef<string | null>(null);
   const [latestBookingAlert, setLatestBookingAlert] = useState<Booking | null>(null);
   const seenBookingIdsRef = useRef<Set<string>>(new Set());
   const initializedBookingsRef = useRef(false);
@@ -78,6 +90,23 @@ export default function Layout({ children }: LayoutProps) {
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  const isPrimaryTab = (path: string) =>
+    PRIMARY_TABS.some((t) => (t.path === "/" ? path === "/" : path === t.path || path.startsWith(t.path + "/")));
+
+  const isExtraTab = (path: string) =>
+    EXTRA_TABS.some((t) => (t.path === "/" ? path === "/" : path === t.path || path.startsWith(t.path + "/")));
+
+  useEffect(() => {
+    // Гейт для "прочих вкладок" — без подсказок, только пароль 2300.
+    if (!tabsUnlocked && isExtraTab(location.pathname)) {
+      pendingPathRef.current = location.pathname;
+      setAdminModalOpen(true);
+      setAdminPass("");
+      setAdminError(false);
+      navigate("/services", { replace: true });
+    }
+  }, [location.pathname, tabsUnlocked, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -171,6 +200,29 @@ export default function Layout({ children }: LayoutProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const openAdminGate = (to: string) => {
+    pendingPathRef.current = to;
+    setAdminModalOpen(true);
+    setAdminPass("");
+    setAdminError(false);
+  };
+
+  const submitAdminPass = () => {
+    if ((adminPass || "").trim() === "2300") {
+      localStorage.setItem("tabs_unlocked_2300", "1");
+      setTabsUnlocked(true);
+      setAdminModalOpen(false);
+      setAdminPass("");
+      setAdminError(false);
+      const to = pendingPathRef.current;
+      pendingPathRef.current = null;
+      if (to) navigate(to);
+      return;
+    }
+    setAdminError(true);
+    setAdminPass("");
+  };
+
   const handleLogout = () => {
     if (confirm("Вы уверены, что хотите выйти?")) {
       localStorage.removeItem("session_token");
@@ -194,39 +246,46 @@ export default function Layout({ children }: LayoutProps) {
         </Link>
       </div>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm min-h-[44px] transition-colors ${
-              isActive(item.path)
-                ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                : "text-sidebar-foreground/90 hover:bg-white/10"
-            }`}
-          >
-            <span className="text-lg flex-shrink-0">{item.icon}</span>
-            <span className="font-medium truncate flex-1">
-              {item.label}
-              {item.path === "/settings" && (
-                <span className="block text-[10px] font-normal text-white/60 leading-tight mt-0.5">
-                  {APP_VERSION}
-                </span>
+        {navItems.map((item) => {
+          const locked = isExtraTab(item.path) && !tabsUnlocked;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={(e) => {
+                if (locked) {
+                  e.preventDefault();
+                  openAdminGate(item.path);
+                }
+              }}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm min-h-[44px] transition-colors ${
+                isActive(item.path)
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/90 hover:bg-white/10"
+              }`}
+            >
+              <span className="text-lg flex-shrink-0">{item.icon}</span>
+              <span className="font-medium truncate flex-1">
+                {item.label}
+                {item.path === "/settings" && (
+                  <span className="block text-[10px] font-normal text-white/60 leading-tight mt-0.5">
+                    {APP_VERSION}
+                  </span>
+                )}
+              </span>
+              {locked && <span className="text-xs opacity-70">🔒</span>}
+              {item.path === "/bookings" && stats.bookingsToday > 0 && (
+                <span className="rounded-full bg-white/20 px-1.5 text-xs font-semibold">{stats.bookingsToday}</span>
               )}
-            </span>
-            {item.path === "/bookings" && stats.bookingsToday > 0 && (
-              <span className="rounded-full bg-white/20 px-1.5 text-xs font-semibold">{stats.bookingsToday}</span>
-            )}
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </nav>
       <div className="px-3 py-2 border-t border-sidebar-border/50 space-y-2">
         <p className="text-[11px] text-white/60">
           {APP_VERSION}
         </p>
-        <Link
-          to="/legal"
-          className="block text-[11px] text-white/70 hover:text-white underline underline-offset-2"
-        >
+        <Link to="/legal" className="block text-[11px] text-white/70 hover:text-white underline underline-offset-2">
           Документы / Персональные данные
         </Link>
         <button
@@ -242,6 +301,52 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="relative flex flex-col min-h-screen bg-background md:flex-row">
+      {adminModalOpen && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setAdminModalOpen(false)}
+          aria-hidden="true"
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl ios-card p-4"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitAdminPass();
+              }}
+              className="space-y-3"
+            >
+              <input
+                type="password"
+                value={adminPass}
+                onChange={(e) => setAdminPass(e.target.value)}
+                className={`w-full px-4 py-3 rounded-xl border bg-background text-base ${
+                  adminError ? "border-rose-400" : "border-border"
+                }`}
+                autoFocus
+                autoComplete="current-password"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-2 rounded-xl border border-border bg-card font-semibold"
+                  onClick={() => setAdminModalOpen(false)}
+                >
+                  Отмена
+                </button>
+                <button type="submit" className="flex-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold">
+                  OK
+                </button>
+              </div>
+              {adminError && <div className="text-xs text-rose-600">Ошибка</div>}
+            </form>
+          </div>
+        </div>
+      )}
       {/* Top bar: theme switcher + clock (desktop) */}
       <div className="hidden md:flex absolute top-0 left-0 right-0 z-30 h-11 px-4 items-center justify-between ios-surface border-b border-border/60">
         <div className="flex items-center gap-2">
@@ -363,6 +468,13 @@ export default function Layout({ children }: LayoutProps) {
             <Link
               key={item.path}
               to={item.path}
+              onClick={(e) => {
+                const locked = isExtraTab(item.path) && !tabsUnlocked;
+                if (locked) {
+                  e.preventDefault();
+                  openAdminGate(item.path);
+                }
+              }}
               className={`flex flex-col items-center justify-center flex-1 py-2 min-h-[48px] px-1 ${
                 isActive(item.path) ? "text-primary font-semibold" : "text-muted-foreground"
               }`}
