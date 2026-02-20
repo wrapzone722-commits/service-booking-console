@@ -7,23 +7,24 @@ declare global {
   namespace Express {
     interface Request {
       account?: TokenPayload;
-      /** Set when Authorization: Bearer {api_key} from iOS client registration */
+      /** Set when X-API-Key or Authorization: Bearer {api_key} from iOS client registration */
       clientAuth?: ClientAuth;
     }
   }
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  // Admin auth (JWT). Support both:
+  // - Authorization: Bearer <JWT>
+  // - X-API-Key: <JWT>
+  // Some reverse proxies strip the Authorization header.
+  const token = getApiKeyFromRequest(req);
+  if (!token) {
     return res.status(401).json({
       error: "Unauthorized",
-      message: "Missing or invalid Authorization header",
+      message: "Missing auth. Use Authorization: Bearer <JWT> or X-API-Key: <JWT>",
     });
   }
-
-  const token = authHeader.slice(7); // Remove "Bearer " prefix
   const payload = verifyToken(token);
 
   if (!payload) {
