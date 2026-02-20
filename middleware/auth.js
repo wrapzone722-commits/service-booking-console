@@ -1,14 +1,25 @@
 /**
- * Middleware авторизации API по Bearer api_key
+ * Middleware авторизации API по api_key
+ *
+ * Поддерживаем оба варианта:
+ * - Authorization: Bearer <api_key>
+ * - X-API-Key: <api_key>
+ *
+ * (Некоторые прокси/хостинги могут удалять Authorization, поэтому X-API-Key важен.)
  */
 import { getDb } from '../db/index.js';
 
 export function requireAuth(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Необходима авторизация' });
+  const auth = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+  const xApiKey = typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : '';
+
+  let apiKey = '';
+  if (auth.startsWith('Bearer ')) {
+    apiKey = auth.slice(7).trim();
+  } else if (xApiKey) {
+    apiKey = xApiKey.trim();
   }
-  const apiKey = auth.slice(7).trim();
+
   if (!apiKey) {
     return res.status(401).json({ error: 'Необходима авторизация' });
   }
