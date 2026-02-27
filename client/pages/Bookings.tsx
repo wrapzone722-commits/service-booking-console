@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Booking, BookingStatus, Employee } from "@shared/api";
+import { Booking, BookingStatus, Employee, User, Service, Post, TimeSlot } from "@shared/api";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const STATUS_OPTIONS: { id: BookingStatus; label: string }[] = [
   { id: "pending", label: "Ожидает" },
@@ -33,6 +35,22 @@ export default function Bookings() {
   const [ownerPassword, setOwnerPassword] = useState("");
   const [ownerPasswordError, setOwnerPasswordError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Модальное окно «Новая запись»
+  const [createOpen, setCreateOpen] = useState(false);
+  const [clients, setClients] = useState<User[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [createUserId, setCreateUserId] = useState("");
+  const [createServiceId, setCreateServiceId] = useState("");
+  const [createDate, setCreateDate] = useState("");
+  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [createSlotTime, setCreateSlotTime] = useState("");
+  const [createPostId, setCreatePostId] = useState("");
+  const [createNotes, setCreateNotes] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBookings();
@@ -184,6 +202,97 @@ export default function Bookings() {
     }
   };
 
+  const openCreateModal = async () => {
+    const token = localStorage.getItem("session_token");
+    if (!token) {
+      setError("Войдите в аккаунт для создания записи");
+      return;
+    }
+    setCreateOpen(true);
+    setCreateError(null);
+    setCreateUserId("");
+    setCreateServiceId("");
+    setCreateDate("");
+    setSlots([]);
+    setCreateSlotTime("");
+    setCreatePostId("");
+    setCreateNotes("");
+    try {
+      const [usersRes, servicesRes, postsRes] = await Promise.all([
+        fetch("/api/v1/users", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/v1/services", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/v1/posts", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (usersRes.ok) setClients((await usersRes.json()) as User[]);
+      if (servicesRes.ok) setServices((await servicesRes.json()) as Service[]);
+      if (postsRes.ok) setPosts((await postsRes.json()) as Post[]);
+    } catch (e) {
+      setCreateError("Не удалось загрузить клиентов и услуги");
+    }
+  };
+
+  useEffect(() => {
+    if (!createOpen || !createServiceId || !createDate) {
+      setSlots([]);
+      setCreateSlotTime("");
+      return;
+    }
+    const postId = createPostId || "post_1";
+    setSlotsLoading(true);
+    setSlots([]);
+    setCreateSlotTime("");
+    fetch(
+      `/api/v1/slots?service_id=${encodeURIComponent(createServiceId)}&date=${encodeURIComponent(createDate)}&post_id=${encodeURIComponent(postId)}`
+    )
+      .then((r) => r.json())
+      .then((data: TimeSlot[]) => setSlots(Array.isArray(data) ? data : []))
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false));
+  }, [createOpen, createServiceId, createDate, createPostId]);
+
+  const submitCreate = async () => {
+    const token = localStorage.getItem("session_token");
+    if (!token || !createUserId || !createServiceId || !createSlotTime) {
+      setCreateError("Выберите клиента, услугу и время");
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/v1/bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user_id: createUserId,
+          service_id: createServiceId,
+          date_time: createSlotTime,
+          post_id: createPostId || undefined,
+          notes: createNotes.trim() || null,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("session_token");
+          localStorage.removeItem("account_id");
+          localStorage.removeItem("account_name");
+          window.location.replace("/login");
+          return;
+        }
+        throw new Error(data.message || "Не удалось создать запись");
+      }
+      setCreateOpen(false);
+      await fetchBookings();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Не удалось создать запись");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const requestDelete = (id: string) => {
     const token = localStorage.getItem("session_token");
     if (!token) {
@@ -297,7 +406,14 @@ export default function Bookings() {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Записи</h1>
             <p className="text-xs text-muted-foreground">Управление бронированиями и статусами</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              type="button"
+              onClick={() => void openCreateModal()}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              + Новая запись
+            </Button>
             <span className="text-xs px-3 py-1.5 rounded-full bg-muted text-muted-foreground">
               Всего: {stats.all}
             </span>
@@ -473,6 +589,140 @@ export default function Bookings() {
         )}
         </div>
       </div>
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setCreateError(null);
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Новая запись</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {createError && (
+              <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+                {createError}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label>Клиент</Label>
+              <select
+                aria-label="Клиент"
+                value={createUserId}
+                onChange={(e) => setCreateUserId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+              >
+                <option value="">— выберите клиента —</option>
+                {clients.map((u) => (
+                  <option key={u._id} value={u._id}>
+                    {u.first_name} {u.last_name} {u.phone ? `• ${u.phone}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Услуга</Label>
+              <select
+                aria-label="Услуга"
+                value={createServiceId}
+                onChange={(e) => setCreateServiceId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+              >
+                <option value="">— выберите услугу —</option>
+                {services.filter((s) => s.is_active).map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name} — {s.price.toFixed(0)} ₽, {s.duration} мин
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Дата</Label>
+              <Input
+                type="date"
+                value={createDate}
+                onChange={(e) => setCreateDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="w-full"
+              />
+            </div>
+            {posts.length > 0 && (
+              <div className="space-y-2">
+                <Label>Пост (опционально)</Label>
+                <select
+                  aria-label="Пост"
+                  value={createPostId}
+                  onChange={(e) => setCreatePostId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                >
+                  <option value="">post_1</option>
+                  {posts.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {createServiceId && createDate && (
+              <div className="space-y-2">
+                <Label>Время</Label>
+                {slotsLoading ? (
+                  <p className="text-sm text-muted-foreground">Загрузка слотов…</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {slots
+                      .filter((s) => s.is_available)
+                      .map((s) => {
+                        const timeStr = new Date(s.time).toLocaleTimeString("ru-RU", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setCreateSlotTime(s.time)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                              createSlotTime === s.time
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card border-border hover:bg-muted"
+                            }`}
+                          >
+                            {timeStr}
+                          </button>
+                        );
+                      })}
+                    {!slotsLoading && slots.filter((s) => s.is_available).length === 0 && (
+                      <p className="text-sm text-muted-foreground">Нет свободных слотов на эту дату</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Комментарий (опционально)</Label>
+              <Textarea
+                value={createNotes}
+                onChange={(e) => setCreateNotes(e.target.value)}
+                placeholder="Заметка к записи"
+                className="min-h-[80px] resize-y"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setCreateOpen(false)} disabled={creating}>
+              Отмена
+            </Button>
+            <Button type="button" onClick={() => void submitCreate()} disabled={creating}>
+              {creating ? "Создание…" : "Создать запись"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={deleteModalOpen}

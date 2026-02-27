@@ -125,6 +125,21 @@ export const updateProfile: RequestHandler = (req, res) => {
       return res.status(404).json({ error: "Not found", message: "Profile not found" });
     }
 
+    // Если клиент указал "реальный" телефон, а в системе уже есть другой клиент с таким телефоном —
+    // объединяем аккаунты, чтобы баллы/история не терялись при переустановке и смене device_id.
+    if (typeof body.phone === "string" && body.phone.trim()) {
+      const existingByPhone = db.findUserByPhone(body.phone);
+      if (existingByPhone && existingByPhone._id !== userId) {
+        const current = db.getUser(userId);
+        const a = Number(current?.loyalty_points ?? 0) || 0;
+        const b = Number(existingByPhone.loyalty_points ?? 0) || 0;
+        const primaryId = b >= a ? existingByPhone._id : userId;
+        const secondaryId = primaryId === userId ? existingByPhone._id : userId;
+        const merged = db.mergeUsers(primaryId, secondaryId);
+        userId = merged?._id ?? primaryId;
+      }
+    }
+
     const updates: Parameters<typeof db.updateUser>[1] = {};
     if (body.first_name !== undefined) updates.first_name = body.first_name;
     if (body.last_name !== undefined) updates.last_name = body.last_name;

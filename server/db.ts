@@ -842,6 +842,100 @@ export function updateUser(id: string, data: Partial<User>): User | null {
   return updated;
 }
 
+function isRealPhone(phone: string | null | undefined): boolean {
+  const p = String(phone ?? "").trim();
+  if (!p) return false;
+  if (p.toLowerCase().startsWith("device:")) return false;
+  return normalizePhone(p).length >= 6;
+}
+
+/** Найти клиента по телефону (цифры), исключая технические device:* */
+export function findUserByPhone(phone: string): User | null {
+  if (!isRealPhone(phone)) return null;
+  const n = normalizePhone(phone);
+  for (const u of db.users.values()) {
+    if (!isRealPhone(u.phone)) continue;
+    if (normalizePhone(u.phone) === n) return u;
+  }
+  return null;
+}
+
+/**
+ * Объединить 2 аккаунта клиента:
+ * - primary сохраняется
+ * - secondary удаляется
+ * - баллы суммируются, устройства (client-auth) переназначаются, транзакции/уведомления/записи перепривязываются
+ */
+export function mergeUsers(primaryId: string, secondaryId: string): User | null {
+  if (primaryId === secondaryId) return db.users.get(primaryId) ?? null;
+  const primary = db.users.get(primaryId);
+  const secondary = db.users.get(secondaryId);
+  if (!primary || !secondary) return primary ?? null;
+
+  const primaryPoints = Number.isFinite(Number(primary.loyalty_points)) ? Number(primary.loyalty_points) : 0;
+  const secondaryPoints = Number.isFinite(Number(secondary.loyalty_points)) ? Number(secondary.loyalty_points) : 0;
+  const mergedPoints = Math.max(0, Math.trunc(primaryPoints + secondaryPoints));
+
+  // prefer "real" phone if primary has technical one
+  const mergedPhone = isRealPhone(primary.phone) ? primary.phone : (isRealPhone(secondary.phone) ? secondary.phone : primary.phone);
+
+  // merge basic fields (don't overwrite non-empty primary values)
+  const merged: User = {
+    ...primary,
+    first_name: primary.first_name?.trim() ? primary.first_name : secondary.first_name,
+    last_name: primary.last_name?.trim() ? primary.last_name : secondary.last_name,
+    email: primary.email ?? secondary.email ?? null,
+    phone: mergedPhone,
+    avatar_url: primary.avatar_url ?? secondary.avatar_url ?? null,
+    social_links: { ...(secondary.social_links ?? {}), ...(primary.social_links ?? {}) },
+    loyalty_points: mergedPoints,
+    client_tier: primary.client_tier ?? secondary.client_tier,
+    status: primary.status ?? secondary.status,
+  };
+
+  db.users.set(primaryId, merged);
+
+  // Re-link client auth records
+  for (const rec of db.clientAuthByDeviceId.values()) {
+    if (rec.client_id === secondaryId) {
+      const updated = { ...rec, client_id: primaryId };
+      db.clientAuthByDeviceId.set(updated.device_id, updated);
+      db.clientAuthByApiKey.set(updated.api_key, updated);
+    }
+  }
+  saveClientAuthToFile();
+
+  // Re-link bookings (in-memory)
+  for (const [bid, b] of db.bookings.entries()) {
+    if (b.user_id === secondaryId) {
+      db.bookings.set(bid, { ...b, user_id: primaryId, user_name: merged.first_name ? `${merged.first_name} ${merged.last_name ?? ""}`.trim() : b.user_name });
+    }
+  }
+
+  // Re-link notifications (in-memory)
+  for (const [nid, n] of db.notifications.entries()) {
+    if (n.client_id === secondaryId) {
+      db.notifications.set(nid, { ...n, client_id: primaryId });
+    }
+  }
+
+  // Re-link loyalty transactions (persistent)
+  let changedTx = false;
+  for (const t of db.loyaltyTransactions) {
+    if (t.user_id === secondaryId) {
+      t.user_id = primaryId;
+      changedTx = true;
+    }
+  }
+  if (changedTx) saveLoyaltyTransactionsToFile();
+
+  // Remove secondary user
+  db.users.delete(secondaryId);
+  saveUsersToFile();
+
+  return merged;
+}
+
 function normalizeTelegramHandle(value: string): string {
   const s = String(value ?? "").trim();
   if (!s) return "";
