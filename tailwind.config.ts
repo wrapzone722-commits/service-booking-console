@@ -62,6 +62,12 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "1.25rem",
+        "2xl": "1.5rem",
+      },
+      boxShadow: {
+        "ios": "0 2px 12px hsl(220 25% 20% / 0.06)",
+        "ios-lg": "0 8px 32px hsl(220 25% 20% / 0.08)",
       },
       keyframes: {
         "accordion-down": {

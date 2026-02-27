@@ -250,8 +250,8 @@ export default function Layout({ children }: LayoutProps) {
   const SidebarContent = () => (
     <>
       <div className="p-3 border-b border-sidebar-border/50">
-        <Link to="/company" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <div className="w-10 h-10 rounded-lg bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-bold text-sm flex-shrink-0">
+        <Link to="/company" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+          <div className="w-10 h-10 rounded-xl bg-sidebar-accent flex items-center justify-center text-sidebar-accent-foreground font-bold text-sm flex-shrink-0">
             SB
           </div>
           <div className="flex-1 min-w-0">
@@ -273,10 +273,10 @@ export default function Layout({ children }: LayoutProps) {
                   openAdminGate(item.path);
                 }
               }}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm min-h-[44px] transition-all duration-200 ease-out active:scale-[0.99] ${
-                isActive(item.path)
+className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm min-h-[44px] transition-all duration-200 ease-out active:scale-[0.98] ${
+                  isActive(item.path)
                   ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                  : "text-sidebar-foreground/90 hover:bg-white/10 hover:translate-x-[1px]"
+                  : "text-sidebar-foreground/90 hover:bg-white/10"
               }`}
             >
               <span className="text-lg flex-shrink-0">{item.icon}</span>
@@ -305,7 +305,7 @@ export default function Layout({ children }: LayoutProps) {
         </Link>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sidebar-foreground hover:bg-white/10 active:bg-white/20 transition-all text-sm font-medium min-h-[44px]"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sidebar-foreground hover:bg-white/10 active:bg-white/20 transition-all text-sm font-medium min-h-[44px]"
         >
           <span>🚪</span>
           <span className="truncate">Выход</span>
