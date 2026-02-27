@@ -33,7 +33,7 @@
 
 ## Синхронизация в репозиторий service-booking-console
 
-При пуше в `main` (при изменениях в `web-console/`) workflow автоматически пушит код в репозиторий [service-booking-console](https://github.com/wrapzone722-commits/service-booking-console) в ветку **express-console**.
+При пуше в `main` (при изменениях в `web-console/`) workflow автоматически пушит код в репозиторий [service-booking-console](https://github.com/wrapzone722-commits/service-booking-console) в ветку **main** (с принудительным обновлением).
 
 Чтобы синхронизация работала, в репозитории **ServiceBooking** добавьте секрет:
 - **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
