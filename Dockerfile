@@ -2,7 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache ttf-dejavu
+# Шрифт для PDF (кириллица) + зависимости для сборки better-sqlite3 (native module)
+RUN apk add --no-cache ttf-dejavu python3 make g++ sqlite-dev
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
