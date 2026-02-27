@@ -21,6 +21,7 @@ import Legal from "./pages/Legal";
 import News from "./pages/News";
 import BookingControl from "./pages/BookingControl";
 import Employees from "./pages/Employees";
+import Loyalty from "./pages/Loyalty";
 import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 
@@ -76,6 +77,7 @@ const AppContent = () => (
                     <Route path="/news" element={<News />} />
                     <Route path="/booking-control" element={<BookingControl />} />
                     <Route path="/employees" element={<Employees />} />
+                    <Route path="/loyalty" element={<Loyalty />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/legal" element={<Legal />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

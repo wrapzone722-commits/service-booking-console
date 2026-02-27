@@ -40,6 +40,7 @@ const TABS_UNLOCK_STORAGE_KEY = "tabs_unlocked_2300";
 const EXTRA_TABS = [
   { path: "/", label: "Главная", icon: "📊" },
   { path: "/company", label: "Компания", icon: "🏢" },
+  { path: "/loyalty", label: "Бонусная система", icon: "🎁" },
   { path: "/telegram-bot", label: "Telegram Бот", icon: "📲" },
   { path: "/cars", label: "Автомобили", icon: "🚗" },
   { path: "/settings", label: "Настройки", icon: "⚙️" },
