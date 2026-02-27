@@ -118,7 +118,8 @@ async function renderActPdf(row) {
 
   const actNo = (row.id || '').slice(0, 8).toUpperCase();
   const created = row.date_time ? new Date(row.date_time) : new Date();
-  const createdStr = created.toLocaleDateString('ru-RU');
+  const createdLocal = toServiceLocal(created);
+  const createdStr = createdLocal.toLocaleDateString('ru-RU', { timeZone: 'UTC' });
 
   const clientName = `${(row.first_name || '').trim()} ${(row.last_name || '').trim()}`.trim() || 'Клиент';
   const phone = (row.phone || '').trim();
@@ -170,8 +171,9 @@ function formatMoney(v) {
 function renderActHtml(row) {
   const actNo = (row.id || '').slice(0, 8).toUpperCase();
   const dt = row.date_time ? new Date(row.date_time) : new Date();
-  const dateStr = dt.toLocaleDateString('ru-RU');
-  const timeStr = dt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const local = toServiceLocal(dt);
+  const dateStr = local.toLocaleDateString('ru-RU', { timeZone: 'UTC' });
+  const timeStr = local.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
   const clientName = `${(row.first_name || '').trim()} ${(row.last_name || '').trim()}`.trim() || 'Клиент';
   const phone = (row.phone || '').trim();
@@ -316,6 +318,28 @@ function renderActHtml(row) {
       font-size: 11px;
       color: #777;
     }
+    @media screen and (max-width: 560px) {
+      body { background: #fff; }
+      .page {
+        max-width: none;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 10px 12px;
+      }
+      .btn { padding: 10px 12px; border-radius: 12px; }
+      .doc { padding: 16px 14px 20px; }
+      .grid { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; gap: 4px; }
+      .label { font-size: 12px; }
+      .sign { grid-template-columns: 1fr; gap: 14px; }
+    }
     @media print {
       body { background: #fff; }
       .page { box-shadow: none; border: 0; border-radius: 0; margin: 0; }
@@ -380,5 +404,18 @@ function escapeHtml(s) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+function getServiceOffsetMinutes() {
+  const raw = process.env.SERVICE_TZ_OFFSET_MINUTES;
+  const n = raw == null ? NaN : Number(raw);
+  if (Number.isFinite(n)) return n;
+  // JS offset: minutes behind UTC (e.g. UTC+5 => -300). Нам нужен "минуты вперед" (e.g. +300).
+  return -new Date().getTimezoneOffset();
+}
+
+function toServiceLocal(date) {
+  const offsetMin = getServiceOffsetMinutes();
+  return new Date(date.getTime() + offsetMin * 60 * 1000);
 }
 

@@ -63,7 +63,7 @@ export function setupAdminRoutes(router) {
     const db = getDb();
     const { status, date, client_id } = req.query;
     let sql = `
-      SELECT b.*, s.name as service_name, c.first_name, c.last_name, c.phone
+      SELECT b.*, s.name as service_name, c.first_name, c.last_name, c.phone, c.email, c.social_links
       FROM bookings b
       JOIN services s ON s.id = b.service_id
       JOIN clients c ON c.id = b.user_id
@@ -99,6 +99,15 @@ export function setupAdminRoutes(router) {
     }
     if (status === 'completed') {
       createNotification(db, row.user_id, 'Ваш авто готов. Администратор подтвердил завершение. Можете забирать ключи.', 'Услуга завершена', 'service');
+      // Начисление баллов лояльности: 10% от суммы, минимум 1 балл.
+      // Важно: начисляем только при переходе в completed, чтобы не было двойного начисления.
+      if (row.status !== 'completed') {
+        const price = Number(row.price || 0) || 0;
+        const points = Math.max(1, Math.floor(price * 0.10));
+        if (points > 0) {
+          db.prepare('UPDATE clients SET loyalty_points = loyalty_points + ? WHERE id = ?').run(points, row.user_id);
+        }
+      }
     }
     if (status === 'confirmed') {
       createNotification(db, row.user_id, `Запись на ${row.service_id} подтверждена. Ждём вас в указанное время.`, 'Запись подтверждена', 'service');
@@ -121,7 +130,7 @@ export function setupAdminRoutes(router) {
   // === Clients ===
   router.get('/clients', (req, res) => {
     const db = getDb();
-    const rows = db.prepare('SELECT id, device_id, first_name, last_name, phone, email, created_at FROM clients ORDER BY created_at DESC').all();
+    const rows = db.prepare('SELECT id, device_id, first_name, last_name, phone, email, social_links, loyalty_points, created_at FROM clients ORDER BY created_at DESC').all();
     res.json(rows);
   });
 
@@ -206,6 +215,46 @@ export function setupAdminRoutes(router) {
     const db = getDb();
     db.prepare('DELETE FROM news WHERE id = ?').run(req.params.id);
     db.prepare("DELETE FROM notifications WHERE news_id = ? AND type = 'news'").run(req.params.id);
+    res.status(204).send();
+  });
+
+  // === Loyalty rewards (товары и услуги за баллы) ===
+  router.get('/rewards', (req, res) => {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM loyalty_rewards ORDER BY sort_order ASC, points_cost ASC, name ASC').all();
+    res.json(rows.map(r => ({ ...r, is_active: !!r.is_active })));
+  });
+
+  router.post('/rewards', (req, res) => {
+    const { name, description, points_cost, image_url, is_active, sort_order } = req.body || {};
+    if (!name) return res.status(400).json({ error: 'name обязателен' });
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO loyalty_rewards (id, name, description, points_cost, image_url, is_active, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, name, description || '', points_cost ?? 0, image_url || null, is_active !== false ? 1 : 0, sort_order ?? 0, now);
+    const row = db.prepare('SELECT * FROM loyalty_rewards WHERE id = ?').get(id);
+    res.status(201).json({ ...row, is_active: !!row.is_active });
+  });
+
+  router.put('/rewards/:id', (req, res) => {
+    const db = getDb();
+    const { name, description, points_cost, image_url, is_active, sort_order } = req.body || {};
+    const row = db.prepare('SELECT * FROM loyalty_rewards WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Награда не найдена' });
+    db.prepare(`
+      UPDATE loyalty_rewards SET name=?, description=?, points_cost=?, image_url=?, is_active=?, sort_order=?
+      WHERE id=?
+    `).run(name ?? row.name, description ?? row.description, points_cost ?? row.points_cost, image_url ?? row.image_url, is_active !== false ? 1 : 0, sort_order ?? row.sort_order, req.params.id);
+    const updated = db.prepare('SELECT * FROM loyalty_rewards WHERE id = ?').get(req.params.id);
+    res.json({ ...updated, is_active: !!updated.is_active });
+  });
+
+  router.delete('/rewards/:id', (req, res) => {
+    const db = getDb();
+    db.prepare('DELETE FROM loyalty_rewards WHERE id = ?').run(req.params.id);
     res.status(204).send();
   });
 

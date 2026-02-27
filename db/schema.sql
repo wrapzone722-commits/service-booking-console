@@ -10,10 +10,14 @@ CREATE TABLE IF NOT EXISTS clients (
   first_name TEXT DEFAULT '',
   last_name TEXT DEFAULT '',
   phone TEXT DEFAULT '',
+  -- Нормализованный телефон (только цифры). Нужен чтобы привязывать баллы к клиенту, а не к device_id
+  phone_norm TEXT,
   email TEXT,
   avatar_url TEXT,
   selected_car_id TEXT,
   social_links TEXT, -- JSON: {telegram, whatsapp, instagram, vk}
+  -- Баллы лояльности закреплены за клиентом (переносятся при смене устройства по телефону)
+  loyalty_points INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
@@ -95,6 +99,29 @@ CREATE TABLE IF NOT EXISTS car_folders (
 -- Клиент привязан к выбранному авто
 -- selected_car_id в clients
 
+-- Товары и услуги за баллы (обмен в приложении)
+CREATE TABLE IF NOT EXISTS loyalty_rewards (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  points_cost INTEGER NOT NULL DEFAULT 0,
+  image_url TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+-- История обменов баллов (клиент обменял баллы на награду)
+CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+  id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  reward_id TEXT NOT NULL,
+  points_spent INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (client_id) REFERENCES clients(id),
+  FOREIGN KEY (reward_id) REFERENCES loyalty_rewards(id)
+);
+
 -- Настройки
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -109,4 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_client ON notifications(client_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_news ON notifications(news_id);
 CREATE INDEX IF NOT EXISTS idx_clients_device ON clients(device_id);
 CREATE INDEX IF NOT EXISTS idx_clients_api_key ON clients(api_key);
+CREATE INDEX IF NOT EXISTS idx_clients_phone_norm ON clients(phone_norm);
 CREATE INDEX IF NOT EXISTS idx_news_created ON news(created_at);
+CREATE INDEX IF NOT EXISTS idx_loyalty_rewards_active ON loyalty_rewards(is_active);
+CREATE INDEX IF NOT EXISTS idx_loyalty_redemptions_client ON loyalty_redemptions(client_id);

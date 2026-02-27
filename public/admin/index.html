@@ -15,6 +15,7 @@
         <button data-page="bookings">Записи</button>
         <button data-page="posts">Посты</button>
         <button data-page="news">Новости</button>
+        <button data-page="rewards">Товары и услуги за баллы</button>
         <button data-page="control">Контроль записи</button>
         <button data-page="clients">Клиенты</button>
         <button data-page="settings">Настройки</button>
@@ -55,6 +56,13 @@
         <h2>Новости</h2>
         <button id="btnAddNews">+ Добавить новость</button>
         <div id="newsList"></div>
+      </div>
+
+      <div id="rewardsScreen" class="screen hidden">
+        <h2>Товары и услуги за баллы</h2>
+        <p class="hint">Клиенты смогут обменивать баллы на эти товары/услуги в приложении.</p>
+        <button id="btnAddReward">+ Добавить товар или услугу</button>
+        <div id="rewardsList"></div>
       </div>
 
       <div id="controlScreen" class="screen hidden">
@@ -150,6 +158,31 @@
         </div>
       </form>
       <p id="adminError" class="error hidden"></p>
+    </div>
+  </div>
+
+  <!-- Modal: Reward form (товар/услуга за баллы) -->
+  <div id="rewardModal" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="rewardModalTitle">Добавить товар/услугу за баллы</h3>
+      <form id="rewardForm">
+        <input type="hidden" id="rewardId">
+        <label>Название *</label>
+        <input type="text" id="rewardName" required placeholder="Например: Бесплатная мойка">
+        <label>Описание</label>
+        <textarea id="rewardDescription" placeholder="Краткое описание для клиента"></textarea>
+        <label>Стоимость (баллов) *</label>
+        <input type="number" id="rewardPointsCost" value="0" min="1" required>
+        <label>URL изображения</label>
+        <input type="url" id="rewardImageUrl" placeholder="https://...">
+        <label>Порядок сортировки</label>
+        <input type="number" id="rewardSortOrder" value="0">
+        <label><input type="checkbox" id="rewardActive" checked> Доступно клиентам</label>
+        <div class="modal-actions">
+          <button type="button" id="btnCancelReward">Отмена</button>
+          <button type="submit">Сохранить</button>
+        </div>
+      </form>
     </div>
   </div>
 

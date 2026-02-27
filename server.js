@@ -18,6 +18,7 @@ import { listNotifications, markRead } from './routes/notifications.js';
 import { listCars } from './routes/cars.js';
 import { listNews } from './routes/news.js';
 import { getBookingAct } from './routes/act.js';
+import { listRewards, redeemReward } from './routes/rewards.js';
 import { setupAdminRoutes } from './routes/admin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -58,6 +59,9 @@ api.get('/notifications', requireAuth, listNotifications);
 api.patch('/notifications/:id/read', requireAuth, markRead);
 
 api.get('/news', requireAuth, listNews);
+
+api.get('/rewards', requireAuth, listRewards);
+api.post('/rewards/:id/redeem', requireAuth, redeemReward);
 
 app.use('/api/v1', api);
 

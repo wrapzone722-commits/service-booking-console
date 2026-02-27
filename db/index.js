@@ -35,6 +35,36 @@ export function initDatabase(dbPath = null) {
     db.exec('ALTER TABLE clients ADD COLUMN selected_car_id TEXT');
   } catch (_) {}
 
+  // Миграция: добавить loyalty_points в clients если нет
+  try {
+    db.exec('ALTER TABLE clients ADD COLUMN loyalty_points INTEGER NOT NULL DEFAULT 0');
+  } catch (_) {}
+
+  // Миграция: добавить phone_norm в clients если нет
+  try {
+    db.exec('ALTER TABLE clients ADD COLUMN phone_norm TEXT');
+  } catch (_) {}
+
+  // Индекс для быстрого поиска клиента по телефону
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_clients_phone_norm ON clients(phone_norm)');
+  } catch (_) {}
+
+  // Backfill phone_norm для существующих клиентов (чтобы слияние по телефону работало сразу после обновления)
+  try {
+    const rows = db
+      .prepare("SELECT id, phone FROM clients WHERE (phone_norm IS NULL OR phone_norm = '') AND phone IS NOT NULL AND phone <> ''")
+      .all();
+    const upd = db.prepare("UPDATE clients SET phone_norm = ? WHERE id = ?");
+    for (const r of rows) {
+      const raw = String(r.phone || "").trim();
+      if (!raw || raw.toLowerCase().startsWith("device:")) continue;
+      const norm = raw.replace(/\\D/g, "");
+      if (norm.length < 6) continue;
+      upd.run(norm, r.id);
+    }
+  } catch (_) {}
+
   // Миграция: добавить rating и rating_comment в bookings если нет
   try {
     db.exec('ALTER TABLE bookings ADD COLUMN rating INTEGER');
@@ -89,6 +119,20 @@ function seedInitialData() {
     const insCar = db.prepare('INSERT INTO car_folders (id, name, image_url, sort_order, created_at) VALUES (?,?,?,?,?)');
     for (const c of cars) insCar.run(...c);
   }
+
+  // Товары/услуги за баллы (демо)
+  try {
+    const rewardCount = db.prepare('SELECT COUNT(*) as c FROM loyalty_rewards').get();
+    if (rewardCount.c === 0) {
+      const rewards = [
+        ['r1', 'Скидка 10% на следующую услугу', 'Один раз при записи', 50, null, 1, 0, now],
+        ['r2', 'Бесплатная мойка кузова', 'Мойка кузова в подарок', 100, null, 1, 1, now],
+        ['r3', 'Чай/кофе в зоне ожидания', 'Напиток при визите', 20, null, 1, 2, now],
+      ];
+      const ins = db.prepare('INSERT INTO loyalty_rewards (id, name, description, points_cost, image_url, is_active, sort_order, created_at) VALUES (?,?,?,?,?,?,?,?)');
+      for (const r of rewards) ins.run(...r);
+    }
+  } catch (_) {}
 
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('api_base_url', '')").run();
 }

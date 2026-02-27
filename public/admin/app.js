@@ -32,6 +32,7 @@ function showScreen(name) {
   if (name === 'bookings') loadBookings();
   if (name === 'posts') loadPosts();
   if (name === 'news') loadNews();
+  if (name === 'rewards') loadRewards();
   if (name === 'control') loadControl();
   if (name === 'clients') loadClients();
   if (name === 'settings') loadSettings();
@@ -73,7 +74,7 @@ async function loadBookings() {
           <h4>${escapeHtml(b.service_name)}</h4>
           <span class="status ${b.status}">${statusLabel(b.status)}</span>
         </div>
-        <p>${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${escapeHtml(b.phone || '')}</p>
+        <p>${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${renderContactLine(b.phone, b.email, b.social_links)}</p>
         <p>${formatDateTime(b.date_time)} · ${b.price} ₽</p>
         <div class="btn-group">
           ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
@@ -82,6 +83,7 @@ async function loadBookings() {
             ${b.status !== 'completed' ? `<button onclick="setStatus('${escapeAttr(b.id)}','completed')">Завершить</button>` : ''}
             ${!['cancelled','completed'].includes(b.status) ? `<button class="danger" onclick="setStatus('${escapeAttr(b.id)}','cancelled')">Отменить</button>` : ''}
           ` : ''}
+          ${renderContactButtons(b.phone, b.email, b.social_links)}
           ${b.status === 'completed' ? `<a class="btnlink" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
           <button onclick="openNotify('${b.user_id}')">Сообщение</button>
         </div>
@@ -101,9 +103,11 @@ async function loadClients() {
         <div class="card-header">
           <h4>${escapeHtml(c.first_name || '')} ${escapeHtml(c.last_name || '') || 'Клиент'}</h4>
         </div>
-        <p>${escapeHtml(c.phone || '')} · ${escapeHtml(c.email || '')}</p>
+        <p>${renderContactLine(c.phone, c.email, c.social_links)}</p>
+        ${typeof c.loyalty_points === 'number' ? `<p class="hint">Баллы: ${c.loyalty_points}</p>` : ''}
         <p class="hint">ID: ${escapeHtml(c.id)} · ${c.created_at?.slice(0,10)}</p>
         <div class="btn-group">
+          ${renderContactButtons(c.phone, c.email, c.social_links)}
           <button onclick="openNotify('${c.id}')">Отправить сообщение</button>
         </div>
       </div>
@@ -200,6 +204,55 @@ async function loadNews() {
   }
 }
 
+async function loadRewards() {
+  try {
+    const list = await api('/rewards');
+    const html = list.map(r => `
+      <div class="card" data-id="${r.id}">
+        <div class="card-header">
+          <h4>${escapeHtml(r.name)}</h4>
+          <span class="status ${r.is_active ? '' : 'cancelled'}">${r.is_active ? 'Доступно' : 'Скрыто'}</span>
+        </div>
+        <p>${escapeHtml(r.description || '')}</p>
+        <p class="hint">Стоимость: <strong>${r.points_cost} баллов</strong> · Порядок: ${r.sort_order ?? 0}</p>
+        <div class="btn-group">
+          <button onclick="editReward('${escapeAttr(r.id)}')">Изменить</button>
+          <button class="danger" onclick="deleteReward('${escapeAttr(r.id)}')">Удалить</button>
+        </div>
+      </div>
+    `).join('');
+    document.getElementById('rewardsList').innerHTML = html || '<p>Нет товаров и услуг за баллы</p>';
+  } catch (e) {
+    document.getElementById('rewardsList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+  }
+}
+
+function openRewardModal(item = null) {
+  document.getElementById('rewardId').value = item?.id || '';
+  document.getElementById('rewardModalTitle').textContent = item ? 'Редактировать товар/услугу' : 'Добавить товар или услугу за баллы';
+  document.getElementById('rewardName').value = item?.name || '';
+  document.getElementById('rewardDescription').value = item?.description || '';
+  document.getElementById('rewardPointsCost').value = item?.points_cost ?? 0;
+  document.getElementById('rewardImageUrl').value = item?.image_url || '';
+  document.getElementById('rewardSortOrder').value = item?.sort_order ?? 0;
+  document.getElementById('rewardActive').checked = item ? !!item.is_active : true;
+  document.getElementById('rewardModal').classList.remove('hidden');
+}
+
+function editReward(id) {
+  api('/rewards').then(list => {
+    const r = list.find(x => x.id === id);
+    if (!r) return;
+    openRewardModal(r);
+  });
+}
+
+async function deleteReward(id) {
+  if (!confirm('Удалить этот товар/услугу за баллы?')) return;
+  await api('/rewards/' + encodeURIComponent(id), { method: 'DELETE' });
+  loadRewards();
+}
+
 function openNewsModal(item = null) {
   document.getElementById('newsId').value = item?.id || '';
   document.getElementById('newsModalTitle').textContent = item ? 'Редактировать новость' : 'Добавить новость';
@@ -237,7 +290,7 @@ async function loadControl() {
           <h4>${escapeHtml(b.service_name)}</h4>
           <span class="status ${b.status}">${statusLabel(b.status)}</span>
         </div>
-        <p>${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${escapeHtml(b.phone || '')}</p>
+        <p>${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${renderContactLine(b.phone, b.email, b.social_links)}</p>
         <p>${formatDateTime(b.date_time)} · ${b.price} ₽</p>
         <div class="btn-group">
           ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
@@ -246,6 +299,7 @@ async function loadControl() {
             ${b.status !== 'completed' ? `<button onclick="setStatus('${escapeAttr(b.id)}','completed')">Завершить</button>` : ''}
             ${!['cancelled','completed'].includes(b.status) ? `<button class="danger" onclick="setStatus('${escapeAttr(b.id)}','cancelled')">Отменить</button>` : ''}
           ` : ''}
+          ${renderContactButtons(b.phone, b.email, b.social_links)}
           ${b.status === 'completed' ? `<a class="btnlink" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
           <button onclick="openNotify('${b.user_id}')">Сообщение</button>
         </div>
@@ -277,6 +331,91 @@ function escapeHtml(s) {
 
 function escapeAttr(s) {
   return escapeHtml(s).replace(/\"/g, '&quot;');
+}
+
+function parseSocialLinks(v) {
+  if (!v) return {};
+  if (typeof v === 'object') return v;
+  try {
+    const o = JSON.parse(v);
+    return o && typeof o === 'object' ? o : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function phoneDigits(raw) {
+  return String(raw || '').replace(/\D/g, '');
+}
+
+function phoneToE164DigitsRU(raw) {
+  const d = phoneDigits(raw);
+  if (!d) return '';
+  if (d.length === 11 && d.startsWith('8')) return '7' + d.slice(1);
+  if (d.length === 10) return '7' + d;
+  if (d.length === 11 && d.startsWith('7')) return d;
+  return d;
+}
+
+function buildTelHref(rawPhone) {
+  const d = phoneToE164DigitsRU(rawPhone);
+  if (!d) return '';
+  return 'tel:+' + d;
+}
+
+function buildWhatsAppHref(rawPhone) {
+  const d = phoneToE164DigitsRU(rawPhone);
+  if (!d) return '';
+  return 'https://wa.me/' + d;
+}
+
+function extractTelegramHandle(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  const withoutAt = s.startsWith('@') ? s.slice(1) : s;
+  // accept t.me links or username
+  const m = withoutAt.match(/(?:t\.me\/)?([A-Za-z0-9_]{3,})/);
+  return m ? m[1] : '';
+}
+
+function buildTelegramHref(socialLinks) {
+  const social = parseSocialLinks(socialLinks);
+  const handle = extractTelegramHandle(social.telegram);
+  if (!handle) return '';
+  return 'https://t.me/' + handle;
+}
+
+function renderContactLine(phone, email, socialLinks) {
+  const parts = [];
+  const telHref = buildTelHref(phone);
+  if (phone) {
+    parts.push(telHref ? `<a href="${escapeAttr(telHref)}">${escapeHtml(phone)}</a>` : escapeHtml(phone));
+  }
+  if (email) {
+    const mail = 'mailto:' + encodeURIComponent(String(email).trim());
+    parts.push(`<a href="${escapeAttr(mail)}">${escapeHtml(email)}</a>`);
+  }
+  const tgHref = buildTelegramHref(socialLinks);
+  if (tgHref) {
+    const handle = extractTelegramHandle(parseSocialLinks(socialLinks).telegram);
+    parts.push(`<a href="${escapeAttr(tgHref)}" target="_blank" rel="noopener">@${escapeHtml(handle)}</a>`);
+  }
+  return parts.join(' · ') || '—';
+}
+
+function renderContactButtons(phone, email, socialLinks) {
+  const btns = [];
+  const tel = buildTelHref(phone);
+  if (tel) btns.push(`<a class="btnlink" href="${escapeAttr(tel)}">Позвонить</a>`);
+  const wa = buildWhatsAppHref(phone);
+  if (wa) btns.push(`<a class="btnlink" href="${escapeAttr(wa)}" target="_blank" rel="noopener">WhatsApp</a>`);
+  const tg = buildTelegramHref(socialLinks);
+  if (tg) btns.push(`<a class="btnlink" href="${escapeAttr(tg)}" target="_blank" rel="noopener">Telegram</a>`);
+  if (email) {
+    const mail = 'mailto:' + encodeURIComponent(String(email).trim());
+    btns.push(`<a class="btnlink" href="${escapeAttr(mail)}">Email</a>`);
+  }
+  return btns.join('');
 }
 
 function openAdminModal() {
@@ -401,6 +540,32 @@ document.getElementById('btnSaveSettings').onclick = async () => {
 };
 
 document.getElementById('btnAddNews').onclick = () => openNewsModal(null);
+
+document.getElementById('btnAddReward').onclick = () => openRewardModal(null);
+
+document.getElementById('rewardForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('rewardId').value;
+  const body = {
+    name: document.getElementById('rewardName').value,
+    description: document.getElementById('rewardDescription').value,
+    points_cost: parseInt(document.getElementById('rewardPointsCost').value) || 0,
+    image_url: document.getElementById('rewardImageUrl').value.trim() || null,
+    sort_order: parseInt(document.getElementById('rewardSortOrder').value) || 0,
+    is_active: document.getElementById('rewardActive').checked,
+  };
+  if (id) {
+    await api('/rewards/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) });
+  } else {
+    await api('/rewards', { method: 'POST', body: JSON.stringify(body) });
+  }
+  document.getElementById('rewardModal').classList.add('hidden');
+  loadRewards();
+};
+
+document.getElementById('btnCancelReward').onclick = () => {
+  document.getElementById('rewardModal').classList.add('hidden');
+};
 
 document.getElementById('newsForm').onsubmit = async (e) => {
   e.preventDefault();

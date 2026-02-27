@@ -26,23 +26,37 @@ export function getSlots(req, res) {
   const [endH, endM] = (post.end_time || '18:00').split(':').map(Number);
   const interval = post.interval_minutes || 30;
 
-  const dateObj = new Date(date + 'T00:00:00Z');
-  if (isNaN(dateObj.getTime())) {
+  const parts = String(date).split('-').map(Number);
+  const y = parts[0], m = parts[1], d = parts[2];
+  if (!y || !m || !d) {
     return res.status(400).json({ error: 'Некорректная дата' });
   }
 
-  const slots = [];
-  let current = new Date(Date.UTC(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(), startH, startM, 0));
-  const dayEnd = new Date(Date.UTC(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(), endH, endM, 0));
+  // Слоты должны начинаться с 09:00 по "времени сервиса", независимо от таймзоны сервера.
+  // SERVICE_TZ_OFFSET_MINUTES: минуты смещения относительно UTC (например для UTC+5: 300).
+  // Если не задано — используем таймзону сервера.
+  const serviceOffsetMin = getServiceOffsetMinutes();
 
-  while (current < dayEnd) {
-    const slotTime = current.toISOString();
+  const slots = [];
+  let currentMs = Date.UTC(y, m - 1, d, startH, startM, 0) - serviceOffsetMin * 60 * 1000;
+  const dayEndMs = Date.UTC(y, m - 1, d, endH, endM, 0) - serviceOffsetMin * 60 * 1000;
+
+  while (currentMs < dayEndMs) {
+    const slotTime = new Date(currentMs).toISOString();
     const isAvailable = isSlotAvailable(db, slotTime, service.duration, postId);
     slots.push({ time: slotTime, is_available: isAvailable });
-    current = new Date(current.getTime() + interval * 60 * 1000);
+    currentMs += interval * 60 * 1000;
   }
 
   res.json(slots);
+}
+
+function getServiceOffsetMinutes() {
+  const raw = process.env.SERVICE_TZ_OFFSET_MINUTES;
+  const n = raw == null ? NaN : Number(raw);
+  if (Number.isFinite(n)) return n;
+  // JS offset: minutes behind UTC (e.g. UTC+5 => -300). Нам нужен "минуты вперед" (e.g. +300).
+  return -new Date().getTimezoneOffset();
 }
 
 function isSlotAvailable(db, slotStartISO, duration, postId) {
