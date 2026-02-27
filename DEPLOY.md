@@ -49,3 +49,5 @@ cd web-console
 docker build -t service-booking-console:local .
 docker run -p 3000:3000 -v service_booking_data:/data -e DB_PATH=/data/service_booking.db service-booking-console:local
 ```
+
+Версия в service-booking-console обновляется при каждом пуше в `web-console/` из репозитория ServiceBooking.
