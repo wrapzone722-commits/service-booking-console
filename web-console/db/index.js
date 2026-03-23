@@ -78,6 +78,11 @@ export function initDatabase(dbPath = null) {
     db.exec('ALTER TABLE notifications ADD COLUMN news_id TEXT');
   } catch (_) {}
 
+  // Миграция: APNs device token для push-уведомлений
+  try {
+    db.exec('ALTER TABLE clients ADD COLUMN apns_device_token TEXT');
+  } catch (_) {}
+
   seedInitialData();
   return db;
 }

@@ -1,0 +1,9 @@
+# Исключить из контекста сборки — только npm, без pnpm/yarn
+node_modules
+.git
+.gitignore
+.env*
+.DS_Store
+pnpm-lock.yaml
+yarn.lock
+bun.lockb

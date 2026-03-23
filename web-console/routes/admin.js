@@ -5,6 +5,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { getBookingActAdmin } from './act.js';
+import { sendPushToClient } from '../services/push.js';
+import { serveImagePreview } from './imagePreview.js';
+import { listCandidates, updateCandidateStatus, deleteCandidate } from './candidates.js';
 
 const ADMIN_HEADER = 'x-admin-key';
 const ADMIN_PASSWORD = '2300';
@@ -94,11 +97,12 @@ export function setupAdminRoutes(router) {
     let inProgressStartedAt = row.in_progress_started_at;
     if (status === 'in_progress' && !row.in_progress_started_at) {
       inProgressStartedAt = new Date().toISOString();
-      // Сервисное уведомление: «Услуга начата»
       createNotification(db, row.user_id, 'Услуга началась. Следите за прогрессом в приложении.', 'Услуга в процессе', 'service');
+      sendPushToClient(db, row.user_id, { title: 'Услуга в процессе', body: 'Услуга началась. Следите за прогрессом в приложении.', bookingId: row.id }).catch(() => {});
     }
     if (status === 'completed') {
       createNotification(db, row.user_id, 'Ваш авто готов. Администратор подтвердил завершение. Можете забирать ключи.', 'Услуга завершена', 'service');
+      sendPushToClient(db, row.user_id, { title: 'Услуга завершена', body: 'Ваш авто готов. Можете забирать ключи.', bookingId: row.id }).catch(() => {});
       // Начисление баллов лояльности: 10% от суммы, минимум 1 балл.
       // Важно: начисляем только при переходе в completed, чтобы не было двойного начисления.
       if (row.status !== 'completed') {
@@ -111,6 +115,7 @@ export function setupAdminRoutes(router) {
     }
     if (status === 'confirmed') {
       createNotification(db, row.user_id, `Запись на ${row.service_id} подтверждена. Ждём вас в указанное время.`, 'Запись подтверждена', 'service');
+      sendPushToClient(db, row.user_id, { title: 'Запись подтверждена', body: 'Ждём вас в указанное время.', bookingId: row.id }).catch(() => {});
     }
 
     db.prepare('UPDATE bookings SET status = ?, in_progress_started_at = ? WHERE id = ?')
@@ -269,8 +274,14 @@ export function setupAdminRoutes(router) {
       INSERT INTO notifications (id, client_id, body, title, type, read, created_at)
       VALUES (?, ?, ?, ?, 'admin', 0, ?)
     `).run(id, client_id, body, title || null, now);
+    sendPushToClient(db, client_id, { title: title || 'Сообщение', body }).catch(() => {});
     res.status(201).json({ id, body, title, type: 'admin', created_at: now });
   });
+
+  // === Candidates ===
+  router.get('/candidates', (req, res) => listCandidates(req, res));
+  router.patch('/candidates/:id/status', (req, res) => updateCandidateStatus(req, res));
+  router.delete('/candidates/:id', (req, res) => deleteCandidate(req, res));
 
   // === Settings ===
   router.get('/settings', requireAdmin, (req, res) => {
@@ -280,6 +291,9 @@ export function setupAdminRoutes(router) {
     for (const r of rows) obj[r.key] = r.value;
     res.json(obj);
   });
+
+  /** Превью изображения для админки (сжатие, lazy-load в списках) */
+  router.get('/image/preview', requireAdmin, serveImagePreview);
 
   router.put('/settings', requireAdmin, (req, res) => {
     const db = getDb();

@@ -34,16 +34,34 @@ npm start
 | GET | `/api/v1/posts` | Посты (боксы) |
 | GET | `/api/v1/slots` | Слоты времени |
 | GET/PUT | `/api/v1/profile` | Профиль |
+| PUT | `/api/v1/profile/push_token` | Регистрация APNs device token для push |
 | GET | `/api/v1/notifications` | Уведомления |
 | PATCH | `/api/v1/notifications/:id/read` | Прочитано |
+| GET | `/api/v1/image/preview?src=…&w=480` | Сжатое превью JPEG/WebP (экономия трафика в iOS); `src` — URL на том же хосте, что API, или из `IMAGE_PREVIEW_HOSTS` |
 
 Все запросы (кроме `/clients/register`) — с заголовком `Authorization: Bearer <api_key>`.
+
+## Push-уведомления (APNs)
+
+Чтобы веб-консоль **отправляла** push при смене статуса записи или при отправке сообщения из админки, задайте переменные окружения:
+
+| Переменная | Описание |
+|------------|----------|
+| `APNS_KEY_ID` | Key ID ключа APNs (Apple Developer → Keys) |
+| `APNS_TEAM_ID` | Team ID (10 символов) |
+| `APNS_BUNDLE_ID` | Bundle ID приложения, например `com.servicebooking.app` |
+| `APNS_KEY_PATH` | Путь к файлу .p8 (приватный ключ APNs) |
+| или `APNS_KEY` | Содержимое файла .p8 (строка) |
+| `APNS_PRODUCTION` | `1` для продакшена (по умолчанию sandbox) |
+
+Без этих переменных консоль работает как раньше; push просто не отправляются. Токен устройства приложение передаёт на `PUT /api/v1/profile/push_token`.
 
 ## Live Activity (виджет)
 
 При переводе записи в статус **«В процессе»** в админ-панели:
 - сохраняется `in_progress_started_at`
 - на устройстве клиента автоматически запускается Live Activity
+- при настроенных APNs клиенту уходит push «Услуга в процессе»
 
 ## Данные
 
