@@ -157,6 +157,7 @@ async function loadCandidates() {
           ${c.quiz_total > 0 ? `<p class="card-meta">Тест: <span class="${scoreClass} quiz-score">${c.quiz_score} / ${c.quiz_total}</span></p>` : ''}
           <p class="hint">${formatDateTime(c.created_at)}</p>
           <div class="btn-group">
+            ${renderCandidateContactButtons(c.phone, c.email)}
             <button class="btn btn--sm" onclick="viewCandidate('${escapeAttr(c.id)}')">Подробнее</button>
             ${c.status === 'new' ? `<button class="btn btn--sm btn--primary" onclick="setCandidateStatus('${escapeAttr(c.id)}','reviewed')">Просмотрено</button>` : ''}
             ${c.status !== 'interview' && c.status !== 'accepted' && c.status !== 'rejected' ? `<button class="btn btn--sm" onclick="setCandidateStatus('${escapeAttr(c.id)}','interview')">На собеседование</button>` : ''}
@@ -193,12 +194,20 @@ async function viewCandidate(id) {
         <dd><span class="status ${c.status}">${candidateStatusLabel(c.status)}</span></dd>
         <dt>Email</dt>
         <dd><a href="mailto:${escapeAttr(c.email)}" style="color:var(--lime)">${escapeHtml(c.email)}</a></dd>
-        ${c.phone ? `<dt>Телефон</dt><dd>${escapeHtml(c.phone)}</dd>` : ''}
+        ${c.phone ? `<dt>Телефон</dt><dd><a href="${escapeAttr(buildTelHref(c.phone))}" style="color:var(--lime)">${escapeHtml(c.phone)}</a></dd>` : ''}
         ${c.desired_role ? `<dt>Желаемая позиция</dt><dd>${escapeHtml(c.desired_role)}</dd>` : ''}
         ${c.about ? `<dt>О себе</dt><dd>${escapeHtml(c.about)}</dd>` : ''}
         <dt>Дата отклика</dt>
         <dd>${formatDateTime(c.created_at)}</dd>
       </dl>`;
+
+    const contactButtons = renderCandidateContactButtons(c.phone, c.email);
+    if (contactButtons) {
+      html += `
+        <div class="btn-group" style="margin-top:1rem">
+          ${contactButtons}
+        </div>`;
+    }
 
     if (c.quiz_total > 0) {
       html += `
@@ -239,6 +248,16 @@ async function deleteCandidate(id) {
 function candidateStatusLabel(s) {
   const m = { new: 'Новый', reviewed: 'Просмотрено', interview: 'Собеседование', accepted: 'Принят', rejected: 'Отклонён' };
   return m[s] || s;
+}
+
+function renderCandidateContactButtons(phone, email) {
+  const btns = [];
+  const tel = buildTelHref(phone);
+  if (tel) btns.push(`<a class="btn btn--sm" href="${escapeAttr(tel)}">Позвонить</a>`);
+  const wa = buildWhatsAppHref(phone);
+  if (wa) btns.push(`<a class="btn btn--sm" href="${escapeAttr(wa)}" target="_blank" rel="noopener">WhatsApp</a>`);
+  if (email) btns.push(`<a class="btn btn--sm" href="mailto:${encodeURIComponent(String(email).trim())}">Email</a>`);
+  return btns.join('');
 }
 
 /* ── Clients ── */
