@@ -487,10 +487,11 @@ export function getCandidate(id: string): Candidate | null {
 
 export function createCandidate(data: {
   full_name: string;
-  email: string;
+  email?: string;
   phone?: string;
   desired_role?: string;
   about?: string;
+  photo?: string | null;
   quiz_answers?: QuizAnswer[];
 }): Candidate {
   const id = `cand_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -498,12 +499,13 @@ export function createCandidate(data: {
   const candidate: Candidate = {
     _id: id,
     full_name: data.full_name.trim(),
-    email: data.email.trim(),
+    email: (data.email || "").trim(),
     phone: data.phone || "",
     desired_role: data.desired_role || "",
     about: data.about || "",
+    photo: data.photo || null,
     quiz_answers: answers,
-    quiz_score: answers.filter((a) => a.correct).length,
+    quiz_score: answers.filter((a) => !!a.correct).length,
     quiz_total: answers.length,
     status: "new",
     notes: "",

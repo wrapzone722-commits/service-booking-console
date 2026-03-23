@@ -117,12 +117,21 @@ export default function Candidates() {
                 onClick={() => setSelected(c)}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {c.photo ? (
+                      <img src={c.photo} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground flex-shrink-0">
+                        {c.full_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
                     <p className="font-semibold text-foreground truncate">{c.full_name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{c.email}{c.phone ? ` · ${c.phone}` : ""}</p>
                     {c.desired_role && (
                       <p className="text-xs text-muted-foreground">{c.desired_role}</p>
                     )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {c.quiz_total > 0 && (
@@ -149,7 +158,16 @@ export default function Candidates() {
           {selected && (
             <>
               <DialogHeader>
-                <DialogTitle>{selected.full_name}</DialogTitle>
+                <DialogTitle className="flex items-center gap-3">
+                  {selected.photo ? (
+                    <img src={selected.photo} alt="" className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-lg font-bold text-muted-foreground flex-shrink-0">
+                      {selected.full_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <span>{selected.full_name}</span>
+                </DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4 mt-2">

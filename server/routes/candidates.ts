@@ -6,11 +6,11 @@ const ALLOWED_STATUSES: CandidateStatus[] = ["new", "reviewed", "interview", "ac
 
 // POST /api/v1/candidates — public (from website)
 export const submitCandidate: RequestHandler = (req, res) => {
-  const { full_name, email, phone, desired_role, about, quiz_answers } = req.body ?? {};
-  if (!full_name || !email) {
-    return res.status(400).json({ error: "Validation error", message: "full_name и email обязательны" });
+  const { full_name, email, phone, desired_role, about, quiz_answers, photo } = req.body ?? {};
+  if (!full_name) {
+    return res.status(400).json({ error: "Validation error", message: "full_name обязательно" });
   }
-  const candidate = db.createCandidate({ full_name, email, phone, desired_role, about, quiz_answers });
+  const candidate = db.createCandidate({ full_name, email, phone, desired_role, about, quiz_answers, photo });
   res.status(201).json(candidate);
 };
 

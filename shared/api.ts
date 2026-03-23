@@ -490,7 +490,7 @@ export type CandidateStatus = "new" | "reviewed" | "interview" | "accepted" | "r
 export interface QuizAnswer {
   question: string;
   answer: string;
-  correct: boolean;
+  correct?: boolean;
 }
 
 export interface Candidate {
@@ -500,6 +500,7 @@ export interface Candidate {
   phone: string;
   desired_role: string;
   about: string;
+  photo?: string | null;
   quiz_answers: QuizAnswer[];
   quiz_score: number;
   quiz_total: number;
