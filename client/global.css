@@ -200,10 +200,35 @@
   }
 }
 
-.animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-.animate-scale-in { animation: scaleIn 0.3s ease-out; }
+.animate-slide-in { animation: slideIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.animate-fade-in { animation: fadeIn 0.3s ease-out both; }
+.animate-scale-in { animation: scaleIn 0.3s ease-out both; }
 .animate-pulse-soft { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+@keyframes cardReveal {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-card-reveal {
+  opacity: 0;
+  animation: cardReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-page-in {
+  animation: pageIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px hsl(220 30% 20% / 0.12);
+}
 
 /* iOS-style поверхности: размытие, мягкая тень, скругление */
 .ios-surface {

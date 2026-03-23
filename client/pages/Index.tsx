@@ -161,8 +161,8 @@ export default function Index() {
               ].map((stat, idx) => (
                 <div
                   key={idx}
-                  className="bg-white rounded-lg p-3 border border-border hover:shadow-md transition-all duration-300 animate-slide-in"
-                  style={{ animationDelay: `${idx * 50}ms` }}
+                  className="bg-white rounded-xl p-3 border border-border hover-lift animate-card-reveal"
+                  style={{ animationDelay: `${idx * 80}ms` }}
                 >
                   <p className="text-xs text-muted-foreground mb-1">{stat.label}</p>
                   <div className="flex items-center justify-between">

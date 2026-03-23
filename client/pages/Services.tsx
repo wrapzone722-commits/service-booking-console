@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { Service, CreateServiceRequest } from "@shared/api";
 
-const PREVIEW_SIZE = 200;
-const THUMB_SIZE = 80;
+const PREVIEW_SIZE = 800;
+const THUMB_SIZE = 400;
 
 function resizeImage(file: File, maxSize: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -21,11 +21,13 @@ function resizeImage(file: File, maxSize: number, quality: number): Promise<stri
           height = maxSize;
         }
       }
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = Math.round(width);
+      canvas.height = Math.round(height);
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("No canvas"));
-      ctx.drawImage(img, 0, 0, width, height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL("image/jpeg", quality));
     };
     img.onerror = () => {
@@ -183,8 +185,8 @@ export default function Services() {
     if (!file || !file.type.startsWith("image/")) return;
     try {
       const [preview, thumb] = await Promise.all([
-        resizeImage(file, PREVIEW_SIZE, 0.7),
-        resizeImage(file, THUMB_SIZE, 0.5),
+        resizeImage(file, PREVIEW_SIZE, 0.92),
+        resizeImage(file, THUMB_SIZE, 0.85),
       ]);
       setFormData((f) => ({ ...f, image_url: preview, image_thumbnail_url: thumb }));
     } catch (err) {
@@ -222,7 +224,7 @@ export default function Services() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background animate-page-in">
       {/* Header */}
       <div className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="px-4 md:px-6 py-3 flex items-center justify-between">
@@ -265,7 +267,7 @@ export default function Services() {
               <div className="flex-shrink-0">
                 <label className="block text-xs font-semibold text-foreground mb-1">Фото услуги</label>
                 <div className="flex gap-3 items-start">
-                  <div className="w-24 h-24 rounded-lg border border-border bg-muted overflow-hidden flex items-center justify-center">
+                  <div className="w-40 h-28 rounded-lg border border-border bg-muted overflow-hidden flex items-center justify-center">
                     {(formData.image_url || formData.image_thumbnail_url) ? (
                       <img src={formData.image_url || formData.image_thumbnail_url} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -366,33 +368,26 @@ export default function Services() {
             {services.map((service, idx) => (
               <div
                 key={service._id}
-                className={`rounded-lg p-3 shadow-sm border transition-all duration-300 animate-slide-in ${
+                className={`rounded-xl p-3 shadow-sm border animate-card-reveal hover-lift ${
                   service.is_active 
-                    ? "bg-white border-border hover:shadow-lg hover:border-primary" 
+                    ? "bg-white border-border" 
                     : "bg-gray-100 border-gray-300 opacity-75"
                 }`}
-                style={{ animationDelay: `${idx * 30}ms` }}
+                style={{ animationDelay: `${idx * 60}ms` }}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 ${
-                    service.is_active ? "bg-blue-100" : "bg-gray-200"
-                  }`}>
-                    {(service.image_thumbnail_url || service.image_url) ? (
-                      <img src={service.image_thumbnail_url || service.image_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <span className="text-xl">💼</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleToggleActive(service)}
-                    className={`px-2 py-0.5 text-xs font-semibold rounded-full transition-colors ${
-                      service.is_active 
-                        ? "bg-green-100 text-green-700 hover:bg-green-200" 
-                        : "bg-gray-300 text-gray-600 hover:bg-gray-400"
-                    }`}
-                  >
+                <div className="relative mb-3 rounded-lg overflow-hidden bg-muted" style={{ aspectRatio: "16/10" }}>
+                  {(service.image_thumbnail_url || service.image_url) ? (
+                    <img src={service.image_thumbnail_url || service.image_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-3xl text-muted-foreground">💼</div>
+                  )}
+                  <span className={`absolute top-2 right-2 px-2 py-0.5 text-xs font-semibold rounded-full cursor-pointer transition-colors ${
+                    service.is_active
+                      ? "bg-green-100 text-green-700 hover:bg-green-200"
+                      : "bg-gray-300 text-gray-600 hover:bg-gray-400"
+                  }`} onClick={() => handleToggleActive(service)}>
                     {service.is_active ? "✓ Активна" : "○ Неактивна"}
-                  </button>
+                  </span>
                 </div>
                 <h3 className={`font-semibold text-sm mb-1 ${service.is_active ? "text-foreground" : "text-gray-500"}`}>
                   {service.name}
