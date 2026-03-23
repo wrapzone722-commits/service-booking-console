@@ -19,6 +19,7 @@ import * as companyRoutes from "./routes/company";
 import * as employeesRoutes from "./routes/employees";
 import * as shiftsRoutes from "./routes/shifts";
 import * as loyaltyRoutes from "./routes/loyalty";
+import * as candidatesRoutes from "./routes/candidates";
 import { optionalBearerAuth, requireAuth, requireBearerAuth } from "./middleware/auth";
 
 export function createServer() {
@@ -155,6 +156,13 @@ export function createServer() {
   app.delete("/api/v1/connections/:id", connectionsRoutes.deleteConnection);
   app.post("/api/v1/connections/link-client", connectionsRoutes.linkClientToDevice);
   app.get("/api/v1/connections/verify/token", connectionsRoutes.getConnectionByToken);
+
+  // API v1 routes (Candidates — website submissions)
+  app.post("/api/v1/candidates", candidatesRoutes.submitCandidate);
+  app.get("/api/v1/candidates", requireAuth, candidatesRoutes.getCandidates);
+  app.get("/api/v1/candidates/:id", requireAuth, candidatesRoutes.getCandidate);
+  app.patch("/api/v1/candidates/:id/status", requireAuth, candidatesRoutes.setCandidateStatus);
+  app.delete("/api/v1/candidates/:id", requireAuth, candidatesRoutes.deleteCandidate);
 
   // API v1 routes (Authentication) — только вход по телефону + пароль
   app.post("/api/v1/auth/login/phone", authRoutes.loginByPhone);

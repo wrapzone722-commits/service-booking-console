@@ -1,4 +1,4 @@
-import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem, Employee, Shift, LoyaltyRules, LoyaltyTransaction } from "@shared/api";
+import { Service, Booking, User, Post, PostIntervalMinutes, Account, Notification, CarFolder, CarImage, NewsItem, Employee, Shift, LoyaltyRules, LoyaltyTransaction, Candidate, CandidateStatus, QuizAnswer } from "@shared/api";
 import type { DisplayPhotoRule } from "@shared/api";
 import crypto from "crypto";
 import fs from "fs";
@@ -15,6 +15,7 @@ const EMPLOYEES_FILE = path.join(DATA_DIR, "employees.json");
 const SHIFTS_FILE = path.join(DATA_DIR, "shifts.json");
 const LOYALTY_RULES_FILE = path.join(DATA_DIR, "loyalty-rules.json");
 const LOYALTY_TX_FILE = path.join(DATA_DIR, "loyalty-transactions.json");
+const CANDIDATES_FILE = path.join(DATA_DIR, "candidates.json");
 
 type TelegramBotCredentials = {
   bot_token: string;
@@ -81,6 +82,7 @@ interface Database {
   news: Map<string, NewsItem>;
   carFolders: Map<string, CarFolder>;
   loyaltyTransactions: LoyaltyTransaction[];
+  candidates: Map<string, Candidate>;
 }
 
 export interface TelegramBotSettings {
@@ -124,6 +126,7 @@ let db: Database = {
   news: new Map(),
   carFolders: new Map(),
   loyaltyTransactions: [],
+  candidates: new Map(),
   telegram_bot_settings: {
     enabled: false,
     notify_new_booking: true,
@@ -447,6 +450,84 @@ function saveLoyaltyTransactionsToFile(): void {
 
 loadLoyaltyRulesFromFile();
 loadLoyaltyTransactionsFromFile();
+
+// ── Candidates persistence ──
+
+function loadCandidatesFromFile(): void {
+  try {
+    if (fs.existsSync(CANDIDATES_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(CANDIDATES_FILE, "utf-8"));
+      if (Array.isArray(raw)) {
+        for (const c of raw) db.candidates.set(c._id, c);
+      }
+    }
+  } catch { /* first run */ }
+}
+
+function saveCandidatesToFile(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(CANDIDATES_FILE, JSON.stringify(Array.from(db.candidates.values()), null, 2));
+  } catch (e) {
+    console.error("Failed to save candidates:", e);
+  }
+}
+
+loadCandidatesFromFile();
+
+export function getCandidates(statusFilter?: CandidateStatus): Candidate[] {
+  let arr = Array.from(db.candidates.values());
+  if (statusFilter) arr = arr.filter((c) => c.status === statusFilter);
+  return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export function getCandidate(id: string): Candidate | null {
+  return db.candidates.get(id) || null;
+}
+
+export function createCandidate(data: {
+  full_name: string;
+  email: string;
+  phone?: string;
+  desired_role?: string;
+  about?: string;
+  quiz_answers?: QuizAnswer[];
+}): Candidate {
+  const id = `cand_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const answers = Array.isArray(data.quiz_answers) ? data.quiz_answers : [];
+  const candidate: Candidate = {
+    _id: id,
+    full_name: data.full_name.trim(),
+    email: data.email.trim(),
+    phone: data.phone || "",
+    desired_role: data.desired_role || "",
+    about: data.about || "",
+    quiz_answers: answers,
+    quiz_score: answers.filter((a) => a.correct).length,
+    quiz_total: answers.length,
+    status: "new",
+    notes: "",
+    created_at: new Date().toISOString(),
+  };
+  db.candidates.set(id, candidate);
+  saveCandidatesToFile();
+  return candidate;
+}
+
+export function updateCandidateStatus(id: string, status: CandidateStatus, notes?: string): Candidate | null {
+  const c = db.candidates.get(id);
+  if (!c) return null;
+  c.status = status;
+  if (notes !== undefined) c.notes = notes;
+  saveCandidatesToFile();
+  return c;
+}
+
+export function deleteCandidate(id: string): boolean {
+  const ok = db.candidates.delete(id);
+  if (ok) saveCandidatesToFile();
+  return ok;
+}
 
 export function getLoyaltyRules(): LoyaltyRules {
   return { ...loyaltyRulesStore, bonuses: Array.isArray(loyaltyRulesStore.bonuses) ? [...loyaltyRulesStore.bonuses] : [] };

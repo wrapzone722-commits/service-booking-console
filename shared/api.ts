@@ -483,6 +483,31 @@ export interface EmployeesImportPayload {
   shifts?: Shift[];
 }
 
+// ====== CANDIDATES ======
+
+export type CandidateStatus = "new" | "reviewed" | "interview" | "accepted" | "rejected";
+
+export interface QuizAnswer {
+  question: string;
+  answer: string;
+  correct: boolean;
+}
+
+export interface Candidate {
+  _id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  desired_role: string;
+  about: string;
+  quiz_answers: QuizAnswer[];
+  quiz_score: number;
+  quiz_total: number;
+  status: CandidateStatus;
+  notes: string;
+  created_at: string;
+}
+
 // ====== ERROR RESPONSE ======
 export interface ErrorResponse {
   error: string;
