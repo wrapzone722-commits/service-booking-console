@@ -4,6 +4,8 @@
  */
 import { getDb } from '../db/index.js';
 
+const STUDIO_OFFSET_HOURS = parseInt(process.env.STUDIO_TZ_OFFSET_HOURS || '5', 10);
+
 export function getSlots(req, res) {
   const { service_id, date, post_id } = req.query;
   if (!service_id || !date) {
@@ -32,31 +34,37 @@ export function getSlots(req, res) {
     return res.status(400).json({ error: 'Некорректная дата' });
   }
 
-  // Слоты должны начинаться с 09:00 по "времени сервиса", независимо от таймзоны сервера.
-  // SERVICE_TZ_OFFSET_MINUTES: минуты смещения относительно UTC (например для UTC+5: 300).
-  // Если не задано — используем таймзону сервера.
-  const serviceOffsetMin = getServiceOffsetMinutes();
+  const offsetMin = STUDIO_OFFSET_HOURS * 60;
+  const offsetSign = offsetMin >= 0 ? '+' : '-';
+  const absH = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
+  const absM = String(Math.abs(offsetMin) % 60).padStart(2, '0');
+  const tzSuffix = offsetSign + absH + ':' + absM;
 
   const slots = [];
-  let currentMs = Date.UTC(y, m - 1, d, startH, startM, 0) - serviceOffsetMin * 60 * 1000;
-  const dayEndMs = Date.UTC(y, m - 1, d, endH, endM, 0) - serviceOffsetMin * 60 * 1000;
+  let h = startH, mi = startM;
 
-  while (currentMs < dayEndMs) {
-    const slotTime = new Date(currentMs).toISOString();
-    const isAvailable = isSlotAvailable(db, slotTime, service.duration, postId);
-    slots.push({ time: slotTime, is_available: isAvailable });
-    currentMs += interval * 60 * 1000;
+  while (h < endH || (h === endH && mi < endM)) {
+    const hh = String(h).padStart(2, '0');
+    const mm = String(mi).padStart(2, '0');
+    const displayTime = hh + ':' + mm;
+
+    const isoWithTz = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}T${hh}:${mm}:00${tzSuffix}`;
+
+    const slotDateUTC = new Date(isoWithTz);
+    const isoUTC = slotDateUTC.toISOString();
+
+    const isAvailable = isSlotAvailable(db, isoUTC, service.duration, postId);
+    slots.push({
+      time: isoUTC,
+      display_time: displayTime,
+      is_available: isAvailable,
+    });
+
+    mi += interval;
+    while (mi >= 60) { mi -= 60; h++; }
   }
 
   res.json(slots);
-}
-
-function getServiceOffsetMinutes() {
-  const raw = process.env.SERVICE_TZ_OFFSET_MINUTES;
-  const n = raw == null ? NaN : Number(raw);
-  if (Number.isFinite(n)) return n;
-  // JS offset: minutes behind UTC (e.g. UTC+5 => -300). Нам нужен "минуты вперед" (e.g. +300).
-  return -new Date().getTimezoneOffset();
 }
 
 function isSlotAvailable(db, slotStartISO, duration, postId) {
