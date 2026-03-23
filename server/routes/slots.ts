@@ -35,7 +35,9 @@ export const getSlots: RequestHandler = (req, res) => {
     }
 
     const withCapacity = slots.map((s) => ({
-      ...s,
+      time: s.time,
+      display_time: s.display_time,
+      is_available: s.is_available,
       remaining_capacity: s.is_available ? 1 : 0,
     }));
     res.json(withCapacity);

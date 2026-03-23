@@ -1153,25 +1153,26 @@ export function generatePostDaySlots(
   return slots;
 }
 
+const STUDIO_TZ_OFFSET_HOURS = parseInt(process.env.STUDIO_TZ_OFFSET_HOURS || "5", 10);
+
 export function generateTimeSlots(
   serviceId: string,
   date: string,
   post_id: string = "post_1"
-): { time: string; is_available: boolean }[] {
+): { time: string; display_time: string; is_available: boolean }[] {
   const service = db.services.get(serviceId);
   if (!service) return [];
 
   const post = db.posts.get(post_id);
   if (!post || !post.is_enabled) return [];
 
-  const slots = [];
+  const slots: { time: string; display_time: string; is_available: boolean }[] = [];
   const [year, month, day] = date.split("-").map(Number);
-  const dateObj = new Date(year, month - 1, day);
 
-  // Validate date is today or in future
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (dateObj < today) {
+  const todayUTC = Date.now();
+  const todayStudio = new Date(todayUTC + STUDIO_TZ_OFFSET_HOURS * 3600000);
+  const todayStr = todayStudio.toISOString().slice(0, 10);
+  if (date < todayStr) {
     return [];
   }
 
@@ -1182,15 +1183,26 @@ export function generateTimeSlots(
 
   const interval = post.interval_minutes;
 
+  const offsetSign = STUDIO_TZ_OFFSET_HOURS >= 0 ? "+" : "-";
+  const absH = String(Math.abs(STUDIO_TZ_OFFSET_HOURS)).padStart(2, "0");
+  const tzSuffix = `${offsetSign}${absH}:00`;
+
   for (let minutes = startMinutes; minutes < endMinutes; minutes += interval) {
     const hour = Math.floor(minutes / 60);
     const minute = minutes % 60;
-    const time = new Date(year, month - 1, day, hour, minute);
+
+    const hh = String(hour).padStart(2, "0");
+    const mm = String(minute).padStart(2, "0");
+    const displayTime = `${hh}:${mm}`;
+    const mo = String(month).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+
+    const isoWithTz = `${year}-${mo}-${dd}T${hh}:${mm}:00${tzSuffix}`;
+    const time = new Date(isoWithTz);
     const timeStr = time.toISOString();
 
     const isClosed = isPostSlotClosed(post_id, timeStr);
 
-    // Check if this slot is already booked (for the same post)
     const isBooked = Array.from(db.bookings.values()).some((b) => {
       const bookingPostId = b.post_id ?? "post_1";
       if (bookingPostId !== post_id) return false;
@@ -1208,6 +1220,7 @@ export function generateTimeSlots(
 
     slots.push({
       time: timeStr,
+      display_time: displayTime,
       is_available: !isBooked && !isClosed,
     });
   }
