@@ -4,9 +4,7 @@ let adminKey = localStorage.getItem('adminKey') || '';
 const PROTECTED_PAGES = new Set(['settings']);
 
 function headers() {
-  const h = {
-    'Content-Type': 'application/json',
-  };
+  const h = { 'Content-Type': 'application/json' };
   if (adminKey) h['X-Admin-Key'] = adminKey;
   return h;
 }
@@ -23,43 +21,58 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+/* ── Navigation ── */
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
   const el = document.getElementById(name + 'Screen');
   if (el) el.classList.remove('hidden');
-  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
-  if (name === 'services') loadServices();
-  if (name === 'bookings') loadBookings();
-  if (name === 'posts') loadPosts();
-  if (name === 'news') loadNews();
-  if (name === 'rewards') loadRewards();
-  if (name === 'control') loadControl();
-  if (name === 'clients') loadClients();
-  if (name === 'settings') loadSettings();
+  document.querySelectorAll('.sidebar__btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+
+  const loaders = {
+    services: loadServices,
+    bookings: loadBookings,
+    posts: loadPosts,
+    news: loadNews,
+    rewards: loadRewards,
+    control: loadControl,
+    clients: loadClients,
+    candidates: loadCandidates,
+    settings: loadSettings,
+  };
+  if (loaders[name]) loaders[name]();
 }
 
+/* ── Services ── */
 async function loadServices() {
   try {
     const list = await api('/services');
     const html = list.map(s => `
       <div class="card" data-id="${s.id}">
-        <div class="card-header">
-          <h4>${escapeHtml(s.name)}</h4>
-          <span class="status ${s.is_active ? '' : 'cancelled'}">${s.is_active ? 'Активна' : 'Неактивна'}</span>
-        </div>
-        <p>${escapeHtml(s.description || '')} · ${s.price} ₽ · ${s.duration} мин · ${escapeHtml(s.category || '')}</p>
-        <div class="btn-group">
-          <button onclick="editService('${s.id}')">Изменить</button>
-          <button class="danger" onclick="deleteService('${s.id}')">Удалить</button>
+        <div class="card-row">
+          ${s.image_url
+            ? `<img class="service-thumb" src="${escapeAttr(s.image_url)}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
+            : '<div class="service-thumb-ph">🔧</div>'}
+          <div class="card-row-body">
+            <div class="card-header">
+              <h4>${escapeHtml(s.name)}</h4>
+              <span class="status ${s.is_active ? 'in_progress' : 'cancelled'}">${s.is_active ? 'Активна' : 'Скрыта'}</span>
+            </div>
+            <p class="card-meta">${escapeHtml(s.description || '')} · ${s.price} ₽ · ${s.duration} мин · ${escapeHtml(s.category || '')}</p>
+            <div class="btn-group">
+              <button class="btn btn--sm" onclick="editService('${s.id}')">Изменить</button>
+              <button class="btn btn--sm btn--danger" onclick="deleteService('${s.id}')">Удалить</button>
+            </div>
+          </div>
         </div>
       </div>
     `).join('');
-    document.getElementById('servicesList').innerHTML = html || '<p>Нет услуг</p>';
+    document.getElementById('servicesList').innerHTML = html || emptyState('Нет услуг');
   } catch (e) {
-    document.getElementById('servicesList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('servicesList').innerHTML = errorHtml(e);
   }
 }
 
+/* ── Bookings ── */
 async function loadBookings() {
   const status = document.getElementById('filterStatus').value;
   const date = document.getElementById('filterDate').value;
@@ -68,33 +81,167 @@ async function loadBookings() {
   if (date) path += 'date=' + encodeURIComponent(date) + '&';
   try {
     const list = await api(path);
-    const html = list.map(b => `
-      <div class="card">
-        <div class="card-header">
-          <h4>${escapeHtml(b.service_name)}</h4>
-          <span class="status ${b.status}">${statusLabel(b.status)}</span>
-        </div>
-        <p>${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${renderContactLine(b.phone, b.email, b.social_links)}</p>
-        <p>${formatDateTime(b.date_time)} · ${b.price} ₽</p>
-        <div class="btn-group">
-          ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
-            ${b.status !== 'confirmed' ? `<button class="primary" onclick="setStatus('${escapeAttr(b.id)}','confirmed')">Подтвердить</button>` : ''}
-            ${b.status !== 'in_progress' ? `<button class="primary" onclick="setStatus('${escapeAttr(b.id)}','in_progress')">В процессе</button>` : ''}
-            ${b.status !== 'completed' ? `<button onclick="setStatus('${escapeAttr(b.id)}','completed')">Завершить</button>` : ''}
-            ${!['cancelled','completed'].includes(b.status) ? `<button class="danger" onclick="setStatus('${escapeAttr(b.id)}','cancelled')">Отменить</button>` : ''}
-          ` : ''}
-          ${renderContactButtons(b.phone, b.email, b.social_links)}
-          ${b.status === 'completed' ? `<a class="btnlink" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
-          <button onclick="openNotify('${b.user_id}')">Сообщение</button>
-        </div>
-      </div>
-    `).join('');
-    document.getElementById('bookingsList').innerHTML = html || '<p>Нет записей</p>';
+    document.getElementById('bookingsList').innerHTML = list.length
+      ? list.map(renderBookingCard).join('')
+      : emptyState('Нет записей');
   } catch (e) {
-    document.getElementById('bookingsList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('bookingsList').innerHTML = errorHtml(e);
   }
 }
 
+function renderBookingCard(b) {
+  return `
+    <div class="card">
+      <div class="card-header">
+        <h4>${escapeHtml(b.service_name)}</h4>
+        <span class="status ${b.status}">${statusLabel(b.status)}</span>
+      </div>
+      <p class="card-meta">${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${renderContactLine(b.phone, b.email, b.social_links)}</p>
+      <p class="card-meta">${formatDateTime(b.date_time)} · ${b.price} ₽</p>
+      <div class="btn-group">
+        ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
+          ${b.status !== 'confirmed' ? `<button class="btn btn--sm btn--primary" onclick="setStatus('${escapeAttr(b.id)}','confirmed')">Подтвердить</button>` : ''}
+          ${b.status !== 'in_progress' ? `<button class="btn btn--sm" onclick="setStatus('${escapeAttr(b.id)}','in_progress')">В процессе</button>` : ''}
+          ${b.status !== 'completed' ? `<button class="btn btn--sm" onclick="setStatus('${escapeAttr(b.id)}','completed')">Завершить</button>` : ''}
+          ${!['cancelled','completed'].includes(b.status) ? `<button class="btn btn--sm btn--danger" onclick="setStatus('${escapeAttr(b.id)}','cancelled')">Отменить</button>` : ''}
+        ` : ''}
+        ${renderContactButtons(b.phone, b.email, b.social_links)}
+        ${b.status === 'completed' ? `<a class="btn btn--sm" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
+        <button class="btn btn--sm" onclick="openNotify('${b.user_id}')">Сообщение</button>
+      </div>
+    </div>`;
+}
+
+/* ── Control ── */
+async function loadControl() {
+  const date = document.getElementById('controlDate').value;
+  const status = document.getElementById('controlStatus').value;
+  let path = '/bookings?';
+  if (status) path += 'status=' + encodeURIComponent(status) + '&';
+  if (date) path += 'date=' + encodeURIComponent(date) + '&';
+  try {
+    const list = await api(path);
+    document.getElementById('controlList').innerHTML = list.length
+      ? list.map(renderBookingCard).join('')
+      : emptyState('Нет записей');
+  } catch (e) {
+    document.getElementById('controlList').innerHTML = errorHtml(e);
+  }
+}
+
+/* ── Candidates ── */
+async function loadCandidates() {
+  const status = document.getElementById('filterCandidateStatus').value;
+  let path = '/candidates';
+  if (status) path += '?status=' + encodeURIComponent(status);
+  try {
+    const list = await api(path);
+    if (!list.length) {
+      document.getElementById('candidatesList').innerHTML = emptyState('Нет кандидатов');
+      return;
+    }
+    const html = list.map(c => {
+      const scoreClass = c.quiz_total > 0
+        ? (c.quiz_score / c.quiz_total >= 0.7 ? 'quiz-score--good' : c.quiz_score / c.quiz_total >= 0.4 ? 'quiz-score--ok' : 'quiz-score--low')
+        : '';
+      return `
+        <div class="card" data-id="${c.id}">
+          <div class="card-header">
+            <h4>${escapeHtml(c.full_name)}</h4>
+            <span class="status ${c.status}">${candidateStatusLabel(c.status)}</span>
+          </div>
+          <p class="card-meta">
+            ${escapeHtml(c.email)}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}
+            ${c.desired_role ? ' · ' + escapeHtml(c.desired_role) : ''}
+          </p>
+          ${c.quiz_total > 0 ? `<p class="card-meta">Тест: <span class="${scoreClass} quiz-score">${c.quiz_score} / ${c.quiz_total}</span></p>` : ''}
+          <p class="hint">${formatDateTime(c.created_at)}</p>
+          <div class="btn-group">
+            <button class="btn btn--sm" onclick="viewCandidate('${escapeAttr(c.id)}')">Подробнее</button>
+            ${c.status === 'new' ? `<button class="btn btn--sm btn--primary" onclick="setCandidateStatus('${escapeAttr(c.id)}','reviewed')">Просмотрено</button>` : ''}
+            ${c.status !== 'interview' && c.status !== 'accepted' && c.status !== 'rejected' ? `<button class="btn btn--sm" onclick="setCandidateStatus('${escapeAttr(c.id)}','interview')">На собеседование</button>` : ''}
+            ${c.status !== 'accepted' ? `<button class="btn btn--sm" style="color:var(--green)" onclick="setCandidateStatus('${escapeAttr(c.id)}','accepted')">Принять</button>` : ''}
+            ${c.status !== 'rejected' ? `<button class="btn btn--sm btn--danger" onclick="setCandidateStatus('${escapeAttr(c.id)}','rejected')">Отклонить</button>` : ''}
+            <button class="btn btn--sm btn--danger" onclick="deleteCandidate('${escapeAttr(c.id)}')">Удалить</button>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('candidatesList').innerHTML = html;
+  } catch (e) {
+    document.getElementById('candidatesList').innerHTML = errorHtml(e);
+  }
+}
+
+let candidatesCache = [];
+
+async function viewCandidate(id) {
+  try {
+    const list = await api('/candidates');
+    candidatesCache = list;
+    const c = list.find(x => x.id === id);
+    if (!c) return;
+
+    const answers = Array.isArray(c.quiz_answers) ? c.quiz_answers : [];
+    const scoreClass = c.quiz_total > 0
+      ? (c.quiz_score / c.quiz_total >= 0.7 ? 'quiz-score--good' : c.quiz_score / c.quiz_total >= 0.4 ? 'quiz-score--ok' : 'quiz-score--low')
+      : '';
+
+    let html = `
+      <h3>${escapeHtml(c.full_name)}</h3>
+      <dl class="candidate-detail">
+        <dt>Статус</dt>
+        <dd><span class="status ${c.status}">${candidateStatusLabel(c.status)}</span></dd>
+        <dt>Email</dt>
+        <dd><a href="mailto:${escapeAttr(c.email)}" style="color:var(--lime)">${escapeHtml(c.email)}</a></dd>
+        ${c.phone ? `<dt>Телефон</dt><dd>${escapeHtml(c.phone)}</dd>` : ''}
+        ${c.desired_role ? `<dt>Желаемая позиция</dt><dd>${escapeHtml(c.desired_role)}</dd>` : ''}
+        ${c.about ? `<dt>О себе</dt><dd>${escapeHtml(c.about)}</dd>` : ''}
+        <dt>Дата отклика</dt>
+        <dd>${formatDateTime(c.created_at)}</dd>
+      </dl>`;
+
+    if (c.quiz_total > 0) {
+      html += `
+        <hr>
+        <h4 style="margin:0.75rem 0 0.5rem;color:#fff;font-size:0.95rem">Результаты теста <span class="${scoreClass} quiz-score">${c.quiz_score} / ${c.quiz_total}</span></h4>
+        <div class="quiz-answers">
+          ${answers.map(a => `
+            <div class="quiz-answer">
+              <span class="quiz-answer__icon ${a.correct ? 'correct' : 'wrong'}">${a.correct ? '✓' : '✗'}</span>
+              <span>${escapeHtml(a.question)}</span>
+            </div>`).join('')}
+        </div>`;
+    }
+
+    html += `
+      <div class="modal-actions">
+        <button class="btn" onclick="document.getElementById('candidateModal').classList.add('hidden')">Закрыть</button>
+      </div>`;
+
+    document.getElementById('candidateDetail').innerHTML = html;
+    document.getElementById('candidateModal').classList.remove('hidden');
+  } catch (e) {
+    alert('Ошибка: ' + e.message);
+  }
+}
+
+async function setCandidateStatus(id, status) {
+  await api('/candidates/' + encodeURIComponent(id) + '/status', { method: 'PATCH', body: JSON.stringify({ status }) });
+  loadCandidates();
+}
+
+async function deleteCandidate(id) {
+  if (!confirm('Удалить кандидата?')) return;
+  await api('/candidates/' + encodeURIComponent(id), { method: 'DELETE' });
+  loadCandidates();
+}
+
+function candidateStatusLabel(s) {
+  const m = { new: 'Новый', reviewed: 'Просмотрено', interview: 'Собеседование', accepted: 'Принят', rejected: 'Отклонён' };
+  return m[s] || s;
+}
+
+/* ── Clients ── */
 async function loadClients() {
   try {
     const list = await api('/clients');
@@ -103,21 +250,22 @@ async function loadClients() {
         <div class="card-header">
           <h4>${escapeHtml(c.first_name || '')} ${escapeHtml(c.last_name || '') || 'Клиент'}</h4>
         </div>
-        <p>${renderContactLine(c.phone, c.email, c.social_links)}</p>
+        <p class="card-meta">${renderContactLine(c.phone, c.email, c.social_links)}</p>
         ${typeof c.loyalty_points === 'number' ? `<p class="hint">Баллы: ${c.loyalty_points}</p>` : ''}
         <p class="hint">ID: ${escapeHtml(c.id)} · ${c.created_at?.slice(0,10)}</p>
         <div class="btn-group">
           ${renderContactButtons(c.phone, c.email, c.social_links)}
-          <button onclick="openNotify('${c.id}')">Отправить сообщение</button>
+          <button class="btn btn--sm" onclick="openNotify('${c.id}')">Сообщение</button>
         </div>
       </div>
     `).join('');
-    document.getElementById('clientsList').innerHTML = html || '<p>Нет клиентов</p>';
+    document.getElementById('clientsList').innerHTML = html || emptyState('Нет клиентов');
   } catch (e) {
-    document.getElementById('clientsList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('clientsList').innerHTML = errorHtml(e);
   }
 }
 
+/* ── Settings ── */
 async function loadSettings() {
   try {
     const s = await api('/settings');
@@ -131,10 +279,11 @@ async function loadSettings() {
       }
     });
   } catch (e) {
-    document.getElementById('qrcodeContainer').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('qrcodeContainer').innerHTML = errorHtml(e);
   }
 }
 
+/* ── Posts ── */
 async function loadPosts() {
   try {
     const list = await api('/posts');
@@ -142,7 +291,7 @@ async function loadPosts() {
       <div class="card" data-id="${p.id}">
         <div class="card-header">
           <h4>${escapeHtml(p.name)}</h4>
-          <span class="status ${p.is_enabled ? '' : 'cancelled'}">${p.is_enabled ? 'Включен' : 'Выключен'}</span>
+          <span class="status ${p.is_enabled ? 'in_progress' : 'cancelled'}">${p.is_enabled ? 'Включен' : 'Выключен'}</span>
         </div>
         <div class="grid">
           <label>Название</label>
@@ -157,13 +306,13 @@ async function loadPosts() {
           <input type="number" data-field="interval_minutes" value="${p.interval_minutes || 30}">
         </div>
         <div class="btn-group">
-          <button class="primary" onclick="savePost('${p.id}')">Сохранить</button>
+          <button class="btn btn--sm btn--primary" onclick="savePost('${p.id}')">Сохранить</button>
         </div>
       </div>
     `).join('');
-    document.getElementById('postsList').innerHTML = html || '<p>Нет постов</p>';
+    document.getElementById('postsList').innerHTML = html || emptyState('Нет постов');
   } catch (e) {
-    document.getElementById('postsList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('postsList').innerHTML = errorHtml(e);
   }
 }
 
@@ -181,6 +330,7 @@ async function savePost(id) {
   loadPosts();
 }
 
+/* ── News ── */
 async function loadNews() {
   try {
     const list = await api('/news');
@@ -188,45 +338,54 @@ async function loadNews() {
       <div class="card" data-id="${n.id}">
         <div class="card-header">
           <h4>${escapeHtml(n.title)}</h4>
-          <span class="status ${n.published ? 'confirmed' : 'pending'}">${n.published ? 'Опубликовано' : 'Черновик'}</span>
+          <span class="status ${n.published ? 'completed' : 'pending'}">${n.published ? 'Опубликовано' : 'Черновик'}</span>
         </div>
         <p class="hint">${(n.created_at || '').slice(0,19).replace('T',' ')}</p>
-        <p>${escapeHtml((n.body || '').slice(0, 200))}${(n.body || '').length > 200 ? '…' : ''}</p>
+        <p class="card-meta">${escapeHtml((n.body || '').slice(0, 200))}${(n.body || '').length > 200 ? '…' : ''}</p>
         <div class="btn-group">
-          <button onclick="editNews('${n.id}')">Изменить</button>
-          <button class="danger" onclick="deleteNews('${n.id}')">Удалить</button>
+          <button class="btn btn--sm" onclick="editNews('${n.id}')">Изменить</button>
+          <button class="btn btn--sm btn--danger" onclick="deleteNews('${n.id}')">Удалить</button>
         </div>
       </div>
     `).join('');
-    document.getElementById('newsList').innerHTML = html || '<p>Нет новостей</p>';
+    document.getElementById('newsList').innerHTML = html || emptyState('Нет новостей');
   } catch (e) {
-    document.getElementById('newsList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('newsList').innerHTML = errorHtml(e);
   }
 }
 
+/* ── Rewards ── */
 async function loadRewards() {
   try {
     const list = await api('/rewards');
     const html = list.map(r => `
       <div class="card" data-id="${r.id}">
-        <div class="card-header">
-          <h4>${escapeHtml(r.name)}</h4>
-          <span class="status ${r.is_active ? '' : 'cancelled'}">${r.is_active ? 'Доступно' : 'Скрыто'}</span>
-        </div>
-        <p>${escapeHtml(r.description || '')}</p>
-        <p class="hint">Стоимость: <strong>${r.points_cost} баллов</strong> · Порядок: ${r.sort_order ?? 0}</p>
-        <div class="btn-group">
-          <button onclick="editReward('${escapeAttr(r.id)}')">Изменить</button>
-          <button class="danger" onclick="deleteReward('${escapeAttr(r.id)}')">Удалить</button>
+        <div class="card-row">
+          ${r.image_url
+            ? `<img class="service-thumb" src="${escapeAttr(r.image_url)}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
+            : '<div class="service-thumb-ph">🎁</div>'}
+          <div class="card-row-body">
+            <div class="card-header">
+              <h4>${escapeHtml(r.name)}</h4>
+              <span class="status ${r.is_active ? 'in_progress' : 'cancelled'}">${r.is_active ? 'Доступно' : 'Скрыто'}</span>
+            </div>
+            <p class="card-meta">${escapeHtml(r.description || '')}</p>
+            <p class="hint">Стоимость: <strong>${r.points_cost} баллов</strong> · Порядок: ${r.sort_order ?? 0}</p>
+            <div class="btn-group">
+              <button class="btn btn--sm" onclick="editReward('${escapeAttr(r.id)}')">Изменить</button>
+              <button class="btn btn--sm btn--danger" onclick="deleteReward('${escapeAttr(r.id)}')">Удалить</button>
+            </div>
+          </div>
         </div>
       </div>
     `).join('');
-    document.getElementById('rewardsList').innerHTML = html || '<p>Нет товаров и услуг за баллы</p>';
+    document.getElementById('rewardsList').innerHTML = html || emptyState('Нет товаров за баллы');
   } catch (e) {
-    document.getElementById('rewardsList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
+    document.getElementById('rewardsList').innerHTML = errorHtml(e);
   }
 }
 
+/* ── Modals: Reward ── */
 function openRewardModal(item = null) {
   document.getElementById('rewardId').value = item?.id || '';
   document.getElementById('rewardModalTitle').textContent = item ? 'Редактировать товар/услугу' : 'Добавить товар или услугу за баллы';
@@ -242,8 +401,7 @@ function openRewardModal(item = null) {
 function editReward(id) {
   api('/rewards').then(list => {
     const r = list.find(x => x.id === id);
-    if (!r) return;
-    openRewardModal(r);
+    if (r) openRewardModal(r);
   });
 }
 
@@ -253,6 +411,7 @@ async function deleteReward(id) {
   loadRewards();
 }
 
+/* ── Modals: News ── */
 function openNewsModal(item = null) {
   document.getElementById('newsId').value = item?.id || '';
   document.getElementById('newsModalTitle').textContent = item ? 'Редактировать новость' : 'Добавить новость';
@@ -265,8 +424,7 @@ function openNewsModal(item = null) {
 function editNews(id) {
   api('/news').then(list => {
     const n = list.find(x => x.id === id);
-    if (!n) return;
-    openNewsModal(n);
+    if (n) openNewsModal(n);
   });
 }
 
@@ -276,41 +434,7 @@ async function deleteNews(id) {
   loadNews();
 }
 
-async function loadControl() {
-  const date = document.getElementById('controlDate').value;
-  const status = document.getElementById('controlStatus').value;
-  let path = '/bookings?';
-  if (status) path += 'status=' + encodeURIComponent(status) + '&';
-  if (date) path += 'date=' + encodeURIComponent(date) + '&';
-  try {
-    const list = await api(path);
-    const html = list.map(b => `
-      <div class="card">
-        <div class="card-header">
-          <h4>${escapeHtml(b.service_name)}</h4>
-          <span class="status ${b.status}">${statusLabel(b.status)}</span>
-        </div>
-        <p>${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${renderContactLine(b.phone, b.email, b.social_links)}</p>
-        <p>${formatDateTime(b.date_time)} · ${b.price} ₽</p>
-        <div class="btn-group">
-          ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
-            ${b.status !== 'confirmed' ? `<button class="primary" onclick="setStatus('${escapeAttr(b.id)}','confirmed')">Подтвердить</button>` : ''}
-            ${b.status !== 'in_progress' ? `<button class="primary" onclick="setStatus('${escapeAttr(b.id)}','in_progress')">В процессе</button>` : ''}
-            ${b.status !== 'completed' ? `<button onclick="setStatus('${escapeAttr(b.id)}','completed')">Завершить</button>` : ''}
-            ${!['cancelled','completed'].includes(b.status) ? `<button class="danger" onclick="setStatus('${escapeAttr(b.id)}','cancelled')">Отменить</button>` : ''}
-          ` : ''}
-          ${renderContactButtons(b.phone, b.email, b.social_links)}
-          ${b.status === 'completed' ? `<a class="btnlink" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
-          <button onclick="openNotify('${b.user_id}')">Сообщение</button>
-        </div>
-      </div>
-    `).join('');
-    document.getElementById('controlList').innerHTML = html || '<p>Нет записей</p>';
-  } catch (e) {
-    document.getElementById('controlList').innerHTML = '<p class="error">' + escapeHtml(e.message) + '</p>';
-  }
-}
-
+/* ── Helpers ── */
 function statusLabel(s) {
   const m = { pending:'Ожидает', confirmed:'Подтверждена', in_progress:'В процессе', completed:'Завершена', cancelled:'Отменена' };
   return m[s] || s;
@@ -318,8 +442,7 @@ function statusLabel(s) {
 
 function formatDateTime(s) {
   if (!s) return '';
-  const d = new Date(s);
-  return d.toLocaleString('ru-RU');
+  return new Date(s).toLocaleString('ru-RU');
 }
 
 function escapeHtml(s) {
@@ -333,20 +456,21 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/\"/g, '&quot;');
 }
 
+function emptyState(msg) {
+  return `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg><p>${msg}</p></div>`;
+}
+
+function errorHtml(e) {
+  return '<p class="error">' + escapeHtml(e.message) + '</p>';
+}
+
 function parseSocialLinks(v) {
   if (!v) return {};
   if (typeof v === 'object') return v;
-  try {
-    const o = JSON.parse(v);
-    return o && typeof o === 'object' ? o : {};
-  } catch (_) {
-    return {};
-  }
+  try { const o = JSON.parse(v); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; }
 }
 
-function phoneDigits(raw) {
-  return String(raw || '').replace(/\D/g, '');
-}
+function phoneDigits(raw) { return String(raw || '').replace(/\D/g, ''); }
 
 function phoneToE164DigitsRU(raw) {
   const d = phoneDigits(raw);
@@ -359,21 +483,18 @@ function phoneToE164DigitsRU(raw) {
 
 function buildTelHref(rawPhone) {
   const d = phoneToE164DigitsRU(rawPhone);
-  if (!d) return '';
-  return 'tel:+' + d;
+  return d ? 'tel:+' + d : '';
 }
 
 function buildWhatsAppHref(rawPhone) {
   const d = phoneToE164DigitsRU(rawPhone);
-  if (!d) return '';
-  return 'https://wa.me/' + d;
+  return d ? 'https://wa.me/' + d : '';
 }
 
 function extractTelegramHandle(v) {
   const s = String(v || '').trim();
   if (!s) return '';
   const withoutAt = s.startsWith('@') ? s.slice(1) : s;
-  // accept t.me links or username
   const m = withoutAt.match(/(?:t\.me\/)?([A-Za-z0-9_]{3,})/);
   return m ? m[1] : '';
 }
@@ -381,24 +502,18 @@ function extractTelegramHandle(v) {
 function buildTelegramHref(socialLinks) {
   const social = parseSocialLinks(socialLinks);
   const handle = extractTelegramHandle(social.telegram);
-  if (!handle) return '';
-  return 'https://t.me/' + handle;
+  return handle ? 'https://t.me/' + handle : '';
 }
 
 function renderContactLine(phone, email, socialLinks) {
   const parts = [];
   const telHref = buildTelHref(phone);
-  if (phone) {
-    parts.push(telHref ? `<a href="${escapeAttr(telHref)}">${escapeHtml(phone)}</a>` : escapeHtml(phone));
-  }
-  if (email) {
-    const mail = 'mailto:' + encodeURIComponent(String(email).trim());
-    parts.push(`<a href="${escapeAttr(mail)}">${escapeHtml(email)}</a>`);
-  }
+  if (phone) parts.push(telHref ? `<a href="${escapeAttr(telHref)}" style="color:var(--lime)">${escapeHtml(phone)}</a>` : escapeHtml(phone));
+  if (email) parts.push(`<a href="mailto:${encodeURIComponent(String(email).trim())}" style="color:var(--lime)">${escapeHtml(email)}</a>`);
   const tgHref = buildTelegramHref(socialLinks);
   if (tgHref) {
     const handle = extractTelegramHandle(parseSocialLinks(socialLinks).telegram);
-    parts.push(`<a href="${escapeAttr(tgHref)}" target="_blank" rel="noopener">@${escapeHtml(handle)}</a>`);
+    parts.push(`<a href="${escapeAttr(tgHref)}" target="_blank" rel="noopener" style="color:var(--lime)">@${escapeHtml(handle)}</a>`);
   }
   return parts.join(' · ') || '—';
 }
@@ -406,18 +521,16 @@ function renderContactLine(phone, email, socialLinks) {
 function renderContactButtons(phone, email, socialLinks) {
   const btns = [];
   const tel = buildTelHref(phone);
-  if (tel) btns.push(`<a class="btnlink" href="${escapeAttr(tel)}">Позвонить</a>`);
+  if (tel) btns.push(`<a class="btn btn--sm" href="${escapeAttr(tel)}">Позвонить</a>`);
   const wa = buildWhatsAppHref(phone);
-  if (wa) btns.push(`<a class="btnlink" href="${escapeAttr(wa)}" target="_blank" rel="noopener">WhatsApp</a>`);
+  if (wa) btns.push(`<a class="btn btn--sm" href="${escapeAttr(wa)}" target="_blank" rel="noopener">WhatsApp</a>`);
   const tg = buildTelegramHref(socialLinks);
-  if (tg) btns.push(`<a class="btnlink" href="${escapeAttr(tg)}" target="_blank" rel="noopener">Telegram</a>`);
-  if (email) {
-    const mail = 'mailto:' + encodeURIComponent(String(email).trim());
-    btns.push(`<a class="btnlink" href="${escapeAttr(mail)}">Email</a>`);
-  }
+  if (tg) btns.push(`<a class="btn btn--sm" href="${escapeAttr(tg)}" target="_blank" rel="noopener">Telegram</a>`);
+  if (email) btns.push(`<a class="btn btn--sm" href="mailto:${encodeURIComponent(String(email).trim())}">Email</a>`);
   return btns.join('');
 }
 
+/* ── Admin modal ── */
 function openAdminModal() {
   document.getElementById('adminPass').value = '';
   document.getElementById('adminError').classList.add('hidden');
@@ -426,16 +539,12 @@ function openAdminModal() {
   setTimeout(() => document.getElementById('adminPass').focus(), 50);
 }
 
-document.querySelectorAll('.nav button').forEach(b => {
+/* ── Event bindings ── */
+document.querySelectorAll('.sidebar__btn').forEach(b => {
   b.onclick = async () => {
     const page = b.dataset.page;
     if (PROTECTED_PAGES.has(page)) {
-      try {
-        await ensureAdmin();
-        showScreen(page);
-      } catch (_) {
-        // stay
-      }
+      try { await ensureAdmin(); showScreen(page); } catch (_) {}
       return;
     }
     showScreen(page);
@@ -450,6 +559,7 @@ document.getElementById('btnAddService').onclick = () => {
   document.getElementById('servicePrice').value = '0';
   document.getElementById('serviceDuration').value = '60';
   document.getElementById('serviceCategory').value = 'Автоуслуги';
+  document.getElementById('serviceImageUrl').value = '';
   document.getElementById('serviceActive').checked = true;
   document.getElementById('serviceModal').classList.remove('hidden');
 };
@@ -465,6 +575,7 @@ function editService(id) {
     document.getElementById('servicePrice').value = s.price;
     document.getElementById('serviceDuration').value = s.duration;
     document.getElementById('serviceCategory').value = s.category || '';
+    document.getElementById('serviceImageUrl').value = s.image_url || '';
     document.getElementById('serviceActive').checked = s.is_active;
     document.getElementById('serviceModal').classList.remove('hidden');
   });
@@ -485,6 +596,7 @@ document.getElementById('serviceForm').onsubmit = async (e) => {
     price: parseFloat(document.getElementById('servicePrice').value) || 0,
     duration: parseInt(document.getElementById('serviceDuration').value) || 60,
     category: document.getElementById('serviceCategory').value || '',
+    image_url: document.getElementById('serviceImageUrl').value.trim() || null,
     is_active: document.getElementById('serviceActive').checked,
   };
   if (id) {
@@ -496,12 +608,10 @@ document.getElementById('serviceForm').onsubmit = async (e) => {
   loadServices();
 };
 
-document.getElementById('btnCancelService').onclick = () => {
-  document.getElementById('serviceModal').classList.add('hidden');
-};
-
+document.getElementById('btnCancelService').onclick = () => document.getElementById('serviceModal').classList.add('hidden');
 document.getElementById('filterStatus').onchange = loadBookings;
 document.getElementById('filterDate').onchange = loadBookings;
+document.getElementById('filterCandidateStatus').onchange = loadCandidates;
 
 async function setStatus(bookingId, status) {
   await api('/bookings/' + bookingId + '/status', { method: 'PATCH', body: JSON.stringify({ status }) });
@@ -529,9 +639,7 @@ document.getElementById('notifyForm').onsubmit = async (e) => {
   document.getElementById('notifyModal').classList.add('hidden');
 };
 
-document.getElementById('btnCancelNotify').onclick = () => {
-  document.getElementById('notifyModal').classList.add('hidden');
-};
+document.getElementById('btnCancelNotify').onclick = () => document.getElementById('notifyModal').classList.add('hidden');
 
 document.getElementById('btnSaveSettings').onclick = async () => {
   const url = document.getElementById('apiBaseUrl').value.trim();
@@ -540,7 +648,6 @@ document.getElementById('btnSaveSettings').onclick = async () => {
 };
 
 document.getElementById('btnAddNews').onclick = () => openNewsModal(null);
-
 document.getElementById('btnAddReward').onclick = () => openRewardModal(null);
 
 document.getElementById('rewardForm').onsubmit = async (e) => {
@@ -563,9 +670,7 @@ document.getElementById('rewardForm').onsubmit = async (e) => {
   loadRewards();
 };
 
-document.getElementById('btnCancelReward').onclick = () => {
-  document.getElementById('rewardModal').classList.add('hidden');
-};
+document.getElementById('btnCancelReward').onclick = () => document.getElementById('rewardModal').classList.add('hidden');
 
 document.getElementById('newsForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -584,13 +689,9 @@ document.getElementById('newsForm').onsubmit = async (e) => {
   loadNews();
 };
 
-document.getElementById('btnCancelNews').onclick = () => {
-  document.getElementById('newsModal').classList.add('hidden');
-};
+document.getElementById('btnCancelNews').onclick = () => document.getElementById('newsModal').classList.add('hidden');
 
 document.getElementById('btnControlRefresh').onclick = loadControl;
-
-// default control date = today
 document.getElementById('controlDate').value = new Date().toISOString().slice(0,10);
 document.getElementById('controlStatus').onchange = loadControl;
 document.getElementById('controlDate').onchange = loadControl;
@@ -602,9 +703,7 @@ document.getElementById('adminForm').onsubmit = async (e) => {
   document.getElementById('adminModal').classList.add('hidden');
 };
 
-document.getElementById('btnCancelAdmin').onclick = () => {
-  document.getElementById('adminModal').classList.add('hidden');
-};
+document.getElementById('btnCancelAdmin').onclick = () => document.getElementById('adminModal').classList.add('hidden');
 
 async function ensureAdmin() {
   if (adminKey) return;
@@ -618,18 +717,17 @@ async function trySetAdminKey(pass) {
   errEl.textContent = '';
   adminKey = (pass || '').trim();
   if (!adminKey) {
-    errEl.textContent = 'Ошибка';
+    errEl.textContent = 'Введите пароль';
     errEl.classList.remove('hidden');
     throw new Error('EMPTY');
   }
-  // validate against protected endpoint
   try {
     await api('/settings');
     localStorage.setItem('adminKey', adminKey);
   } catch (e) {
     adminKey = '';
     localStorage.removeItem('adminKey');
-    errEl.textContent = 'Ошибка';
+    errEl.textContent = 'Неверный пароль';
     errEl.classList.remove('hidden');
     openAdminModal();
     throw e;

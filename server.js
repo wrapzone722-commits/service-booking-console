@@ -13,13 +13,15 @@ import { listServices, getService } from './routes/services.js';
 import { listBookings, createBooking, cancelBooking, submitRating } from './routes/bookings.js';
 import { listPosts } from './routes/posts.js';
 import { getSlots } from './routes/slots.js';
-import { getProfile, updateProfile } from './routes/profile.js';
+import { getProfile, updateProfile, updatePushToken } from './routes/profile.js';
 import { listNotifications, markRead } from './routes/notifications.js';
 import { listCars } from './routes/cars.js';
 import { listNews } from './routes/news.js';
 import { getBookingAct } from './routes/act.js';
 import { listRewards, redeemReward } from './routes/rewards.js';
+import { submitCandidate } from './routes/candidates.js';
 import { setupAdminRoutes } from './routes/admin.js';
+import { serveImagePreview } from './routes/imagePreview.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -52,6 +54,7 @@ api.get('/slots', requireAuth, getSlots);
 
 api.get('/profile', requireAuth, getProfile);
 api.put('/profile', requireAuth, updateProfile);
+api.put('/profile/push_token', requireAuth, updatePushToken);
 
 api.get('/cars', requireAuth, listCars);
 
@@ -62,6 +65,11 @@ api.get('/news', requireAuth, listNews);
 
 api.get('/rewards', requireAuth, listRewards);
 api.post('/rewards/:id/redeem', requireAuth, redeemReward);
+
+api.post('/candidates', submitCandidate);
+
+/** Сжатое превью изображения (экономия трафика в iOS). Тот же хост, что у API, или IMAGE_PREVIEW_HOSTS. */
+api.get('/image/preview', requireAuth, serveImagePreview);
 
 app.use('/api/v1', api);
 

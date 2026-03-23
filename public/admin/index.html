@@ -3,36 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Service Booking — Админ-панель</title>
+  <title>Другое место — Админ-панель</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app">
-    <header class="header">
-      <h1>Service Booking</h1>
-      <nav class="nav">
-        <button data-page="services">Услуги</button>
-        <button data-page="bookings">Записи</button>
-        <button data-page="posts">Посты</button>
-        <button data-page="news">Новости</button>
-        <button data-page="rewards">Товары и услуги за баллы</button>
-        <button data-page="control">Контроль записи</button>
-        <button data-page="clients">Клиенты</button>
-        <button data-page="settings">Настройки</button>
+  <div class="layout" id="app">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="sidebar__title">Другое место</div>
+        <div class="sidebar__subtitle">Панель управления</div>
+      </div>
+      <nav class="sidebar__nav">
+        <button class="sidebar__btn" data-page="services">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Услуги
+        </button>
+        <button class="sidebar__btn" data-page="bookings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Записи
+        </button>
+        <button class="sidebar__btn" data-page="control">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+          Контроль
+        </button>
+        <button class="sidebar__btn" data-page="candidates">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Кандидаты
+        </button>
+        <div class="sidebar__sep"></div>
+        <button class="sidebar__btn" data-page="posts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Посты
+        </button>
+        <button class="sidebar__btn" data-page="news">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
+          Новости
+        </button>
+        <button class="sidebar__btn" data-page="rewards">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+          Баллы
+        </button>
+        <button class="sidebar__btn" data-page="clients">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Клиенты
+        </button>
+        <div class="sidebar__sep"></div>
+        <button class="sidebar__btn" data-page="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Настройки
+        </button>
       </nav>
-    </header>
+    </aside>
 
-    <main id="content">
-      <div id="loginScreen" class="screen hidden"></div>
-
+    <main class="main-content">
       <div id="servicesScreen" class="screen hidden">
-        <h2>Услуги</h2>
-        <button id="btnAddService">+ Добавить услугу</button>
+        <div class="page-header">
+          <h2 class="page-title">Услуги</h2>
+          <button class="btn btn--primary" id="btnAddService">+ Добавить</button>
+        </div>
         <div id="servicesList"></div>
       </div>
 
       <div id="bookingsScreen" class="screen hidden">
-        <h2>Записи</h2>
+        <div class="page-header"><h2 class="page-title">Записи</h2></div>
         <div class="filters">
           <select id="filterStatus">
             <option value="">Все статусы</option>
@@ -47,26 +80,11 @@
         <div id="bookingsList"></div>
       </div>
 
-      <div id="postsScreen" class="screen hidden">
-        <h2>Посты</h2>
-        <div id="postsList"></div>
-      </div>
-
-      <div id="newsScreen" class="screen hidden">
-        <h2>Новости</h2>
-        <button id="btnAddNews">+ Добавить новость</button>
-        <div id="newsList"></div>
-      </div>
-
-      <div id="rewardsScreen" class="screen hidden">
-        <h2>Товары и услуги за баллы</h2>
-        <p class="hint">Клиенты смогут обменивать баллы на эти товары/услуги в приложении.</p>
-        <button id="btnAddReward">+ Добавить товар или услугу</button>
-        <div id="rewardsList"></div>
-      </div>
-
       <div id="controlScreen" class="screen hidden">
-        <h2>Контроль записи</h2>
+        <div class="page-header">
+          <h2 class="page-title">Контроль записей</h2>
+          <button class="btn" id="btnControlRefresh">Обновить</button>
+        </div>
         <div class="filters">
           <input type="date" id="controlDate">
           <select id="controlStatus">
@@ -77,27 +95,65 @@
             <option value="completed">Завершена</option>
             <option value="cancelled">Отменена</option>
           </select>
-          <button id="btnControlRefresh">Обновить</button>
         </div>
         <div id="controlList"></div>
       </div>
 
+      <div id="candidatesScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">Кандидаты</h2>
+        </div>
+        <div class="filters">
+          <select id="filterCandidateStatus">
+            <option value="">Все статусы</option>
+            <option value="new">Новые</option>
+            <option value="reviewed">Просмотрено</option>
+            <option value="interview">Собеседование</option>
+            <option value="accepted">Принят</option>
+            <option value="rejected">Отклонён</option>
+          </select>
+        </div>
+        <div id="candidatesList"></div>
+      </div>
+
+      <div id="postsScreen" class="screen hidden">
+        <div class="page-header"><h2 class="page-title">Посты</h2></div>
+        <div id="postsList"></div>
+      </div>
+
+      <div id="newsScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">Новости</h2>
+          <button class="btn btn--primary" id="btnAddNews">+ Добавить</button>
+        </div>
+        <div id="newsList"></div>
+      </div>
+
+      <div id="rewardsScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">Товары за баллы</h2>
+          <button class="btn btn--primary" id="btnAddReward">+ Добавить</button>
+        </div>
+        <p class="hint" style="margin-bottom:1rem">Клиенты смогут обменивать баллы на эти товары/услуги в приложении.</p>
+        <div id="rewardsList"></div>
+      </div>
+
       <div id="clientsScreen" class="screen hidden">
-        <h2>Клиенты</h2>
+        <div class="page-header"><h2 class="page-title">Клиенты</h2></div>
         <div id="clientsList"></div>
       </div>
 
       <div id="settingsScreen" class="screen hidden">
-        <h2>Настройки</h2>
+        <div class="page-header"><h2 class="page-title">Настройки</h2></div>
         <div class="settings-form">
           <label>Базовый URL API (для QR)</label>
           <input type="url" id="apiBaseUrl" placeholder="https://your-domain.com/api/v1">
-          <p class="hint">Этот URL отображается в QR-коде. На реальном сервере укажите ваш домен.</p>
-          <button id="btnSaveSettings">Сохранить</button>
+          <p class="hint">Этот URL отображается в QR-коде для iOS-приложения.</p>
+          <button class="btn btn--primary" id="btnSaveSettings" style="margin-top:0.75rem">Сохранить</button>
         </div>
         <hr>
-        <h3>QR-код для подключения iOS</h3>
-        <p>Отсканируйте QR-код в приложении для подключения к этой веб-консоли.</p>
+        <h3 style="font-family:var(--ff-heading);color:#fff;font-size:1.1rem">QR-код для подключения iOS</h3>
+        <p class="hint">Отсканируйте QR-код в приложении для подключения к этой веб-консоли.</p>
         <div id="qrcodeContainer"></div>
         <p class="hint">Локально: <code id="localUrl"></code></p>
       </div>
@@ -120,10 +176,12 @@
         <input type="number" id="serviceDuration" value="60">
         <label>Категория</label>
         <input type="text" id="serviceCategory" placeholder="Автоуслуги">
+        <label>URL фото услуги</label>
+        <input type="url" id="serviceImageUrl" placeholder="https://…">
         <label><input type="checkbox" id="serviceActive" checked> Активна</label>
         <div class="modal-actions">
-          <button type="button" id="btnCancelService">Отмена</button>
-          <button type="submit">Сохранить</button>
+          <button type="button" class="btn" id="btnCancelService">Отмена</button>
+          <button type="submit" class="btn btn--primary">Сохранить</button>
         </div>
       </form>
     </div>
@@ -140,8 +198,8 @@
         <label>Текст *</label>
         <textarea id="notifyBody" required></textarea>
         <div class="modal-actions">
-          <button type="button" id="btnCancelNotify">Отмена</button>
-          <button type="submit">Отправить</button>
+          <button type="button" class="btn" id="btnCancelNotify">Отмена</button>
+          <button type="submit" class="btn btn--primary">Отправить</button>
         </div>
       </form>
     </div>
@@ -150,25 +208,27 @@
   <!-- Modal: Admin password -->
   <div id="adminModal" class="modal hidden">
     <div class="modal-content">
+      <h3>Вход в защищённый раздел</h3>
       <form id="adminForm">
+        <label>Пароль администратора</label>
         <input type="password" id="adminPass" autocomplete="current-password">
         <div class="modal-actions">
-          <button type="button" id="btnCancelAdmin">Отмена</button>
-          <button type="submit">OK</button>
+          <button type="button" class="btn" id="btnCancelAdmin">Отмена</button>
+          <button type="submit" class="btn btn--primary">Войти</button>
         </div>
       </form>
       <p id="adminError" class="error hidden"></p>
     </div>
   </div>
 
-  <!-- Modal: Reward form (товар/услуга за баллы) -->
+  <!-- Modal: Reward form -->
   <div id="rewardModal" class="modal hidden">
     <div class="modal-content">
       <h3 id="rewardModalTitle">Добавить товар/услугу за баллы</h3>
       <form id="rewardForm">
         <input type="hidden" id="rewardId">
         <label>Название *</label>
-        <input type="text" id="rewardName" required placeholder="Например: Бесплатная мойка">
+        <input type="text" id="rewardName" required placeholder="Бесплатная мойка">
         <label>Описание</label>
         <textarea id="rewardDescription" placeholder="Краткое описание для клиента"></textarea>
         <label>Стоимость (баллов) *</label>
@@ -179,8 +239,8 @@
         <input type="number" id="rewardSortOrder" value="0">
         <label><input type="checkbox" id="rewardActive" checked> Доступно клиентам</label>
         <div class="modal-actions">
-          <button type="button" id="btnCancelReward">Отмена</button>
-          <button type="submit">Сохранить</button>
+          <button type="button" class="btn" id="btnCancelReward">Отмена</button>
+          <button type="submit" class="btn btn--primary">Сохранить</button>
         </div>
       </form>
     </div>
@@ -198,11 +258,16 @@
         <textarea id="newsBody" required></textarea>
         <label><input type="checkbox" id="newsPublished" checked> Опубликовано</label>
         <div class="modal-actions">
-          <button type="button" id="btnCancelNews">Отмена</button>
-          <button type="submit">Сохранить</button>
+          <button type="button" class="btn" id="btnCancelNews">Отмена</button>
+          <button type="submit" class="btn btn--primary">Сохранить</button>
         </div>
       </form>
     </div>
+  </div>
+
+  <!-- Modal: Candidate detail -->
+  <div id="candidateModal" class="modal hidden">
+    <div class="modal-content" id="candidateDetail"></div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>

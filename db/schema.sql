@@ -128,6 +128,22 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- Кандидаты (отклики с сайта)
+CREATE TABLE IF NOT EXISTS candidates (
+  id TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT DEFAULT '',
+  desired_role TEXT DEFAULT '',
+  about TEXT DEFAULT '',
+  quiz_answers TEXT DEFAULT '[]',
+  quiz_score INTEGER DEFAULT 0,
+  quiz_total INTEGER DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'new',
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
 -- Индексы
 CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date_time);
@@ -140,3 +156,5 @@ CREATE INDEX IF NOT EXISTS idx_clients_phone_norm ON clients(phone_norm);
 CREATE INDEX IF NOT EXISTS idx_news_created ON news(created_at);
 CREATE INDEX IF NOT EXISTS idx_loyalty_rewards_active ON loyalty_rewards(is_active);
 CREATE INDEX IF NOT EXISTS idx_loyalty_redemptions_client ON loyalty_redemptions(client_id);
+CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status);
+CREATE INDEX IF NOT EXISTS idx_candidates_created ON candidates(created_at);

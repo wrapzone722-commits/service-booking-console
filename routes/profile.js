@@ -1,8 +1,18 @@
 /**
  * GET /profile - профиль текущего клиента
  * PUT /profile - обновить профиль
+ * PUT /profile/push_token - обновить APNs device token для push-уведомлений
  */
 import { getDb } from '../db/index.js';
+
+export function updatePushToken(req, res) {
+  const db = getDb();
+  const pushToken = req.body && req.body.push_token;
+  // null или пустая строка = снять регистрацию push
+  const value = typeof pushToken === 'string' && pushToken.trim() ? pushToken.trim() : null;
+  db.prepare('UPDATE clients SET apns_device_token = ? WHERE id = ?').run(value, req.clientId);
+  return res.status(200).json({ ok: true });
+}
 
 export function getProfile(req, res) {
   const db = getDb();
