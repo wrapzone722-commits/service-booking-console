@@ -280,6 +280,13 @@
     <div class="modal-content" id="candidateDetail"></div>
   </div>
 
+  <!-- Modal: клиент по записи (канал, контакты, снимок при создании) -->
+  <div id="bookingClientModal" class="modal hidden" onclick="if (event.target === this) closeBookingClientModal()">
+    <div class="modal-content modal-content--wide" onclick="event.stopPropagation()">
+      <div id="bookingClientDetail"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="app.js?v={{ASSET_V}}"></script>
 </body>

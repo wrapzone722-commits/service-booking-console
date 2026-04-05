@@ -61,6 +61,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   in_progress_started_at TEXT,
   rating INTEGER,
   rating_comment TEXT,
+  -- Откуда создана запись: web | ios | android (для админки)
+  booking_source TEXT,
+  -- Контакты, переданные в теле запроса при создании (снимок на момент записи)
+  booking_snapshot_first_name TEXT,
+  booking_snapshot_phone TEXT,
   FOREIGN KEY (service_id) REFERENCES services(id),
   FOREIGN KEY (user_id) REFERENCES clients(id)
 );

@@ -74,6 +74,16 @@ export function initDatabase(dbPath = null) {
     db.exec('ALTER TABLE bookings ADD COLUMN rating_comment TEXT');
   } catch (_) {}
 
+  try {
+    db.exec('ALTER TABLE bookings ADD COLUMN booking_source TEXT');
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE bookings ADD COLUMN booking_snapshot_first_name TEXT');
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE bookings ADD COLUMN booking_snapshot_phone TEXT');
+  } catch (_) {}
+
   // Миграция: добавить news_id в notifications если нет
   try {
     db.exec('ALTER TABLE notifications ADD COLUMN news_id TEXT');

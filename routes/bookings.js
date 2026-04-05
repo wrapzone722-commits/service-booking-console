@@ -6,6 +6,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { applyBookingContactFromBookingBody } from './profile.js';
 
+/** Нормализация источника записи: тело запроса + платформа клиента при регистрации */
+function resolveBookingSource(bodySource, clientPlatform) {
+  const s = typeof bodySource === 'string' ? bodySource.trim().toLowerCase() : '';
+  if (s === 'web' || s === 'site' || s === 'widget') return 'web';
+  if (s === 'ios' || s === 'iphone' || s === 'ipad') return 'ios';
+  if (s === 'android') return 'android';
+  const p = (clientPlatform || '').toLowerCase();
+  if (p.includes('web')) return 'web';
+  if (p.startsWith('ios') || p.includes('iphone') || p.includes('ipad')) return 'ios';
+  if (p.startsWith('android') || p.includes('android')) return 'android';
+  return null;
+}
+
 export function listBookings(req, res) {
   const db = getDb();
   const rows = db.prepare(`
@@ -20,12 +33,13 @@ export function listBookings(req, res) {
 }
 
 export function createBooking(req, res) {
-  const { service_id, date_time, post_id, notes, first_name, phone } = req.body || {};
+  const { service_id, date_time, post_id, notes, first_name, phone, source } = req.body || {};
   if (!service_id || !date_time) {
     return res.status(400).json({ error: 'service_id и date_time обязательны' });
   }
 
   const db = getDb();
+  const clientRow = db.prepare('SELECT platform FROM clients WHERE id = ?').get(req.clientId);
   const service = db.prepare('SELECT * FROM services WHERE id = ? AND is_active = 1').get(service_id);
   if (!service) {
     return res.status(404).json({ error: 'Услуга не найдена или неактивна' });
@@ -54,14 +68,33 @@ export function createBooking(req, res) {
         }
       : null;
 
+  const snapFirst =
+    typeof first_name === 'string' && first_name.trim() ? first_name.trim() : null;
+  const snapPhone = typeof phone === 'string' && phone.trim() ? phone.trim() : null;
+  const bookingSource = resolveBookingSource(source, clientRow?.platform);
+
   const tx = db.transaction(() => {
     if (contactPatch) {
       applyBookingContactFromBookingBody(req.clientId, contactPatch);
     }
     db.prepare(`
-    INSERT INTO bookings (id, service_id, user_id, date_time, status, price, duration, notes, post_id, created_at)
-    VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
-  `).run(id, service_id, req.clientId, dtStr, service.price, service.duration, notes || null, postId, now);
+    INSERT INTO bookings (id, service_id, user_id, date_time, status, price, duration, notes, post_id, created_at,
+      booking_source, booking_snapshot_first_name, booking_snapshot_phone)
+    VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+      id,
+      service_id,
+      req.clientId,
+      dtStr,
+      service.price,
+      service.duration,
+      notes || null,
+      postId,
+      now,
+      bookingSource,
+      snapFirst,
+      snapPhone
+    );
   });
   tx();
 

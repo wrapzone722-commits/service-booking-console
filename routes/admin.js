@@ -67,7 +67,9 @@ export function setupAdminRoutes(router) {
     const db = getDb();
     const { status, date, client_id } = req.query;
     let sql = `
-      SELECT b.*, s.name as service_name, c.first_name, c.last_name, c.phone, c.email, c.social_links
+      SELECT b.*, s.name as service_name,
+        c.first_name, c.last_name, c.phone, c.email, c.social_links,
+        c.platform AS client_platform, c.app_version AS client_app_version
       FROM bookings b
       JOIN services s ON s.id = b.service_id
       JOIN clients c ON c.id = b.user_id

@@ -81,6 +81,7 @@ async function loadBookings() {
   if (date) path += 'date=' + encodeURIComponent(date) + '&';
   try {
     const list = await api(path);
+    lastBookingsCache = list;
     document.getElementById('bookingsList').innerHTML = list.length
       ? list.map(renderBookingCard).join('')
       : emptyState('Нет записей');
@@ -100,6 +101,92 @@ function bookingHasContact(b) {
   return !!(p || e);
 }
 
+/** Кэш последней загрузки списка записей (для модалки клиента) */
+let lastBookingsCache = [];
+
+function bookingChannelShortLabel(b) {
+  const src = (b.booking_source || '').toLowerCase();
+  if (src === 'web') return 'сайт';
+  if (src === 'ios') return 'приложение iOS';
+  if (src === 'android') return 'приложение Android';
+  const p = (b.client_platform || '').toLowerCase();
+  if (p.includes('web')) return 'сайт';
+  if (p.startsWith('ios') || p.includes('iphone') || p.includes('ipad')) return 'приложение iOS';
+  if (p.includes('android')) return 'приложение Android';
+  return 'канал не указан';
+}
+
+function bookingChannelLongLabel(b) {
+  const src = (b.booking_source || '').toLowerCase();
+  if (src === 'web') return 'Сайт (онлайн-запись / виджет)';
+  if (src === 'ios') return 'Приложение iOS';
+  if (src === 'android') return 'Приложение Android';
+  const p = (b.client_platform || '').toLowerCase();
+  if (p.includes('web')) return 'Сайт (по данным регистрации клиента)';
+  if (p.startsWith('ios') || p.includes('iphone') || p.includes('ipad')) return 'Приложение iOS (по регистрации)';
+  if (p.includes('android')) return 'Приложение Android (по регистрации)';
+  return 'Не указано — уточните у клиента';
+}
+
+function closeBookingClientModal() {
+  document.getElementById('bookingClientModal').classList.add('hidden');
+}
+
+function openBookingClientModal(bookingId) {
+  const b = lastBookingsCache.find(x => x.id === bookingId);
+  if (!b) return;
+
+  const profileName = `${(b.first_name || '').trim()} ${(b.last_name || '').trim()}`.trim() || '—';
+  const snapName = (b.booking_snapshot_first_name || '').trim();
+  const snapPhone = (b.booking_snapshot_phone || '').trim();
+  const regLine = [b.client_platform, b.client_app_version].filter(Boolean).join(' · ') || '—';
+
+  let html = `
+    <h3>Клиент по записи</h3>
+    <p class="booking-client-modal__service hint">${escapeHtml(b.service_name)} · ${formatDateTime(b.date_time)}</p>
+    <dl class="candidate-detail booking-client-detail">
+      <dt>Имя в профиле</dt>
+      <dd>${escapeHtml(profileName)}</dd>
+      <dt>Как записался</dt>
+      <dd>${escapeHtml(bookingChannelLongLabel(b))}</dd>
+      <dt>Платформа при регистрации</dt>
+      <dd>${escapeHtml(regLine)}</dd>
+      <dt>Телефон (профиль)</dt>
+      <dd>${b.phone ? (buildTelHref(b.phone) ? `<a href="${escapeAttr(buildTelHref(b.phone))}" style="color:var(--lime)">${escapeHtml(b.phone)}</a>` : escapeHtml(b.phone)) : '—'}</dd>
+      <dt>E-mail</dt>
+      <dd>${b.email ? `<a href="mailto:${encodeURIComponent(String(b.email).trim())}" style="color:var(--lime)">${escapeHtml(b.email)}</a>` : '—'}</dd>
+      <dt>Мессенджеры</dt>
+      <dd>${renderContactLine(null, null, b.social_links)}</dd>
+    `;
+
+  if (snapName || snapPhone) {
+    html += `
+      <dt class="booking-client-detail__snap">Передано при создании записи</dt>
+      <dd class="booking-client-detail__snap">
+        ${snapName ? `<div><strong>Имя:</strong> ${escapeHtml(snapName)}</div>` : ''}
+        ${snapPhone ? `<div><strong>Телефон:</strong> ${buildTelHref(snapPhone) ? `<a href="${escapeAttr(buildTelHref(snapPhone))}" style="color:var(--lime)">${escapeHtml(snapPhone)}</a>` : escapeHtml(snapPhone)}</div>` : ''}
+      </dd>`;
+  }
+
+  html += `
+      <dt>ID клиента</dt>
+      <dd><code style="word-break:break-all">${escapeHtml(b.user_id)}</code></dd>
+    </dl>`;
+
+  const contactBtns = renderContactButtons(b.phone, b.email, b.social_links);
+  if (contactBtns) {
+    html += `<div class="btn-group" style="margin-top:1rem">${contactBtns}</div>`;
+  }
+
+  html += `
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="closeBookingClientModal()">Закрыть</button>
+    </div>`;
+
+  document.getElementById('bookingClientDetail').innerHTML = html;
+  document.getElementById('bookingClientModal').classList.remove('hidden');
+}
+
 function renderBookingCard(b) {
   return `
     <div class="card">
@@ -107,11 +194,16 @@ function renderBookingCard(b) {
         <h4>${escapeHtml(b.service_name)}</h4>
         <span class="status ${b.status}">${statusLabel(b.status)}</span>
       </div>
-      <div class="booking-client">
-        <div class="booking-client__label">Клиент</div>
-        <p class="booking-client__name">${bookingClientName(b)}</p>
-        <p class="booking-client__contacts">${renderContactLine(b.phone, b.email, b.social_links)}</p>
-        ${!bookingHasContact(b) ? `<p class="booking-client__hint">Телефон/e-mail в профиле не указаны · ID клиента: <code>${escapeHtml(b.user_id)}</code></p>` : ''}
+      <div class="booking-client booking-client--row">
+        <button type="button" class="booking-client__avatar-btn" onclick="openBookingClientModal('${escapeAttr(b.id)}')" title="Карточка клиента: имя, канал записи, телефон" aria-label="Открыть карточку клиента">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </button>
+        <div class="booking-client__main">
+          <div class="booking-client__label">Клиент · ${escapeHtml(bookingChannelShortLabel(b))}</div>
+          <p class="booking-client__name">${bookingClientName(b)}</p>
+          <p class="booking-client__contacts">${renderContactLine(b.phone, b.email, b.social_links)}</p>
+          ${!bookingHasContact(b) ? `<p class="booking-client__hint">Телефон/e-mail в профиле не указаны · ID: <code>${escapeHtml(b.user_id)}</code> · нажмите иконку для деталей</p>` : `<p class="booking-client__hint booking-client__hint--subtle">Нажмите иконку слева — канал записи и контакты при создании</p>`}
+        </div>
       </div>
       ${b.notes ? `<p class="card-meta booking-notes"><strong>Комментарий клиента:</strong> ${escapeHtml(b.notes)}</p>` : ''}
       <p class="card-meta">${formatDateTime(b.date_time)} · ${b.price} ₽</p>
@@ -138,6 +230,7 @@ async function loadControl() {
   if (date) path += 'date=' + encodeURIComponent(date) + '&';
   try {
     const list = await api(path);
+    lastBookingsCache = list;
     document.getElementById('controlList').innerHTML = list.length
       ? list.map(renderBookingCard).join('')
       : emptyState('Нет записей');
