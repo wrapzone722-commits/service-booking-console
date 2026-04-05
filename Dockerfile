@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apk add --no-cache ttf-dejavu python3 make g++ sqlite-dev
 
 # Только npm, без pnpm. Точное воспроизведение по package-lock.json (аналог --frozen-lockfile).
-COPY package.json package-lock.json .npmrc ./
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-optional
 
 COPY . .
