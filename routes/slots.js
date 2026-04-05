@@ -6,6 +6,22 @@ import { getDb } from '../db/index.js';
 
 const STUDIO_OFFSET_HOURS = parseInt(process.env.STUDIO_TZ_OFFSET_HOURS || '5', 10);
 
+function settingGet(db, key, fallback) {
+  const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  const v = r && r.value != null ? String(r.value).trim() : '';
+  return v || fallback;
+}
+
+/** Общие часы слотов, если у поста выключено «своё расписание» */
+function getStudioSlotDefaults(db) {
+  const intervalRaw = parseInt(settingGet(db, 'studio_slot_interval_minutes', '30'), 10);
+  return {
+    start: settingGet(db, 'studio_slot_start', '09:00'),
+    end: settingGet(db, 'studio_slot_end', '18:00'),
+    interval: Number.isFinite(intervalRaw) && intervalRaw > 0 ? intervalRaw : 30,
+  };
+}
+
 export function getSlots(req, res) {
   const { service_id, date, post_id } = req.query;
   if (!service_id || !date) {
@@ -24,9 +40,14 @@ export function getSlots(req, res) {
     return res.status(400).json({ error: 'Пост недоступен' });
   }
 
-  const [startH, startM] = (post.start_time || '09:00').split(':').map(Number);
-  const [endH, endM] = (post.end_time || '18:00').split(':').map(Number);
-  const interval = post.interval_minutes || 30;
+  const studio = getStudioSlotDefaults(db);
+  const useOwn = !!post.use_custom_hours;
+  const startStr = useOwn ? post.start_time || studio.start : studio.start;
+  const endStr = useOwn ? post.end_time || studio.end : studio.end;
+  const interval = useOwn ? post.interval_minutes || studio.interval : studio.interval;
+
+  const [startH, startM] = String(startStr || '09:00').split(':').map(Number);
+  const [endH, endM] = String(endStr || '18:00').split(':').map(Number);
 
   const parts = String(date).split('-').map(Number);
   const y = parts[0], m = parts[1], d = parts[2];

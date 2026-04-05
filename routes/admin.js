@@ -155,20 +155,86 @@ export function setupAdminRoutes(router) {
   router.get('/posts', (req, res) => {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM posts ORDER BY id').all();
-    res.json(rows.map(r => ({ ...r, is_enabled: !!r.is_enabled })));
+    res.json(
+      rows.map(r => ({
+        ...r,
+        is_enabled: !!r.is_enabled,
+        use_custom_hours: !!r.use_custom_hours,
+      }))
+    );
   });
 
   router.put('/posts/:id', (req, res) => {
     const db = getDb();
-    const { name, is_enabled, start_time, end_time, interval_minutes } = req.body || {};
+    const { name, is_enabled, use_custom_hours, start_time, end_time, interval_minutes } = req.body || {};
     const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Пост не найден' });
+    const nextCustom =
+      use_custom_hours === undefined ? row.use_custom_hours : use_custom_hours ? 1 : 0;
     db.prepare(`
-      UPDATE posts SET name=?, is_enabled=?, start_time=?, end_time=?, interval_minutes=?
+      UPDATE posts SET name=?, is_enabled=?, use_custom_hours=?, start_time=?, end_time=?, interval_minutes=?
       WHERE id=?
-    `).run(name ?? row.name, is_enabled !== false ? 1 : 0, start_time ?? row.start_time, end_time ?? row.end_time, interval_minutes ?? row.interval_minutes, req.params.id);
+    `).run(
+      name ?? row.name,
+      is_enabled !== false ? 1 : 0,
+      nextCustom,
+      start_time ?? row.start_time,
+      end_time ?? row.end_time,
+      interval_minutes ?? row.interval_minutes,
+      req.params.id
+    );
     const updated = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
-    res.json({ ...updated, is_enabled: !!updated.is_enabled });
+    res.json({
+      ...updated,
+      is_enabled: !!updated.is_enabled,
+      use_custom_hours: !!updated.use_custom_hours,
+    });
+  });
+
+  // === Автомобили (папки для выбора в приложении) — только с паролем админки ===
+  router.get('/car-folders', requireAdmin, (req, res) => {
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM car_folders ORDER BY sort_order ASC, name ASC').all();
+    res.json(rows);
+  });
+
+  router.post('/car-folders', requireAdmin, (req, res) => {
+    const { name, image_url, sort_order } = req.body || {};
+    if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name обязателен' });
+    const db = getDb();
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    db.prepare(
+      'INSERT INTO car_folders (id, name, image_url, sort_order, created_at) VALUES (?,?,?,?,?)'
+    ).run(id, name.trim(), image_url || null, sort_order ?? 0, now);
+    const row = db.prepare('SELECT * FROM car_folders WHERE id = ?').get(id);
+    res.status(201).json(row);
+  });
+
+  router.put('/car-folders/:id', requireAdmin, (req, res) => {
+    const db = getDb();
+    const { name, image_url, sort_order } = req.body || {};
+    const row = db.prepare('SELECT * FROM car_folders WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Запись не найдена' });
+    const nextName = name !== undefined ? String(name).trim() : row.name;
+    if (!nextName) return res.status(400).json({ error: 'name не может быть пустым' });
+    db.prepare('UPDATE car_folders SET name=?, image_url=?, sort_order=? WHERE id=?').run(
+      nextName,
+      image_url !== undefined ? (image_url && String(image_url).trim()) || null : row.image_url,
+      sort_order !== undefined ? Number(sort_order) || 0 : row.sort_order,
+      req.params.id
+    );
+    res.json(db.prepare('SELECT * FROM car_folders WHERE id = ?').get(req.params.id));
+  });
+
+  router.delete('/car-folders/:id', requireAdmin, (req, res) => {
+    const db = getDb();
+    const inUse = db.prepare('SELECT COUNT(*) as c FROM clients WHERE selected_car_id = ?').get(req.params.id);
+    if (inUse && inUse.c > 0) {
+      return res.status(400).json({ error: 'Нельзя удалить: тип выбран у клиентов' });
+    }
+    db.prepare('DELETE FROM car_folders WHERE id = ?').run(req.params.id);
+    res.status(204).send();
   });
 
   // === News ===
@@ -301,11 +367,19 @@ export function setupAdminRoutes(router) {
   /** Загрузка изображения (сжатие + сохранение в /uploads/) */
   router.post('/upload/image', requireAdmin, uploadMiddleware, handleImageUpload);
 
+  const SETTINGS_KEYS = [
+    'api_base_url',
+    'studio_slot_start',
+    'studio_slot_end',
+    'studio_slot_interval_minutes',
+  ];
+
   router.put('/settings', requireAdmin, (req, res) => {
     const db = getDb();
-    const { api_base_url } = req.body || {};
-    if (api_base_url !== undefined) {
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('api_base_url', ?)").run(api_base_url);
+    const body = req.body || {};
+    const upd = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    for (const key of SETTINGS_KEYS) {
+      if (body[key] !== undefined) upd.run(key, String(body[key]));
     }
     const rows = db.prepare('SELECT key, value FROM settings').all();
     const obj = {};

@@ -1,7 +1,7 @@
 const API_BASE = '/admin/api';
 let adminKey = localStorage.getItem('adminKey') || '';
 
-const PROTECTED_PAGES = new Set(['settings']);
+const PROTECTED_PAGES = new Set(['settings', 'cars']);
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
@@ -36,6 +36,7 @@ function showScreen(name) {
     rewards: loadRewards,
     control: loadControl,
     clients: loadClients,
+    cars: loadCarFolders,
     candidates: loadCandidates,
     settings: loadSettings,
   };
@@ -399,6 +400,9 @@ async function loadSettings() {
   try {
     const s = await api('/settings');
     document.getElementById('apiBaseUrl').value = s.api_base_url || '';
+    document.getElementById('studioSlotStart').value = s.studio_slot_start || '09:00';
+    document.getElementById('studioSlotEnd').value = s.studio_slot_end || '18:00';
+    document.getElementById('studioSlotInterval').value = s.studio_slot_interval_minutes || '30';
     const baseUrl = s.api_base_url || (window.location.origin + '/api/v1');
     document.getElementById('localUrl').textContent = window.location.origin + '/api/v1';
     QRCode.toCanvas(document.createElement('canvas'), baseUrl, { width: 200 }, (err, canvas) => {
@@ -412,6 +416,71 @@ async function loadSettings() {
   }
 }
 
+/* ── Car folders (типы авто в приложении) ── */
+async function loadCarFolders() {
+  try {
+    const list = await api('/car-folders');
+    const html = list.map(c => `
+      <div class="card" data-id="${escapeAttr(c.id)}">
+        <div class="card-row">
+          ${c.image_url
+            ? `<img class="service-thumb" src="${escapeAttr(c.image_url)}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
+            : '<div class="service-thumb-ph">🚗</div>'}
+          <div class="card-row-body">
+            <div class="card-header">
+              <h4>${escapeHtml(c.name)}</h4>
+            </div>
+            <p class="hint">Порядок: ${c.sort_order ?? 0}</p>
+            <div class="btn-group">
+              <button class="btn btn--sm" onclick="editCarFolder('${escapeAttr(c.id)}')">Изменить</button>
+              <button class="btn btn--sm btn--danger" onclick="deleteCarFolder('${escapeAttr(c.id)}')">Удалить</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    document.getElementById('carFoldersList').innerHTML = html || emptyState('Нет записей');
+  } catch (e) {
+    document.getElementById('carFoldersList').innerHTML = errorHtml(e);
+  }
+}
+
+function updateCarFolderImagePreview(url) {
+  const box = document.getElementById('carFolderImagePreview');
+  if (url) {
+    box.innerHTML = `<img src="${escapeAttr(url)}" alt="" onerror="this.parentNode.innerHTML='📷'">`;
+  } else {
+    box.innerHTML = '📷';
+  }
+}
+
+function openCarFolderModal(item = null) {
+  document.getElementById('carFolderId').value = item?.id || '';
+  document.getElementById('carFolderModalTitle').textContent = item ? 'Изменить тип' : 'Добавить тип автомобиля';
+  document.getElementById('carFolderName').value = item?.name || '';
+  document.getElementById('carFolderSort').value = item?.sort_order ?? 0;
+  document.getElementById('carFolderImageUrl').value = item?.image_url || '';
+  updateCarFolderImagePreview(item?.image_url || '');
+  document.getElementById('carFolderModal').classList.remove('hidden');
+}
+
+function editCarFolder(id) {
+  api('/car-folders').then(list => {
+    const c = list.find(x => x.id === id);
+    if (c) openCarFolderModal(c);
+  });
+}
+
+async function deleteCarFolder(id) {
+  if (!confirm('Удалить этот тип?')) return;
+  try {
+    await api('/car-folders/' + encodeURIComponent(id), { method: 'DELETE' });
+    loadCarFolders();
+  } catch (e) {
+    alert(e.message || String(e));
+  }
+}
+
 /* ── Posts ── */
 async function loadPosts() {
   try {
@@ -422,15 +491,18 @@ async function loadPosts() {
           <h4>${escapeHtml(p.name)}</h4>
           <span class="status ${p.is_enabled ? 'in_progress' : 'cancelled'}">${p.is_enabled ? 'Включен' : 'Выключен'}</span>
         </div>
+        <p class="hint" style="margin-bottom:0.65rem">Своё расписание: пост использует поля ниже. Иначе — общие часы из «Настройки».</p>
         <div class="grid">
           <label>Название</label>
           <input type="text" data-field="name" value="${escapeAttr(p.name)}">
           <label>Включен</label>
           <input type="checkbox" data-field="is_enabled" ${p.is_enabled ? 'checked' : ''}>
+          <label>Своё расписание</label>
+          <input type="checkbox" data-field="use_custom_hours" ${p.use_custom_hours ? 'checked' : ''}>
           <label>Начало</label>
-          <input type="text" data-field="start_time" value="${escapeAttr(p.start_time || '')}">
+          <input type="text" data-field="start_time" value="${escapeAttr(p.start_time || '')}" placeholder="09:00">
           <label>Конец</label>
-          <input type="text" data-field="end_time" value="${escapeAttr(p.end_time || '')}">
+          <input type="text" data-field="end_time" value="${escapeAttr(p.end_time || '')}" placeholder="18:00">
           <label>Интервал (мин)</label>
           <input type="number" data-field="interval_minutes" value="${p.interval_minutes || 30}">
         </div>
@@ -808,12 +880,67 @@ document.getElementById('btnCancelNotify').onclick = () => document.getElementBy
 
 document.getElementById('btnSaveSettings').onclick = async () => {
   const url = document.getElementById('apiBaseUrl').value.trim();
-  await api('/settings', { method: 'PUT', body: JSON.stringify({ api_base_url: url }) });
+  await api('/settings', {
+    method: 'PUT',
+    body: JSON.stringify({
+      api_base_url: url,
+      studio_slot_start: document.getElementById('studioSlotStart').value.trim() || '09:00',
+      studio_slot_end: document.getElementById('studioSlotEnd').value.trim() || '18:00',
+      studio_slot_interval_minutes: String(parseInt(document.getElementById('studioSlotInterval').value, 10) || 30),
+    }),
+  });
   loadSettings();
 };
 
 document.getElementById('btnAddNews').onclick = () => openNewsModal(null);
 document.getElementById('btnAddReward').onclick = () => openRewardModal(null);
+document.getElementById('btnAddCarFolder').onclick = () => openCarFolderModal(null);
+
+document.getElementById('carFolderImageUrl').onchange = function () {
+  updateCarFolderImagePreview(this.value.trim());
+};
+
+document.getElementById('carFolderImageFile').onchange = async function () {
+  const file = this.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await fetch(API_BASE + '/upload/image', {
+      method: 'POST',
+      headers: { 'X-Admin-Key': adminKey },
+      body: fd,
+    });
+    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+    const data = await res.json();
+    document.getElementById('carFolderImageUrl').value = data.url;
+    updateCarFolderImagePreview(data.url);
+  } catch (e) {
+    alert('Ошибка загрузки: ' + e.message);
+  }
+  this.value = '';
+};
+
+document.getElementById('carFolderForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('carFolderId').value;
+  const body = {
+    name: document.getElementById('carFolderName').value.trim(),
+    image_url: document.getElementById('carFolderImageUrl').value.trim() || null,
+    sort_order: parseInt(document.getElementById('carFolderSort').value, 10) || 0,
+  };
+  if (!body.name) return;
+  if (id) {
+    await api('/car-folders/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) });
+  } else {
+    await api('/car-folders', { method: 'POST', body: JSON.stringify(body) });
+  }
+  document.getElementById('carFolderModal').classList.add('hidden');
+  loadCarFolders();
+};
+
+document.getElementById('btnCancelCarFolder').onclick = () =>
+  document.getElementById('carFolderModal').classList.add('hidden');
 
 document.getElementById('rewardForm').onsubmit = async (e) => {
   e.preventDefault();

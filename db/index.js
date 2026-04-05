@@ -94,6 +94,16 @@ export function initDatabase(dbPath = null) {
     db.exec('ALTER TABLE clients ADD COLUMN apns_device_token TEXT');
   } catch (_) {}
 
+  // Однократно: раньше слоты игнорировали use_custom_hours и всегда брали время с поста.
+  // После учёта флага посты с 0 начали бы использовать «студийные» часы — поднимаем флаг у существующих строк.
+  try {
+    const done = db.prepare("SELECT 1 FROM settings WHERE key = 'slots_use_custom_hours_backfill' LIMIT 1").get();
+    if (!done) {
+      db.prepare('UPDATE posts SET use_custom_hours = 1 WHERE use_custom_hours = 0').run();
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('slots_use_custom_hours_backfill', '1')").run();
+    }
+  } catch (_) {}
+
   seedInitialData();
   syncMissingStudioServices();
   return db;
@@ -126,8 +136,8 @@ function seedInitialData() {
 
   // Посты
   const posts = [
-    ['post_1', 'Пост 1', 1, 0, '09:00', '18:00', 30, now],
-    ['post_2', 'Пост 2', 1, 0, '09:00', '18:00', 30, now],
+    ['post_1', 'Пост 1', 1, 1, '09:00', '18:00', 30, now],
+    ['post_2', 'Пост 2', 1, 1, '09:00', '18:00', 30, now],
   ];
   const insPost = db.prepare('INSERT INTO posts (id, name, is_enabled, use_custom_hours, start_time, end_time, interval_minutes, created_at) VALUES (?,?,?,?,?,?,?,?)');
   for (const p of posts) insPost.run(...p);
@@ -160,6 +170,9 @@ function seedInitialData() {
   } catch (_) {}
 
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('api_base_url', '')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_slot_start', '09:00')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_slot_end', '18:00')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_slot_interval_minutes', '30')").run();
 }
 
 export function getDb() {
