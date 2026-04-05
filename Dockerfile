@@ -7,7 +7,8 @@ RUN apk add --no-cache ttf-dejavu python3 make g++ sqlite-dev
 
 # Только npm, без pnpm. Точное воспроизведение по package-lock.json (аналог --frozen-lockfile).
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-optional
+# sharp ставит нативные бинарники как optionalDependencies (@img/sharp-linuxmusl-x64 и т.д.) — без них Alpine падает
+RUN npm ci --omit=dev
 
 COPY . .
 

@@ -51,7 +51,7 @@
   - Убедитесь, что в корне репозитория **нет** `pnpm-lock.yaml` (иначе платформа может выбрать pnpm). Должны быть только `package.json` и `package-lock.json`.
   - В настройках сборки укажите менеджер пакетов **npm** и команду установки: `npm ci --omit=dev` (аналог frozen lockfile, без dev-зависимостей).
 
-В `Dockerfile` уже используется `npm ci --omit=dev --no-optional` для воспроизводимой production-сборки.
+В `Dockerfile` используется `npm ci --omit=dev` (без `--no-optional`: иначе не ставятся платформенные пакеты **sharp** под Alpine/musl).
 
 ## Локальная сборка
 
