@@ -202,12 +202,14 @@
           <div class="img-upload-preview" id="serviceImagePreview"></div>
           <div class="img-upload-controls">
             <label class="btn btn--sm btn--file">
-              Загрузить фото
+              Заменить фото (файл)
               <input type="file" accept="image/*" id="serviceImageFile" hidden>
             </label>
-            <span class="img-upload-or">или</span>
-            <input type="url" id="serviceImageUrl" placeholder="https://…" class="img-upload-url">
+            <button type="button" class="btn btn--sm" id="btnServiceImageClear">Убрать фото</button>
+            <span class="img-upload-or">или URL</span>
+            <input type="text" id="serviceImageUrl" placeholder="https://… или /site-assets/…" class="img-upload-url" autocomplete="off">
           </div>
+          <p class="hint" style="margin-top:0.5rem">Загрузка файла на сервер требует пароль администратора (как в «Настройках»). Ссылку можно вставить без пароля.</p>
         </div>
         <label><input type="checkbox" id="serviceActive" checked> Активна</label>
         <div class="modal-actions">

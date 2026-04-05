@@ -58,7 +58,33 @@ export function setupAdminRoutes(router) {
 
   router.delete('/services/:id', (req, res) => {
     const db = getDb();
-    db.prepare('DELETE FROM services WHERE id = ?').run(req.params.id);
+    const row = db.prepare('SELECT id, name FROM services WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Услуга не найдена' });
+
+    const { c: bookingCount } = db.prepare('SELECT COUNT(*) as c FROM bookings WHERE service_id = ?').get(req.params.id);
+    const force =
+      req.query.force === '1' ||
+      req.query.force === 'true' ||
+      String(req.query.force).toLowerCase() === 'yes';
+
+    if (bookingCount > 0 && !force) {
+      return res.status(409).json({
+        error: 'CONFLICT_BOOKINGS',
+        bookings_count: bookingCount,
+        message: `К услуге привязано записей: ${bookingCount}. Повторите удаление с параметром force.`,
+      });
+    }
+
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM bookings WHERE service_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM services WHERE id = ?').run(req.params.id);
+    });
+    try {
+      tx();
+    } catch (e) {
+      console.error('delete service:', e);
+      return res.status(500).json({ error: 'Не удалось удалить услугу (ограничения БД)' });
+    }
     res.status(204).send();
   });
 

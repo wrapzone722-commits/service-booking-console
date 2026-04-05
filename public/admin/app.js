@@ -51,7 +51,7 @@ async function loadServices() {
       <div class="card" data-id="${s.id}">
         <div class="card-row">
           ${s.image_url
-            ? `<img class="service-thumb" src="${escapeAttr(s.image_url)}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
+            ? `<img class="service-thumb" src="${escapeAttr(resolveAdminAssetUrl(s.image_url))}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
             : '<div class="service-thumb-ph">🔧</div>'}
           <div class="card-row-body">
             <div class="card-header">
@@ -752,18 +752,58 @@ document.querySelectorAll('.sidebar__btn').forEach(b => {
   };
 });
 
+/** Превью: относительные пути (/uploads, /site-assets) с текущего хоста */
+function resolveAdminAssetUrl(raw) {
+  if (raw == null || !String(raw).trim()) return '';
+  const u = String(raw).trim();
+  if (/^https?:\/\//i.test(u) || u.startsWith('//')) return u;
+  if (u.startsWith('/')) return window.location.origin + u;
+  return u;
+}
+
 function updateServiceImagePreview(url) {
   const box = document.getElementById('serviceImagePreview');
-  if (url) {
-    box.innerHTML = `<img src="${escapeAttr(url)}" alt="" onerror="this.parentNode.innerHTML='📷'">`;
+  const src = resolveAdminAssetUrl(url);
+  if (src) {
+    box.innerHTML = `<img src="${escapeAttr(src)}" alt="" onerror="this.parentNode.innerHTML='📷'">`;
   } else {
     box.innerHTML = '📷';
+  }
+}
+
+/** Загрузка на сервер требует X-Admin-Key */
+async function ensureAdminKeyForUpload() {
+  if (adminKey) {
+    try {
+      await api('/settings');
+      return true;
+    } catch (_) {
+      adminKey = '';
+      localStorage.removeItem('adminKey');
+    }
+  }
+  const p = window.prompt('Введите пароль администратора для загрузки фото на сервер:');
+  if (!p) return false;
+  const prev = adminKey;
+  adminKey = String(p).trim();
+  try {
+    await api('/settings');
+    localStorage.setItem('adminKey', adminKey);
+    return true;
+  } catch (_) {
+    adminKey = prev;
+    alert('Неверный пароль');
+    return false;
   }
 }
 
 document.getElementById('serviceImageFile').onchange = async function () {
   const file = this.files?.[0];
   if (!file) return;
+  if (!(await ensureAdminKeyForUpload())) {
+    this.value = '';
+    return;
+  }
   const fd = new FormData();
   fd.append('image', file);
   try {
@@ -782,8 +822,14 @@ document.getElementById('serviceImageFile').onchange = async function () {
   this.value = '';
 };
 
-document.getElementById('serviceImageUrl').onchange = function () {
+document.getElementById('serviceImageUrl').addEventListener('input', function () {
   updateServiceImagePreview(this.value.trim());
+});
+
+document.getElementById('btnServiceImageClear').onclick = function () {
+  document.getElementById('serviceImageUrl').value = '';
+  document.getElementById('serviceImageFile').value = '';
+  updateServiceImagePreview(null);
 };
 
 document.getElementById('btnAddService').onclick = () => {
@@ -819,8 +865,34 @@ function editService(id) {
 }
 
 async function deleteService(id) {
-  if (!confirm('Удалить услугу?')) return;
-  await api('/services/' + id, { method: 'DELETE' });
+  if (!confirm('Удалить эту услугу из каталога?')) return;
+  const path = '/services/' + encodeURIComponent(id);
+  const url = API_BASE + path;
+  let res = await fetch(url, { method: 'DELETE', headers: headers() });
+  if (res.status === 409) {
+    let j = {};
+    try {
+      j = await res.json();
+    } catch (_) {}
+    const n = j.bookings_count != null ? j.bookings_count : '?';
+    if (
+      !confirm(
+        `У этой услуги есть записи в журнале: ${n}. Удалить услугу и все связанные записи? Действие необратимо.`
+      )
+    ) {
+      return;
+    }
+    res = await fetch(url + '?force=1', { method: 'DELETE', headers: headers() });
+  }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j.error || j.message || msg;
+    } catch (_) {}
+    alert(msg);
+    return;
+  }
   loadServices();
 }
 
