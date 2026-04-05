@@ -570,6 +570,40 @@ document.querySelectorAll('.sidebar__btn').forEach(b => {
   };
 });
 
+function updateServiceImagePreview(url) {
+  const box = document.getElementById('serviceImagePreview');
+  if (url) {
+    box.innerHTML = `<img src="${escapeAttr(url)}" alt="" onerror="this.parentNode.innerHTML='📷'">`;
+  } else {
+    box.innerHTML = '📷';
+  }
+}
+
+document.getElementById('serviceImageFile').onchange = async function () {
+  const file = this.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const res = await fetch(API_BASE + '/upload/image', {
+      method: 'POST',
+      headers: { 'X-Admin-Key': adminKey },
+      body: fd,
+    });
+    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+    const data = await res.json();
+    document.getElementById('serviceImageUrl').value = data.url;
+    updateServiceImagePreview(data.url);
+  } catch (e) {
+    alert('Ошибка загрузки: ' + e.message);
+  }
+  this.value = '';
+};
+
+document.getElementById('serviceImageUrl').onchange = function () {
+  updateServiceImagePreview(this.value.trim());
+};
+
 document.getElementById('btnAddService').onclick = () => {
   document.getElementById('serviceId').value = '';
   document.getElementById('serviceModalTitle').textContent = 'Добавить услугу';
@@ -579,6 +613,7 @@ document.getElementById('btnAddService').onclick = () => {
   document.getElementById('serviceDuration').value = '60';
   document.getElementById('serviceCategory').value = 'Автоуслуги';
   document.getElementById('serviceImageUrl').value = '';
+  updateServiceImagePreview(null);
   document.getElementById('serviceActive').checked = true;
   document.getElementById('serviceModal').classList.remove('hidden');
 };
@@ -595,6 +630,7 @@ function editService(id) {
     document.getElementById('serviceDuration').value = s.duration;
     document.getElementById('serviceCategory').value = s.category || '';
     document.getElementById('serviceImageUrl').value = s.image_url || '';
+    updateServiceImagePreview(s.image_url);
     document.getElementById('serviceActive').checked = s.is_active;
     document.getElementById('serviceModal').classList.remove('hidden');
   });

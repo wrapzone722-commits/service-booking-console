@@ -176,8 +176,18 @@
         <input type="number" id="serviceDuration" value="60">
         <label>Категория</label>
         <input type="text" id="serviceCategory" placeholder="Автоуслуги">
-        <label>URL фото услуги</label>
-        <input type="url" id="serviceImageUrl" placeholder="https://…">
+        <label>Фото услуги</label>
+        <div class="img-upload-group">
+          <div class="img-upload-preview" id="serviceImagePreview"></div>
+          <div class="img-upload-controls">
+            <label class="btn btn--sm btn--file">
+              Загрузить фото
+              <input type="file" accept="image/*" id="serviceImageFile" hidden>
+            </label>
+            <span class="img-upload-or">или</span>
+            <input type="url" id="serviceImageUrl" placeholder="https://…" class="img-upload-url">
+          </div>
+        </div>
         <label><input type="checkbox" id="serviceActive" checked> Активна</label>
         <div class="modal-actions">
           <button type="button" class="btn" id="btnCancelService">Отмена</button>

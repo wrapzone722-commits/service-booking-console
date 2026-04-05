@@ -8,6 +8,7 @@ import { getBookingActAdmin } from './act.js';
 import { sendPushToClient } from '../services/push.js';
 import { serveImagePreview } from './imagePreview.js';
 import { listCandidates, updateCandidateStatus, deleteCandidate } from './candidates.js';
+import { uploadMiddleware, handleImageUpload } from './uploads.js';
 
 const ADMIN_HEADER = 'x-admin-key';
 const ADMIN_PASSWORD = '2300';
@@ -294,6 +295,9 @@ export function setupAdminRoutes(router) {
 
   /** Превью изображения для админки (сжатие, lazy-load в списках) */
   router.get('/image/preview', requireAdmin, serveImagePreview);
+
+  /** Загрузка изображения (сжатие + сохранение в /uploads/) */
+  router.post('/upload/image', requireAdmin, uploadMiddleware, handleImageUpload);
 
   router.put('/settings', requireAdmin, (req, res) => {
     const db = getDb();
