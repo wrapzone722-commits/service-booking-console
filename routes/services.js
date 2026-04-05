@@ -4,17 +4,35 @@
  */
 import { getDb } from '../db/index.js';
 
+function isWashServiceLike(row) {
+  const cat = String(row.category || '').toLowerCase();
+  const name = String(row.name || '').toLowerCase();
+  const id = String(row.id || '').toLowerCase();
+  return cat.includes('мойк') || name.includes('мойк') || id.includes('wash') || id.includes('moy');
+}
+
+function sortServiceRowsWashFirst(rows) {
+  return [...rows].sort((a, b) => {
+    const wa = isWashServiceLike(a);
+    const wb = isWashServiceLike(b);
+    if (wa !== wb) return wa ? -1 : 1;
+    const c = String(a.category || '').localeCompare(String(b.category || ''), 'ru');
+    if (c !== 0) return c;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+  });
+}
+
 export function listServices(req, res) {
   const db = getDb();
   const activeOnly = req.query.active !== 'false';
   let rows;
   if (activeOnly) {
-    rows = db.prepare('SELECT * FROM services WHERE is_active = 1 ORDER BY category, name').all();
+    rows = db.prepare('SELECT * FROM services WHERE is_active = 1').all();
   } else {
-    rows = db.prepare('SELECT * FROM services ORDER BY category, name').all();
+    rows = db.prepare('SELECT * FROM services').all();
   }
 
-  const services = rows.map(toServiceJSON);
+  const services = sortServiceRowsWashFirst(rows).map(toServiceJSON);
   res.json(services);
 }
 

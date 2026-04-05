@@ -43,7 +43,23 @@ CREATE TABLE IF NOT EXISTS posts (
   start_time TEXT DEFAULT '09:00',
   end_time TEXT DEFAULT '18:00',
   interval_minutes INTEGER NOT NULL DEFAULT 30,
+  -- JSON-массив строк "HH:MM" — слоты, закрытые для записи (не показываются клиентам)
+  disabled_slot_times TEXT DEFAULT '[]',
   created_at TEXT NOT NULL
+);
+
+-- Пригласительные коды (QR): одна бесплатная услуга по коду для ограниченного числа клиентов
+CREATE TABLE IF NOT EXISTS invite_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  service_id TEXT NOT NULL,
+  post_id TEXT NOT NULL DEFAULT 'post_1',
+  label TEXT,
+  max_uses INTEGER NOT NULL DEFAULT 100,
+  expires_at TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (service_id) REFERENCES services(id)
 );
 
 -- Записи
@@ -66,8 +82,23 @@ CREATE TABLE IF NOT EXISTS bookings (
   -- Контакты, переданные в теле запроса при создании (снимок на момент записи)
   booking_snapshot_first_name TEXT,
   booking_snapshot_phone TEXT,
+  invite_code_id TEXT,
   FOREIGN KEY (service_id) REFERENCES services(id),
-  FOREIGN KEY (user_id) REFERENCES clients(id)
+  FOREIGN KEY (user_id) REFERENCES clients(id),
+  FOREIGN KEY (invite_code_id) REFERENCES invite_codes(id)
+);
+
+-- Списание приглашений (один клиент — один раз на код)
+CREATE TABLE IF NOT EXISTS invite_redemptions (
+  id TEXT PRIMARY KEY,
+  invite_code_id TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  booking_id TEXT NOT NULL,
+  redeemed_at TEXT NOT NULL,
+  FOREIGN KEY (invite_code_id) REFERENCES invite_codes(id),
+  FOREIGN KEY (client_id) REFERENCES clients(id),
+  FOREIGN KEY (booking_id) REFERENCES bookings(id),
+  UNIQUE(invite_code_id, client_id)
 );
 
 -- Уведомления

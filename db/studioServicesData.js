@@ -50,7 +50,7 @@ export const STUDIO_SERVICES = [
       'Безопасная мойка кузова, дисков, проёмов и деликатных зон с правильной химией и аккуратной сушкой без лишнего риска для ЛКП.',
     price: 3500,
     duration: 90,
-    category: 'Услуги студии',
+    category: 'Мойка',
     image_url: '/site-assets/service-wash.png',
   },
   {

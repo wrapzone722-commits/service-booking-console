@@ -45,6 +45,7 @@ export function getSlots(req, res) {
   const startStr = useOwn ? post.start_time || studio.start : studio.start;
   const endStr = useOwn ? post.end_time || studio.end : studio.end;
   const interval = useOwn ? post.interval_minutes || studio.interval : studio.interval;
+  const disabledSlots = parseDisabledSlotTimes(post.disabled_slot_times);
 
   const [startH, startM] = String(startStr || '09:00').split(':').map(Number);
   const [endH, endM] = String(endStr || '18:00').split(':').map(Number);
@@ -74,6 +75,15 @@ export function getSlots(req, res) {
     const slotDateUTC = new Date(isoWithTz);
     const isoUTC = slotDateUTC.toISOString();
 
+    if (disabledSlots.has(displayTime)) {
+      mi += interval;
+      while (mi >= 60) {
+        mi -= 60;
+        h++;
+      }
+      continue;
+    }
+
     const isAvailable = isSlotAvailable(db, isoUTC, service.duration, postId);
     slots.push({
       time: isoUTC,
@@ -86,6 +96,29 @@ export function getSlots(req, res) {
   }
 
   res.json(slots);
+}
+
+export function normalizeSlotTimeHHMM(t) {
+  const s = String(t).trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+  const mm = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function parseDisabledSlotTimes(raw) {
+  const set = new Set();
+  if (raw == null || raw === '') return set;
+  try {
+    const a = JSON.parse(String(raw));
+    if (!Array.isArray(a)) return set;
+    for (const t of a) {
+      const n = normalizeSlotTimeHHMM(t);
+      if (n) set.add(n);
+    }
+  } catch (_) {}
+  return set;
 }
 
 function isSlotAvailable(db, slotStartISO, duration, postId) {

@@ -84,6 +84,51 @@ export function initDatabase(dbPath = null) {
     db.exec('ALTER TABLE bookings ADD COLUMN booking_snapshot_phone TEXT');
   } catch (_) {}
 
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS invite_codes (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        service_id TEXT NOT NULL,
+        post_id TEXT NOT NULL DEFAULT 'post_1',
+        label TEXT,
+        max_uses INTEGER NOT NULL DEFAULT 100,
+        expires_at TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (service_id) REFERENCES services(id)
+      )
+    `);
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE bookings ADD COLUMN invite_code_id TEXT');
+  } catch (_) {}
+  try {
+    db.exec('ALTER TABLE posts ADD COLUMN disabled_slot_times TEXT DEFAULT \'[]\'');
+  } catch (_) {}
+
+  try {
+    db.prepare(
+      "UPDATE services SET category = 'Мойка' WHERE id = 'dm_wash' AND (TRIM(IFNULL(category,'')) = '' OR category = 'Услуги студии')"
+    ).run();
+  } catch (_) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS invite_redemptions (
+        id TEXT PRIMARY KEY,
+        invite_code_id TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        booking_id TEXT NOT NULL,
+        redeemed_at TEXT NOT NULL,
+        FOREIGN KEY (invite_code_id) REFERENCES invite_codes(id),
+        FOREIGN KEY (client_id) REFERENCES clients(id),
+        FOREIGN KEY (booking_id) REFERENCES bookings(id),
+        UNIQUE(invite_code_id, client_id)
+      )
+    `);
+  } catch (_) {}
+
   // Миграция: добавить news_id в notifications если нет
   try {
     db.exec('ALTER TABLE notifications ADD COLUMN news_id TEXT');

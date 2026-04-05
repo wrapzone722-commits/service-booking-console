@@ -5,6 +5,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { applyBookingContactFromBookingBody } from './profile.js';
+import { normalizeInviteCode } from './invites.js';
 
 /** Нормализация источника записи: тело запроса + платформа клиента при регистрации */
 function resolveBookingSource(bodySource, clientPlatform) {
@@ -33,7 +34,7 @@ export function listBookings(req, res) {
 }
 
 export function createBooking(req, res) {
-  const { service_id, date_time, post_id, notes, first_name, phone, source } = req.body || {};
+  const { service_id, date_time, post_id, notes, first_name, phone, source, invite_code } = req.body || {};
   if (!service_id || !date_time) {
     return res.status(400).json({ error: 'service_id и date_time обязательны' });
   }
@@ -45,7 +46,53 @@ export function createBooking(req, res) {
     return res.status(404).json({ error: 'Услуга не найдена или неактивна' });
   }
 
-  const postId = post_id || 'post_1';
+  const codeNorm = normalizeInviteCode(
+    typeof invite_code === 'string' ? invite_code : invite_code != null ? String(invite_code) : null
+  );
+
+  let inviteRow = null;
+  if (codeNorm) {
+    inviteRow = db
+      .prepare(
+        `
+      SELECT ic.* FROM invite_codes ic
+      JOIN services s ON s.id = ic.service_id AND s.is_active = 1
+      WHERE ic.code = ? AND ic.active = 1
+    `
+      )
+      .get(codeNorm);
+
+    if (!inviteRow) {
+      return res.status(400).json({ error: 'Неверный или неактивный код приглашения' });
+    }
+    if (inviteRow.service_id !== service_id) {
+      return res.status(400).json({ error: 'Код не относится к выбранной услуге' });
+    }
+    if (inviteRow.expires_at) {
+      const ex = new Date(inviteRow.expires_at);
+      if (!isNaN(ex.getTime()) && ex.getTime() < Date.now()) {
+        return res.status(400).json({ error: 'Срок действия кода истёк' });
+      }
+    }
+    const used = db
+      .prepare('SELECT COUNT(*) as c FROM invite_redemptions WHERE invite_code_id = ?')
+      .get(inviteRow.id).c;
+    if (used >= inviteRow.max_uses) {
+      return res.status(400).json({ error: 'Лимит активаций кода исчерпан' });
+    }
+    const already = db
+      .prepare('SELECT 1 FROM invite_redemptions WHERE invite_code_id = ? AND client_id = ?')
+      .get(inviteRow.id, req.clientId);
+    if (already) {
+      return res.status(400).json({ error: 'Вы уже использовали этот код' });
+    }
+  }
+
+  const postId = inviteRow ? inviteRow.post_id || 'post_1' : post_id || 'post_1';
+  if (inviteRow && post_id && String(post_id).trim() && String(post_id).trim() !== postId) {
+    return res.status(400).json({ error: 'Для этого кода выберите указанный в приглашении пост' });
+  }
+
   const post = db.prepare('SELECT id FROM posts WHERE id = ? AND is_enabled = 1').get(postId);
   if (!post) {
     return res.status(400).json({ error: 'Пост недоступен' });
@@ -73,30 +120,52 @@ export function createBooking(req, res) {
   const snapPhone = typeof phone === 'string' && phone.trim() ? phone.trim() : null;
   const bookingSource = resolveBookingSource(source, clientRow?.platform);
 
+  const finalPrice = inviteRow ? 0 : service.price;
+  const inviteCodeId = inviteRow ? inviteRow.id : null;
+  const redemptionId = inviteRow ? uuidv4() : null;
+
   const tx = db.transaction(() => {
     if (contactPatch) {
       applyBookingContactFromBookingBody(req.clientId, contactPatch);
     }
     db.prepare(`
     INSERT INTO bookings (id, service_id, user_id, date_time, status, price, duration, notes, post_id, created_at,
-      booking_source, booking_snapshot_first_name, booking_snapshot_phone)
-    VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)
+      booking_source, booking_snapshot_first_name, booking_snapshot_phone, invite_code_id)
+    VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
       id,
       service_id,
       req.clientId,
       dtStr,
-      service.price,
+      finalPrice,
       service.duration,
       notes || null,
       postId,
       now,
       bookingSource,
       snapFirst,
-      snapPhone
+      snapPhone,
+      inviteCodeId
     );
+    if (inviteRow) {
+      db.prepare(
+        `
+        INSERT INTO invite_redemptions (id, invite_code_id, client_id, booking_id, redeemed_at)
+        VALUES (?, ?, ?, ?, ?)
+      `
+      ).run(redemptionId, inviteRow.id, req.clientId, id, now);
+    }
   });
-  tx();
+
+  try {
+    tx();
+  } catch (e) {
+    console.error('createBooking tx:', e);
+    if (String(e.message || e).includes('UNIQUE')) {
+      return res.status(400).json({ error: 'Вы уже использовали этот код' });
+    }
+    return res.status(500).json({ error: 'Не удалось создать запись' });
+  }
 
   const row = db.prepare('SELECT b.*, s.name as service_name FROM bookings b JOIN services s ON s.id = b.service_id WHERE b.id = ?').get(id);
   res.status(201).json(toBookingJSON(row));
@@ -154,5 +223,6 @@ function toBookingJSON(row) {
     notes: row.notes,
     created_at: row.created_at,
     in_progress_started_at: row.in_progress_started_at,
+    invite_applied: !!row.invite_code_id,
   };
 }

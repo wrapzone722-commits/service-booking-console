@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Приглашение — Другое место</title>
+  <style>
+    :root {
+      --bg: #0f1114;
+      --card: #1a1d23;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #c9a962;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .box {
+      max-width: 420px;
+      width: 100%;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 1.75rem;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.5rem; font-weight: 600; }
+    .code {
+      font-family: ui-monospace, monospace;
+      font-size: 1.5rem;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      margin: 1rem 0;
+      word-break: break-all;
+    }
+    p { color: var(--muted); line-height: 1.5; margin: 0 0 1rem; font-size: 0.95rem; }
+    .ok h1 { color: #8bc34a; }
+    .err h1 { color: #e57373; }
+    .steps { margin: 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+    .steps li { margin-bottom: 0.35rem; }
+  </style>
+</head>
+<body>
+  <div class="box" id="root">
+    <p style="margin:0">Загрузка…</p>
+  </div>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const code = (params.get('code') || '').trim();
+      const root = document.getElementById('root');
+      const api = '/api/v1/invites/preview?code=' + encodeURIComponent(code);
+
+      function render(html) {
+        root.innerHTML = html;
+      }
+
+      if (!code) {
+        render('<div class="err"><h1>Нет кода</h1><p>Откройте ссылку из QR-кода или введите код в приложении студии.</p></div>');
+        return;
+      }
+
+      fetch(api)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.valid) {
+            render(
+              '<div class="err"><h1>Код недоступен</h1><p>' +
+                (data.error || 'Проверьте код или свяжитесь со студией.') +
+                '</p></div>'
+            );
+            return;
+          }
+          const exp = data.expires_at
+            ? '<p>Срок действия: до ' + new Date(data.expires_at).toLocaleString('ru-RU') + '</p>'
+            : '';
+          render(
+            '<div class="ok"><h1>Приглашение активно</h1>' +
+              '<p>Услуга: <strong style="color:#e8eaed">' +
+              escapeHtml(data.service_name || '') +
+              '</strong></p>' +
+              '<p>Ваш код:</p>' +
+              '<div class="code">' +
+              escapeHtml(data.code || code.toUpperCase()) +
+              '</div>' +
+              exp +
+              '<p><strong>Как записаться</strong></p>' +
+              '<ol class="steps">' +
+              '<li>Установите приложение студии «Другое место» (если ещё не установлено).</li>' +
+              '<li>Подключитесь к студии через QR из настроек консоли или введите адрес API.</li>' +
+              '<li>Выберите эту услугу, пост и время, в поле кода приглашения введите код выше.</li>' +
+              '</ol></div>'
+          );
+        })
+        .catch(function () {
+          render('<div class="err"><h1>Ошибка сети</h1><p>Проверьте подключение и откройте страницу снова.</p></div>');
+        });
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+    })();
+  </script>
+</body>
+</html>

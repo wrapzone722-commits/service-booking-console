@@ -13,6 +13,14 @@ npm start
 - **API:** http://localhost:3000/api/v1
 - **Админ-панель:** http://localhost:3000/admin
 
+## OpenClaw ([openclaw.ai](https://openclaw.ai))
+
+Интеграция для персонального ассистента на вашей стороне:
+
+- В админке раздел **OpenClaw** (нужен пароль администратора) — живой JSON-манифест и скачивание `manifest.json`.
+- **GET** `/admin/api/integration/openclaw` с заголовком `X-Admin-Key` — полный список admin-эндпоинтов и примеры `curl`.
+- Статический навык: **`/openclaw/SKILL.md`** (переменные `SERVICE_BOOKING_ADMIN_URL`, `SERVICE_BOOKING_ADMIN_KEY`).
+
 ## Подключение iOS-приложения
 
 1. **Запустите веб-консоль:** `npm start` (должно быть запущено до подключения)

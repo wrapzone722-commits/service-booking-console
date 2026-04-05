@@ -43,6 +43,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
           Баллы
         </button>
+        <button class="sidebar__btn" data-page="invites">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+          Приглашения
+        </button>
         <button class="sidebar__btn" data-page="clients">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Клиенты
@@ -52,6 +56,10 @@
           Автомобили
         </button>
         <div class="sidebar__sep"></div>
+        <button class="sidebar__btn" data-page="openclaw">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          OpenClaw
+        </button>
         <button class="sidebar__btn" data-page="settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Настройки
@@ -60,6 +68,11 @@
     </aside>
 
     <main class="main-content">
+      <div class="admin-notify-strip" id="adminNotifyStrip">
+        <span class="admin-notify-strip__label">Фоновые уведомления</span>
+        <button type="button" class="btn btn--sm btn--primary" id="btnAdminBrowserNotify">Включить о новых записях</button>
+        <span class="admin-notify-strip__hint hint" id="adminNotifyStripHint"></span>
+      </div>
       <div id="servicesScreen" class="screen hidden">
         <div class="page-header">
           <h2 class="page-title">Услуги</h2>
@@ -121,7 +134,8 @@
       </div>
 
       <div id="postsScreen" class="screen hidden">
-        <div class="page-header"><h2 class="page-title">Посты</h2></div>
+        <div class="page-header"><h2 class="page-title">Посты и расписание</h2></div>
+        <p class="hint" style="margin-bottom:1rem">Включение поста и сетка времени: зелёные слоты доступны для записи в приложении и виджете, серые — закрыты. Интервал задаёт шаг сетки (как в «Настройках», если не своё расписание).</p>
         <div id="postsList"></div>
       </div>
 
@@ -142,6 +156,15 @@
         <div id="rewardsList"></div>
       </div>
 
+      <div id="invitesScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">Приглашения (QR)</h2>
+          <button class="btn btn--primary" type="button" id="btnAddInvite">+ Создать код</button>
+        </div>
+        <p class="hint" style="margin-bottom:1rem">Код привязан к услуге и посту: клиент вводит его в приложении при записи — цена будет 0 ₽. QR ведёт на страницу с подсказкой. Раздел защищён паролем администратора.</p>
+        <div id="invitesList"></div>
+      </div>
+
       <div id="clientsScreen" class="screen hidden">
         <div class="page-header"><h2 class="page-title">Клиенты</h2></div>
         <div id="clientsList"></div>
@@ -154,6 +177,23 @@
         </div>
         <p class="hint" style="margin-bottom:1rem">Список для выбора в приложении (седан, кроссовер и т.д.). Нужен пароль администратора (как в «Настройках») для загрузки фото.</p>
         <div id="carFoldersList"></div>
+      </div>
+
+      <div id="openclawScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">OpenClaw</h2>
+        </div>
+        <div class="card openclaw-intro">
+          <p>Подключение персонального ассистента <a href="https://openclaw.ai" target="_blank" rel="noopener">OpenClaw</a> к этой консоли: тот же <strong>Admin API</strong>, что использует браузер (заголовок <code>X-Admin-Key</code>). Установка: <code>npm i -g openclaw@latest</code> → <a href="https://docs.openclaw.ai/start/getting-started" target="_blank" rel="noopener">Getting started</a>.</p>
+          <p class="hint" style="margin-top:0.65rem">OpenClaw выполняется на вашей машине или сервере. Добавьте в workspace переменные <code>SERVICE_BOOKING_ADMIN_URL</code> и <code>SERVICE_BOOKING_ADMIN_KEY</code> (см. <a href="/openclaw/SKILL.md" target="_blank" rel="noopener">SKILL.md</a>). Пароль не коммитьте.</p>
+        </div>
+        <div id="openclawConnectionBox" class="card openclaw-connection"></div>
+        <div class="btn-group" style="margin-bottom:1rem">
+          <button type="button" class="btn btn--primary" id="btnDownloadOpenClawManifest">Скачать manifest.json</button>
+          <a class="btn" href="/openclaw/SKILL.md" target="_blank" rel="noopener">SKILL.md</a>
+        </div>
+        <h3 class="services-cat-title" style="margin-bottom:0.5rem">Манифест интеграции (JSON)</h3>
+        <pre id="openclawManifestJson" class="openclaw-json"></pre>
       </div>
 
       <div id="settingsScreen" class="screen hidden">
@@ -331,6 +371,44 @@
   <!-- Modal: Candidate detail -->
   <div id="candidateModal" class="modal hidden">
     <div class="modal-content" id="candidateDetail"></div>
+  </div>
+
+  <!-- Modal: пригласительный код -->
+  <div id="inviteModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Новый пригласительный код</h3>
+      <form id="inviteForm">
+        <label>Услуга *</label>
+        <select id="inviteServiceId" required></select>
+        <label>Пост *</label>
+        <select id="invitePostId" required></select>
+        <label>Заметка (для себя)</label>
+        <input type="text" id="inviteLabel" placeholder="Напр. Иван, подарок за отзыв">
+        <label>Макс. число активаций</label>
+        <input type="number" id="inviteMaxUses" min="1" max="100000" value="100">
+        <label>Действителен до (необязательно)</label>
+        <input type="datetime-local" id="inviteExpires">
+        <label>Свой код (необязательно, иначе случайный)</label>
+        <input type="text" id="inviteCustomCode" placeholder="Латиница и цифры, 4–32 символа" maxlength="32" autocomplete="off">
+        <div class="modal-actions">
+          <button type="button" class="btn" id="btnCancelInvite">Отмена</button>
+          <button type="submit" class="btn btn--primary">Создать</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: QR приглашения -->
+  <div id="inviteQrModal" class="modal hidden">
+    <div class="modal-content modal-content--narrow">
+      <h3 id="inviteQrModalTitle">QR</h3>
+      <p class="hint">Сканирование откроет страницу с кодом и инструкцией для клиента.</p>
+      <div id="inviteQrCanvasWrap" class="invite-qr-canvas-wrap"></div>
+      <p class="hint invite-qr-link" id="inviteQrLink"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--primary" id="btnCloseInviteQr">Закрыть</button>
+      </div>
+    </div>
   </div>
 
   <!-- Modal: клиент по записи (канал, контакты, снимок при создании) -->

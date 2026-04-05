@@ -23,6 +23,7 @@ import { listRewards, redeemReward } from './routes/rewards.js';
 import { submitCandidate } from './routes/candidates.js';
 import { setupAdminRoutes } from './routes/admin.js';
 import { serveImagePreview } from './routes/imagePreview.js';
+import { previewInvite } from './routes/invites.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -78,10 +79,18 @@ api.post('/rewards/:id/redeem', requireAuth, redeemReward);
 
 api.post('/candidates', submitCandidate);
 
+/** Публичное превью пригласительного кода (без авторизации, для QR и приложения). */
+api.get('/invites/preview', previewInvite);
+
 /** Сжатое превью изображения (экономия трафика в iOS). Тот же хост, что у API, или IMAGE_PREVIEW_HOSTS. */
 api.get('/image/preview', requireAuth, serveImagePreview);
 
 app.use('/api/v1', api);
+
+/** Редирект с QR: открыть страницу с подсказкой установить приложение и ввести код. */
+app.get('/invite/:code', (req, res) => {
+  res.redirect(302, `/invite.html?code=${encodeURIComponent(req.params.code)}`);
+});
 
 // === Admin API ===
 const adminApi = express.Router();
@@ -97,6 +106,19 @@ app.use(
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
+      }
+    },
+  })
+);
+
+/** Инструкция / навык OpenClaw (без секретов) — для копирования в workspace ассистента */
+app.use(
+  '/openclaw',
+  express.static(join(__dirname, 'openclaw'), {
+    maxAge: '1h',
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.md')) {
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
       }
     },
   })

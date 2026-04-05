@@ -1,7 +1,7 @@
 const API_BASE = '/admin/api';
 let adminKey = localStorage.getItem('adminKey') || '';
 
-const PROTECTED_PAGES = new Set(['settings', 'cars']);
+const PROTECTED_PAGES = new Set(['settings', 'cars', 'invites', 'openclaw']);
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
@@ -39,16 +39,30 @@ function showScreen(name) {
     cars: loadCarFolders,
     candidates: loadCandidates,
     settings: loadSettings,
+    invites: loadInviteCodes,
+    openclaw: loadOpenclaw,
   };
   if (loaders[name]) loaders[name]();
 }
 
-/* ── Services ── */
+/* ── Services (по категориям; мойка — первая в списке API) ── */
 async function loadServices() {
   try {
     const list = await api('/services');
-    const html = list.map(s => `
-      <div class="card" data-id="${s.id}">
+    const byCat = new Map();
+    for (const s of list) {
+      const cat = (s.category && String(s.category).trim()) || 'Без категории';
+      if (!byCat.has(cat)) byCat.set(cat, []);
+      byCat.get(cat).push(s);
+    }
+    const catOrder = [...byCat.keys()].sort((a, b) => {
+      const wa = a.toLowerCase().includes('мойк');
+      const wb = b.toLowerCase().includes('мойк');
+      if (wa !== wb) return wa ? -1 : 1;
+      return a.localeCompare(b, 'ru');
+    });
+    const serviceCardHtml = s => `
+      <div class="card service-card-admin" data-id="${s.id}">
         <div class="card-row">
           ${s.image_url
             ? `<img class="service-thumb" src="${escapeAttr(resolveAdminAssetUrl(s.image_url))}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
@@ -58,7 +72,7 @@ async function loadServices() {
               <h4>${escapeHtml(s.name)}</h4>
               <span class="status ${s.is_active ? 'in_progress' : 'cancelled'}">${s.is_active ? 'Активна' : 'Скрыта'}</span>
             </div>
-            <p class="card-meta">${escapeHtml(s.description || '')} · ${s.price} ₽ · ${s.duration} мин · ${escapeHtml(s.category || '')}</p>
+            <p class="card-meta">${escapeHtml(s.description || '')} · ${s.price} ₽ · ${s.duration} мин</p>
             <div class="btn-group">
               <button class="btn btn--sm" onclick="editService('${s.id}')">Изменить</button>
               <button class="btn btn--sm btn--danger" onclick="deleteService('${s.id}')">Удалить</button>
@@ -66,7 +80,11 @@ async function loadServices() {
           </div>
         </div>
       </div>
-    `).join('');
+    `;
+    let html = '';
+    for (const cat of catOrder) {
+      html += `<section class="services-cat-block"><h3 class="services-cat-title">${escapeHtml(cat)}</h3><div class="services-cat-list">${byCat.get(cat).map(serviceCardHtml).join('')}</div></section>`;
+    }
     document.getElementById('servicesList').innerHTML = html || emptyState('Нет услуг');
   } catch (e) {
     document.getElementById('servicesList').innerHTML = errorHtml(e);
@@ -207,7 +225,7 @@ function renderBookingCard(b) {
         </div>
       </div>
       ${b.notes ? `<p class="card-meta booking-notes"><strong>Комментарий клиента:</strong> ${escapeHtml(b.notes)}</p>` : ''}
-      <p class="card-meta">${formatDateTime(b.date_time)} · ${b.price} ₽</p>
+      <p class="card-meta">${formatDateTime(b.date_time)} · ${b.invite_code_id ? '<span class="badge-invite">Приглашение</span> · ' : ''}${b.price} ₽</p>
       <div class="btn-group">
         ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
           ${b.status !== 'confirmed' ? `<button class="btn btn--sm btn--primary" onclick="setStatus('${escapeAttr(b.id)}','confirmed')">Подтвердить</button>` : ''}
@@ -395,6 +413,161 @@ async function loadClients() {
   }
 }
 
+/* ── Пригласительные коды (QR) ── */
+function invitePublicUrl(code) {
+  return `${window.location.origin}/invite/${encodeURIComponent(code)}`;
+}
+
+async function loadInviteCodes() {
+  try {
+    const [list, services, posts] = await Promise.all([api('/invite-codes'), api('/services'), api('/posts')]);
+    const postMap = Object.fromEntries(posts.map(p => [p.id, p.name]));
+    const html = list
+      .map(ic => {
+        const link = invitePublicUrl(ic.code);
+        const used = ic.redemption_count ?? 0;
+        const exp = ic.expires_at ? new Date(ic.expires_at).toLocaleString('ru-RU') : '—';
+        return `
+      <div class="card invite-card" data-id="${escapeAttr(ic.id)}">
+        <div class="card-header">
+          <h4 class="invite-code-title">${escapeHtml(ic.code)}</h4>
+          <span class="status ${ic.active ? 'in_progress' : 'cancelled'}">${ic.active ? 'Активен' : 'Выключен'}</span>
+        </div>
+        <p class="card-meta">${escapeHtml(ic.service_name || ic.service_id)} · пост: ${escapeHtml(postMap[ic.post_id] || ic.post_id)}</p>
+        ${ic.label ? `<p class="hint">${escapeHtml(ic.label)}</p>` : ''}
+        <p class="hint">Использовано: ${used} / ${ic.max_uses} · окончание: ${escapeHtml(String(exp))}</p>
+        <div class="btn-group invite-btn-group">
+          <button type="button" class="btn btn--sm btn--primary" onclick="openInviteQrModal(${JSON.stringify(ic.code)})">QR</button>
+          <button type="button" class="btn btn--sm" onclick="copyText(${JSON.stringify(ic.code)}, ${JSON.stringify('Код скопирован')})">Копировать код</button>
+          <button type="button" class="btn btn--sm" onclick="copyText(${JSON.stringify(link)}, ${JSON.stringify('Ссылка скопирована')})">Копировать ссылку</button>
+          <button type="button" class="btn btn--sm" onclick="toggleInviteActive(${JSON.stringify(ic.id)}, ${!ic.active})">${ic.active ? 'Выключить' : 'Включить'}</button>
+          <button type="button" class="btn btn--sm btn--danger" onclick="deleteInviteCode(${JSON.stringify(ic.id)})">Удалить</button>
+        </div>
+      </div>`;
+      })
+      .join('');
+    document.getElementById('invitesList').innerHTML = html || emptyState('Нет приглашений');
+    window.__inviteServicesForModal = services;
+    window.__invitePostsForModal = posts;
+  } catch (e) {
+    document.getElementById('invitesList').innerHTML = errorHtml(e);
+  }
+}
+
+function copyText(text, okMsg) {
+  navigator.clipboard.writeText(text).then(() => alert(okMsg)).catch(() => alert('Не удалось скопировать'));
+}
+
+function openInviteQrModal(code) {
+  const url = invitePublicUrl(code);
+  document.getElementById('inviteQrModalTitle').textContent = 'QR: ' + code;
+  const box = document.getElementById('inviteQrCanvasWrap');
+  box.innerHTML = '';
+  if (typeof QRCode === 'undefined') {
+    box.textContent = 'Библиотека QR не загружена';
+    document.getElementById('inviteQrModal').classList.remove('hidden');
+    return;
+  }
+  QRCode.toCanvas(document.createElement('canvas'), url, { width: 280, margin: 2 }, (err, canvas) => {
+    box.innerHTML = '';
+    if (err) {
+      box.textContent = String(err);
+      document.getElementById('inviteQrModal').classList.remove('hidden');
+      return;
+    }
+    box.appendChild(canvas);
+    document.getElementById('inviteQrLink').textContent = url;
+    document.getElementById('inviteQrModal').classList.remove('hidden');
+  });
+}
+
+async function toggleInviteActive(id, nextActive) {
+  await api('/invite-codes/' + encodeURIComponent(id), {
+    method: 'PATCH',
+    body: JSON.stringify({ active: !!nextActive }),
+  });
+  loadInviteCodes();
+}
+
+async function deleteInviteCode(id) {
+  if (!confirm('Удалить код? Если уже были активации — код только отключится.')) return;
+  const res = await fetch(API_BASE + '/invite-codes/' + encodeURIComponent(id), { method: 'DELETE', headers: headers() });
+  if (res.status === 401) {
+    adminKey = '';
+    localStorage.removeItem('adminKey');
+    alert('Нужен пароль администратора');
+    return;
+  }
+  if (res.status === 204) {
+    loadInviteCodes();
+    return;
+  }
+  if (res.status === 200) {
+    let j = {};
+    try {
+      j = await res.json();
+    } catch (_) {}
+    alert(j.message || 'Код отключён');
+    loadInviteCodes();
+    return;
+  }
+  let msg = `HTTP ${res.status}`;
+  try {
+    const j = await res.json();
+    msg = j.error || msg;
+  } catch (_) {}
+  alert(msg);
+}
+
+document.getElementById('btnAddInvite').onclick = async () => {
+  let services = window.__inviteServicesForModal;
+  let posts = window.__invitePostsForModal;
+  if (!services || !posts) {
+    try {
+      [services, posts] = await Promise.all([api('/services'), api('/posts')]);
+    } catch (e) {
+      alert(e.message || String(e));
+      return;
+    }
+  }
+  const selSvc = document.getElementById('inviteServiceId');
+  const selPost = document.getElementById('invitePostId');
+  const activeSvcs = services.filter(s => s.is_active);
+  selSvc.innerHTML = activeSvcs.length
+    ? activeSvcs.map(s => `<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join('')
+    : '<option value="">Нет активных услуг</option>';
+  selPost.innerHTML = posts.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+  document.getElementById('inviteCustomCode').value = '';
+  document.getElementById('inviteLabel').value = '';
+  document.getElementById('inviteMaxUses').value = '100';
+  document.getElementById('inviteExpires').value = '';
+  document.getElementById('inviteModal').classList.remove('hidden');
+};
+
+document.getElementById('inviteForm').onsubmit = async e => {
+  e.preventDefault();
+  const sid = document.getElementById('inviteServiceId').value;
+  if (!sid) {
+    alert('Выберите услугу');
+    return;
+  }
+  const custom = document.getElementById('inviteCustomCode').value.trim();
+  const body = {
+    service_id: sid,
+    post_id: document.getElementById('invitePostId').value,
+    label: document.getElementById('inviteLabel').value.trim() || null,
+    max_uses: parseInt(document.getElementById('inviteMaxUses').value, 10) || 100,
+    expires_at: document.getElementById('inviteExpires').value || null,
+  };
+  if (custom) body.code = custom;
+  await api('/invite-codes', { method: 'POST', body: JSON.stringify(body) });
+  document.getElementById('inviteModal').classList.add('hidden');
+  loadInviteCodes();
+};
+
+document.getElementById('btnCancelInvite').onclick = () => document.getElementById('inviteModal').classList.add('hidden');
+document.getElementById('btnCloseInviteQr').onclick = () => document.getElementById('inviteQrModal').classList.add('hidden');
+
 /* ── Settings ── */
 async function loadSettings() {
   try {
@@ -415,6 +588,44 @@ async function loadSettings() {
     document.getElementById('qrcodeContainer').innerHTML = errorHtml(e);
   }
 }
+
+/* ── OpenClaw: манифест интеграции с Admin API ── */
+async function loadOpenclaw() {
+  const meta = document.getElementById('openclawManifestJson');
+  const box = document.getElementById('openclawConnectionBox');
+  if (!meta) return;
+  meta.textContent = 'Загрузка…';
+  if (box) box.innerHTML = '';
+  try {
+    const m = await api('/integration/openclaw');
+    meta.textContent = JSON.stringify(m, null, 2);
+    if (box) {
+      const u = m.connection?.admin_api_base || '';
+      const manifestUrl = u ? `${u}/integration/openclaw` : '';
+      box.innerHTML = `
+        <p class="hint"><strong>Admin API:</strong> <code>${escapeHtml(u)}</code></p>
+        <p class="hint"><strong>Точка манифеста (GET, заголовок X-Admin-Key):</strong> <code>${escapeHtml(manifestUrl)}</code></p>
+        <p class="hint"><strong>SKILL (без секретов):</strong> <a href="/openclaw/SKILL.md" target="_blank" rel="noopener">/openclaw/SKILL.md</a> — скопируйте в workspace OpenClaw.</p>
+      `;
+    }
+  } catch (e) {
+    meta.textContent = e.message || String(e);
+  }
+}
+
+document.getElementById('btnDownloadOpenClawManifest')?.addEventListener('click', async () => {
+  try {
+    const m = await api('/integration/openclaw');
+    const blob = new Blob([JSON.stringify(m, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'service-booking-openclaw-manifest.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert(e.message || String(e));
+  }
+});
 
 /* ── Car folders (типы авто в приложении) ── */
 async function loadCarFolders() {
@@ -481,36 +692,144 @@ async function deleteCarFolder(id) {
   }
 }
 
-/* ── Posts ── */
+/* ── Posts (сетка слотов: вкл/выкл по времени) ── */
+function generateSlotTimesForPost(startStr, endStr, intervalMinutes) {
+  const slots = [];
+  const [sh, sm] = String(startStr || '09:00').split(':').map(x => parseInt(x, 10) || 0);
+  const [eh, em] = String(endStr || '18:00').split(':').map(x => parseInt(x, 10) || 0);
+  let h = sh,
+    mi = sm;
+  const endTotal = eh * 60 + em;
+  const step = Math.max(5, parseInt(intervalMinutes, 10) || 30);
+  while (h * 60 + mi < endTotal) {
+    slots.push(`${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`);
+    mi += step;
+    while (mi >= 60) {
+      mi -= 60;
+      h++;
+    }
+  }
+  return slots;
+}
+
+function renderPostSlotChipsMarkup(postId, times, disabledArr) {
+  const dis = new Set(Array.isArray(disabledArr) ? disabledArr : []);
+  return times
+    .map(t => {
+      const off = dis.has(t);
+      return `<button type="button" class="post-slot-chip${off ? ' is-off' : ''}" data-post="${escapeAttr(postId)}" data-time="${escapeAttr(t)}" aria-pressed="${off ? 'false' : 'true'}">${escapeHtml(t)}</button>`;
+    })
+    .join('');
+}
+
+function rebuildPostSlotsFromCard(card) {
+  const studio = {
+    start: card.dataset.studioStart || '09:00',
+    end: card.dataset.studioEnd || '18:00',
+    interval: parseInt(card.dataset.studioInterval, 10) || 30,
+  };
+  const id = card.dataset.id;
+  const useOwn = !!(card.querySelector('[data-field="use_custom_hours"]') && card.querySelector('[data-field="use_custom_hours"]').checked);
+  const st = useOwn
+    ? card.querySelector('[data-field="start_time"]')?.value || studio.start
+    : studio.start;
+  const en = useOwn
+    ? card.querySelector('[data-field="end_time"]')?.value || studio.end
+    : studio.end;
+  const ivRaw = parseInt(card.querySelector('[data-field="interval_minutes"]')?.value, 10) || studio.interval;
+  const effIv = useOwn ? ivRaw : studio.interval;
+  const prevOff = new Set([...card.querySelectorAll('.post-slot-chip.is-off')].map(b => b.dataset.time));
+  const times = generateSlotTimesForPost(st, en, effIv);
+  const keptOff = times.filter(t => prevOff.has(t));
+  const wrap = card.querySelector('[data-slot-chips]');
+  if (wrap) wrap.innerHTML = renderPostSlotChipsMarkup(id, times, keptOff);
+}
+
+function postSlotsAllOn(postId) {
+  const card = document.querySelector(`#postsList .post-card[data-id="${postId}"]`);
+  if (!card) return;
+  card.querySelectorAll('.post-slot-chip').forEach(b => {
+    b.classList.remove('is-off');
+    b.setAttribute('aria-pressed', 'true');
+  });
+}
+
+function postSlotsAllOff(postId) {
+  const card = document.querySelector(`#postsList .post-card[data-id="${postId}"]`);
+  if (!card) return;
+  card.querySelectorAll('.post-slot-chip').forEach(b => {
+    b.classList.add('is-off');
+    b.setAttribute('aria-pressed', 'false');
+  });
+}
+
 async function loadPosts() {
+  let studio = { start: '09:00', end: '18:00', interval: 30 };
+  try {
+    const st = await api('/settings');
+    studio = {
+      start: st.studio_slot_start || studio.start,
+      end: st.studio_slot_end || studio.end,
+      interval: parseInt(st.studio_slot_interval_minutes, 10) || 30,
+    };
+  } catch (_) {}
+
   try {
     const list = await api('/posts');
-    const html = list.map(p => `
-      <div class="card" data-id="${p.id}">
-        <div class="card-header">
-          <h4>${escapeHtml(p.name)}</h4>
-          <span class="status ${p.is_enabled ? 'in_progress' : 'cancelled'}">${p.is_enabled ? 'Включен' : 'Выключен'}</span>
+    const html = list
+      .map(p => {
+        const useOwn = p.use_custom_hours;
+        const effStart = useOwn ? p.start_time || studio.start : studio.start;
+        const effEnd = useOwn ? p.end_time || studio.end : studio.end;
+        const effIv = useOwn ? p.interval_minutes || studio.interval : studio.interval;
+        const times = generateSlotTimesForPost(effStart, effEnd, effIv);
+        const chips = renderPostSlotChipsMarkup(p.id, times, p.disabled_slot_times);
+        const iv = parseInt(p.interval_minutes, 10) || 30;
+        const intervalOpts = [15, 20, 30, 45, 60]
+          .map(
+            n =>
+              `<option value="${n}" ${iv === n ? 'selected' : ''}>${n} мин</option>`
+          )
+          .join('');
+        return `
+      <div class="card post-card" data-id="${escapeAttr(p.id)}" data-studio-start="${escapeAttr(studio.start)}" data-studio-end="${escapeAttr(studio.end)}" data-studio-interval="${studio.interval}">
+        <div class="post-card__head">
+          <div class="post-card__title">
+            <h4>${escapeHtml(p.name)}</h4>
+            <span class="status ${p.is_enabled ? 'in_progress' : 'cancelled'}">${p.is_enabled ? 'Пост включён' : 'Пост выключен'}</span>
+          </div>
+          <label class="post-card__toggle"><input type="checkbox" data-field="is_enabled" data-rebuild-slots="1" ${p.is_enabled ? 'checked' : ''}> <span>Запись на этот пост</span></label>
         </div>
-        <p class="hint" style="margin-bottom:0.65rem">Своё расписание: пост использует поля ниже. Иначе — общие часы из «Настройки».</p>
-        <div class="grid">
+        <p class="hint post-card__hint">Без «своего расписания» используются часы из «Настройки» (${escapeHtml(studio.start)}–${escapeHtml(studio.end)}, шаг ${studio.interval} мин).</p>
+        <div class="post-card__grid">
           <label>Название</label>
           <input type="text" data-field="name" value="${escapeAttr(p.name)}">
-          <label>Включен</label>
-          <input type="checkbox" data-field="is_enabled" ${p.is_enabled ? 'checked' : ''}>
           <label>Своё расписание</label>
-          <input type="checkbox" data-field="use_custom_hours" ${p.use_custom_hours ? 'checked' : ''}>
+          <input type="checkbox" data-field="use_custom_hours" data-rebuild-slots="1" ${p.use_custom_hours ? 'checked' : ''}>
           <label>Начало</label>
-          <input type="text" data-field="start_time" value="${escapeAttr(p.start_time || '')}" placeholder="09:00">
+          <input type="text" data-field="start_time" data-rebuild-slots="1" value="${escapeAttr(p.start_time || '')}" placeholder="09:00">
           <label>Конец</label>
-          <input type="text" data-field="end_time" value="${escapeAttr(p.end_time || '')}" placeholder="18:00">
-          <label>Интервал (мин)</label>
-          <input type="number" data-field="interval_minutes" value="${p.interval_minutes || 30}">
+          <input type="text" data-field="end_time" data-rebuild-slots="1" value="${escapeAttr(p.end_time || '')}" placeholder="18:00">
+          <label>Интервал слотов</label>
+          <select data-field="interval_minutes" data-rebuild-slots="1">${intervalOpts}</select>
+        </div>
+        <div class="post-slot-panel">
+          <div class="post-slot-panel__head">
+            <span class="post-slot-panel__title">Слоты времени</span>
+            <div class="btn-group">
+              <button type="button" class="btn btn--sm" onclick="postSlotsAllOn('${escapeAttr(p.id)}')">Все открыть</button>
+              <button type="button" class="btn btn--sm" onclick="postSlotsAllOff('${escapeAttr(p.id)}')">Все закрыть</button>
+            </div>
+          </div>
+          <p class="hint post-slot-legend"><span class="post-slot-legend__on">●</span> можно записаться &nbsp; <span class="post-slot-legend__off">●</span> перерыв / недоступно</p>
+          <div class="post-slot-chips" data-slot-chips>${chips}</div>
         </div>
         <div class="btn-group">
-          <button class="btn btn--sm btn--primary" onclick="savePost('${p.id}')">Сохранить</button>
+          <button type="button" class="btn btn--sm btn--primary" onclick="savePost('${escapeAttr(p.id)}')">Сохранить пост</button>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+      })
+      .join('');
     document.getElementById('postsList').innerHTML = html || emptyState('Нет постов');
   } catch (e) {
     document.getElementById('postsList').innerHTML = errorHtml(e);
@@ -518,18 +837,36 @@ async function loadPosts() {
 }
 
 async function savePost(id) {
-  const card = document.querySelector(`#postsList .card[data-id="${id}"]`);
+  const card = document.querySelector(`#postsList .post-card[data-id="${id}"]`);
   if (!card) return;
   const body = {};
   card.querySelectorAll('[data-field]').forEach(el => {
     const f = el.dataset.field;
     if (el.type === 'checkbox') body[f] = el.checked;
+    else if (el.tagName === 'SELECT') body[f] = parseInt(el.value, 10) || 30;
     else if (el.type === 'number') body[f] = parseInt(el.value) || 0;
     else body[f] = el.value;
   });
+  body.disabled_slot_times = [...card.querySelectorAll('.post-slot-chip.is-off')].map(b => b.dataset.time);
   await api('/posts/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) });
   loadPosts();
 }
+
+document.getElementById('postsList')?.addEventListener('click', e => {
+  const chip = e.target.closest('.post-slot-chip');
+  const list = document.getElementById('postsList');
+  if (!chip || !list || !list.contains(chip)) return;
+  e.preventDefault();
+  chip.classList.toggle('is-off');
+  chip.setAttribute('aria-pressed', chip.classList.contains('is-off') ? 'false' : 'true');
+});
+
+document.getElementById('postsList')?.addEventListener('change', e => {
+  const t = e.target;
+  if (!t.matches || !t.matches('[data-rebuild-slots]')) return;
+  const card = t.closest('.post-card');
+  if (card) rebuildPostSlotsFromCard(card);
+});
 
 /* ── News ── */
 async function loadNews() {
@@ -1098,4 +1435,100 @@ async function trySetAdminKey(pass) {
   }
 }
 
+/* ── Браузерные уведомления о новых записях (опрос API) ── */
+const ADMIN_NOTIFY_LS = 'adminBrowserNotify_v1';
+let adminNotifyBootstrapped = false;
+let adminNotifyTimer = null;
+
+function adminNotifyPollUrl() {
+  return API_BASE + '/bookings?sort=created&limit=1';
+}
+
+async function adminNotifyTick() {
+  try {
+    const res = await fetch(adminNotifyPollUrl(), { headers: headers() });
+    if (!res.ok) return;
+    const list = await res.json();
+    if (!list.length) return;
+    const row = list[0];
+    const key = 'adminNotifyLastBookingId';
+    const prev = sessionStorage.getItem(key);
+    if (!adminNotifyBootstrapped) {
+      sessionStorage.setItem(key, row.id);
+      adminNotifyBootstrapped = true;
+      return;
+    }
+    if (row.id !== prev) {
+      sessionStorage.setItem(key, row.id);
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const body =
+          (row.service_name || 'Услуга') + ' · ' + formatDateTime(row.date_time);
+        new Notification('Другое место — новая запись', {
+          body,
+          tag: 'dm-booking-' + row.id,
+        });
+      }
+    }
+  } catch (_) {}
+}
+
+function stopAdminNotifyPolling() {
+  if (adminNotifyTimer) {
+    clearInterval(adminNotifyTimer);
+    adminNotifyTimer = null;
+  }
+}
+
+function startAdminNotifyPolling() {
+  stopAdminNotifyPolling();
+  adminNotifyBootstrapped = false;
+  adminNotifyTimer = setInterval(adminNotifyTick, 26000);
+  adminNotifyTick();
+}
+
+function updateAdminNotifyStripUI() {
+  const hint = document.getElementById('adminNotifyStripHint');
+  const btn = document.getElementById('btnAdminBrowserNotify');
+  if (!hint || !btn) return;
+  if (typeof Notification === 'undefined') {
+    hint.textContent = 'Браузер не поддерживает уведомления.';
+    btn.disabled = true;
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    hint.textContent = 'Разрешите уведомления для этого сайта в настройках браузера.';
+    btn.disabled = true;
+    return;
+  }
+  btn.disabled = false;
+  if (localStorage.getItem(ADMIN_NOTIFY_LS) === '1' && Notification.permission === 'granted') {
+    btn.textContent = 'Уведомления включены';
+    btn.classList.remove('btn--primary');
+    hint.textContent = 'Проверка каждые ~26 с. Вкладка может быть в фоне.';
+  } else {
+    btn.textContent = 'Включить о новых записях';
+    btn.classList.add('btn--primary');
+    hint.textContent = '';
+  }
+}
+
+function initAdminNotifyStrip() {
+  const btn = document.getElementById('btnAdminBrowserNotify');
+  if (!btn) return;
+  btn.onclick = async () => {
+    if (typeof Notification === 'undefined') return;
+    const p = await Notification.requestPermission();
+    updateAdminNotifyStripUI();
+    if (p !== 'granted') return;
+    localStorage.setItem(ADMIN_NOTIFY_LS, '1');
+    startAdminNotifyPolling();
+    updateAdminNotifyStripUI();
+  };
+  updateAdminNotifyStripUI();
+  if (localStorage.getItem(ADMIN_NOTIFY_LS) === '1' && Notification.permission === 'granted') {
+    startAdminNotifyPolling();
+  }
+}
+
+initAdminNotifyStrip();
 showScreen('services');

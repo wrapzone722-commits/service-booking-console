@@ -9,6 +9,8 @@ import { sendPushToClient } from '../services/push.js';
 import { serveImagePreview } from './imagePreview.js';
 import { listCandidates, updateCandidateStatus, deleteCandidate } from './candidates.js';
 import { uploadMiddleware, handleImageUpload } from './uploads.js';
+import { normalizeSlotTimeHHMM } from './slots.js';
+import { getOpenclawManifest } from './openclawIntegration.js';
 
 const ADMIN_HEADER = 'x-admin-key';
 const ADMIN_PASSWORD = '2300';
@@ -22,11 +24,40 @@ function requireAdmin(req, res, next) {
 }
 
 export function setupAdminRoutes(router) {
+  // === OpenClaw: машиночитаемый манифест интеграции (только с паролем админки) ===
+  router.get('/integration/openclaw', requireAdmin, getOpenclawManifest);
+
   // === Services ===
   router.get('/services', (req, res) => {
     const db = getDb();
-    const rows = db.prepare('SELECT * FROM services ORDER BY category, name').all();
-    res.json(rows.map(r => ({ ...r, is_active: !!r.is_active })));
+    const rows = db.prepare('SELECT * FROM services').all();
+    const sorted = [...rows].sort((a, b) => {
+      const ida = String(a.id || '').toLowerCase();
+      const idb = String(b.id || '').toLowerCase();
+      const wa =
+        String(a.category || '')
+          .toLowerCase()
+          .includes('мойк') ||
+        String(a.name || '')
+          .toLowerCase()
+          .includes('мойк') ||
+        ida.includes('wash') ||
+        ida.includes('moy');
+      const wb =
+        String(b.category || '')
+          .toLowerCase()
+          .includes('мойк') ||
+        String(b.name || '')
+          .toLowerCase()
+          .includes('мойк') ||
+        idb.includes('wash') ||
+        idb.includes('moy');
+      if (wa !== wb) return wa ? -1 : 1;
+      const c = String(a.category || '').localeCompare(String(b.category || ''), 'ru');
+      if (c !== 0) return c;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+    });
+    res.json(sorted.map(r => ({ ...r, is_active: !!r.is_active })));
   });
 
   router.post('/services', (req, res) => {
@@ -105,7 +136,10 @@ export function setupAdminRoutes(router) {
     if (status) { sql += ' AND b.status = ?'; params.push(status); }
     if (date) { sql += ' AND date(b.date_time) = date(?)'; params.push(date); }
     if (client_id) { sql += ' AND b.user_id = ?'; params.push(client_id); }
-    sql += ' ORDER BY b.date_time DESC';
+    const sortCreated = req.query.sort === 'created';
+    sql += sortCreated ? ' ORDER BY b.created_at DESC' : ' ORDER BY b.date_time DESC';
+    const lim = req.query.limit != null ? Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 0)) : 0;
+    if (lim > 0) sql += ` LIMIT ${lim}`;
     const rows = db.prepare(sql).all(...params);
     res.json(rows.map(r => ({
       ...r,
@@ -182,23 +216,41 @@ export function setupAdminRoutes(router) {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM posts ORDER BY id').all();
     res.json(
-      rows.map(r => ({
-        ...r,
-        is_enabled: !!r.is_enabled,
-        use_custom_hours: !!r.use_custom_hours,
-      }))
+      rows.map(r => {
+        let disabled = [];
+        try {
+          const a = JSON.parse(String(r.disabled_slot_times || '[]'));
+          disabled = Array.isArray(a) ? a : [];
+        } catch (_) {
+          disabled = [];
+        }
+        return {
+          ...r,
+          is_enabled: !!r.is_enabled,
+          use_custom_hours: !!r.use_custom_hours,
+          disabled_slot_times: disabled,
+        };
+      })
     );
   });
 
   router.put('/posts/:id', (req, res) => {
     const db = getDb();
-    const { name, is_enabled, use_custom_hours, start_time, end_time, interval_minutes } = req.body || {};
+    const { name, is_enabled, use_custom_hours, start_time, end_time, interval_minutes, disabled_slot_times } =
+      req.body || {};
     const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Пост не найден' });
     const nextCustom =
       use_custom_hours === undefined ? row.use_custom_hours : use_custom_hours ? 1 : 0;
+    let disabledJson = row.disabled_slot_times || '[]';
+    if (Array.isArray(disabled_slot_times)) {
+      const cleaned = [
+        ...new Set(disabled_slot_times.map(t => normalizeSlotTimeHHMM(t)).filter(Boolean)),
+      ].sort();
+      disabledJson = JSON.stringify(cleaned);
+    }
     db.prepare(`
-      UPDATE posts SET name=?, is_enabled=?, use_custom_hours=?, start_time=?, end_time=?, interval_minutes=?
+      UPDATE posts SET name=?, is_enabled=?, use_custom_hours=?, start_time=?, end_time=?, interval_minutes=?, disabled_slot_times=?
       WHERE id=?
     `).run(
       name ?? row.name,
@@ -207,13 +259,20 @@ export function setupAdminRoutes(router) {
       start_time ?? row.start_time,
       end_time ?? row.end_time,
       interval_minutes ?? row.interval_minutes,
+      disabledJson,
       req.params.id
     );
     const updated = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+    let disabledOut = [];
+    try {
+      const a = JSON.parse(String(updated.disabled_slot_times || '[]'));
+      disabledOut = Array.isArray(a) ? a : [];
+    } catch (_) {}
     res.json({
       ...updated,
       is_enabled: !!updated.is_enabled,
       use_custom_hours: !!updated.use_custom_hours,
+      disabled_slot_times: disabledOut,
     });
   });
 
@@ -371,6 +430,136 @@ export function setupAdminRoutes(router) {
     `).run(id, client_id, body, title || null, now);
     sendPushToClient(db, client_id, { title: title || 'Сообщение', body }).catch(() => {});
     res.status(201).json({ id, body, title, type: 'admin', created_at: now });
+  });
+
+  function generateInviteCodeSegment() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+
+  function normalizeAdminInviteCodeInput(raw) {
+    if (raw == null || typeof raw !== 'string') return null;
+    const s = raw.trim().toUpperCase().replace(/^#/, '').replace(/[^A-Z0-9]/g, '');
+    return s.length ? s : null;
+  }
+
+  // === Пригласительные коды (QR) — только с паролем админки ===
+  router.get('/invite-codes', requireAdmin, (req, res) => {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `
+      SELECT ic.*, s.name AS service_name,
+        (SELECT COUNT(*) FROM invite_redemptions r WHERE r.invite_code_id = ic.id) AS redemption_count
+      FROM invite_codes ic
+      JOIN services s ON s.id = ic.service_id
+      ORDER BY ic.created_at DESC
+    `
+      )
+      .all();
+    res.json(rows.map(r => ({ ...r, active: !!r.active, redemption_count: r.redemption_count ?? 0 })));
+  });
+
+  router.post('/invite-codes', requireAdmin, (req, res) => {
+    const db = getDb();
+    const { service_id, label, max_uses, expires_at, post_id, code: customCode } = req.body || {};
+    if (!service_id) return res.status(400).json({ error: 'service_id обязателен' });
+    const svc = db.prepare('SELECT id FROM services WHERE id = ?').get(service_id);
+    if (!svc) return res.status(404).json({ error: 'Услуга не найдена' });
+    const pid = post_id || 'post_1';
+    const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(pid);
+    if (!post) return res.status(400).json({ error: 'Пост не найден' });
+    const max = Math.max(1, Math.min(100000, parseInt(max_uses, 10) || 100));
+    let code = normalizeAdminInviteCodeInput(customCode);
+    if (code) {
+      if (code.length < 4 || code.length > 32) {
+        return res.status(400).json({ error: 'Свой код: от 4 до 32 символов (латиница и цифры)' });
+      }
+    } else {
+      for (let attempt = 0; attempt < 25; attempt++) {
+        code = generateInviteCodeSegment();
+        const clash = db.prepare('SELECT 1 FROM invite_codes WHERE code = ?').get(code);
+        if (!clash) break;
+      }
+    }
+    const clash = db.prepare('SELECT 1 FROM invite_codes WHERE code = ?').get(code);
+    if (clash) return res.status(409).json({ error: 'Такой код уже существует' });
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    let exp = null;
+    if (expires_at != null && String(expires_at).trim()) {
+      const d = new Date(expires_at);
+      if (isNaN(d.getTime())) return res.status(400).json({ error: 'Некорректная дата окончания' });
+      exp = d.toISOString();
+    }
+    db.prepare(
+      `
+      INSERT INTO invite_codes (id, code, service_id, post_id, label, max_uses, expires_at, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `
+    ).run(id, code, service_id, pid, label || null, max, exp, now);
+    const row = db
+      .prepare(
+        `
+      SELECT ic.*, s.name AS service_name,
+        (SELECT COUNT(*) FROM invite_redemptions r WHERE r.invite_code_id = ic.id) AS redemption_count
+      FROM invite_codes ic JOIN services s ON s.id = ic.service_id WHERE ic.id = ?
+    `
+      )
+      .get(id);
+    res.status(201).json({ ...row, active: !!row.active, redemption_count: row.redemption_count ?? 0 });
+  });
+
+  router.patch('/invite-codes/:id', requireAdmin, (req, res) => {
+    const db = getDb();
+    const row = db.prepare('SELECT * FROM invite_codes WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    const { active, label, max_uses, expires_at } = req.body || {};
+    const nextActive = active === undefined ? row.active : active ? 1 : 0;
+    const nextLabel = label !== undefined ? label : row.label;
+    const nextMax =
+      max_uses != null ? Math.max(1, Math.min(100000, parseInt(max_uses, 10) || row.max_uses)) : row.max_uses;
+    let nextExp = row.expires_at;
+    if (expires_at !== undefined) {
+      if (expires_at === null || expires_at === '') nextExp = null;
+      else {
+        const d = new Date(expires_at);
+        if (isNaN(d.getTime())) return res.status(400).json({ error: 'Некорректная дата' });
+        nextExp = d.toISOString();
+      }
+    }
+    db.prepare('UPDATE invite_codes SET active=?, label=?, max_uses=?, expires_at=? WHERE id=?').run(
+      nextActive,
+      nextLabel,
+      nextMax,
+      nextExp,
+      req.params.id
+    );
+    const updated = db
+      .prepare(
+        `
+      SELECT ic.*, s.name AS service_name,
+        (SELECT COUNT(*) FROM invite_redemptions r WHERE r.invite_code_id = ic.id) AS redemption_count
+      FROM invite_codes ic JOIN services s ON s.id = ic.service_id WHERE ic.id = ?
+    `
+      )
+      .get(req.params.id);
+    res.json({ ...updated, active: !!updated.active, redemption_count: updated.redemption_count ?? 0 });
+  });
+
+  router.delete('/invite-codes/:id', requireAdmin, (req, res) => {
+    const db = getDb();
+    const row = db.prepare('SELECT id FROM invite_codes WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Не найдено' });
+    const { c } = db.prepare('SELECT COUNT(*) as c FROM invite_redemptions WHERE invite_code_id = ?').get(req.params.id);
+    if (c > 0) {
+      db.prepare('UPDATE invite_codes SET active = 0 WHERE id = ?').run(req.params.id);
+      return res.status(200).json({ deactivated: true, message: 'Код отключён (уже есть активации)' });
+    }
+    db.prepare('DELETE FROM invite_codes WHERE id = ?').run(req.params.id);
+    res.status(204).send();
   });
 
   // === Candidates ===
