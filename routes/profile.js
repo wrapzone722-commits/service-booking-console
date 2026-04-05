@@ -133,3 +133,50 @@ function isRealPhone(value) {
   if (p.toLowerCase().startsWith("device:")) return false;
   return normalizePhone(p).length >= 6;
 }
+
+/**
+ * При создании записи: сразу записать имя/телефон в clients (и слияние дублей по телефону),
+ * чтобы в админке до подтверждения были видны контакты.
+ * @param {string} clientId
+ * @param {{ first_name?: string, phone?: string }} partial — только явно переданные поля обновляются
+ */
+export function applyBookingContactFromBookingBody(clientId, partial) {
+  if (partial.first_name === undefined && partial.phone === undefined) return;
+  const db = getDb();
+  const cur = db.prepare("SELECT id, first_name, phone, loyalty_points, phone_norm FROM clients WHERE id = ?").get(clientId);
+  if (!cur) return;
+
+  const newFn =
+    partial.first_name !== undefined ? String(partial.first_name || "").trim() : (cur.first_name || "");
+  const newPh = partial.phone !== undefined ? String(partial.phone || "").trim() : (cur.phone || "");
+
+  if (isRealPhone(newPh)) {
+    const norm = normalizePhone(newPh);
+    const other = db
+      .prepare("SELECT id, loyalty_points FROM clients WHERE phone_norm = ? AND id <> ? LIMIT 1")
+      .get(norm, clientId);
+    if (other && other.id) {
+      const tx = db.transaction(() => {
+        db.prepare("UPDATE bookings SET user_id = ? WHERE user_id = ?").run(clientId, other.id);
+        db.prepare("UPDATE notifications SET client_id = ? WHERE client_id = ?").run(clientId, other.id);
+        const a = Number(cur.loyalty_points ?? 0) || 0;
+        const b = Number(other.loyalty_points ?? 0) || 0;
+        db.prepare("UPDATE clients SET loyalty_points = ? WHERE id = ?").run(Math.max(0, Math.trunc(a + b)), clientId);
+        db.prepare("DELETE FROM clients WHERE id = ?").run(other.id);
+      });
+      try {
+        tx();
+      } catch (e) {
+        console.error("applyBookingContact: merge clients failed:", e);
+      }
+    }
+  }
+
+  const phoneNorm = isRealPhone(newPh) ? normalizePhone(newPh) : null;
+  db.prepare("UPDATE clients SET first_name = ?, phone = ?, phone_norm = ? WHERE id = ?").run(
+    newFn,
+    newPh,
+    phoneNorm,
+    clientId
+  );
+}

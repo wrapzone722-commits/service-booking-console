@@ -222,6 +222,48 @@ body {
 .card-meta a { color: var(--lime); text-decoration: none; }
 .card-meta a:hover { text-decoration: underline; }
 
+.booking-client {
+  margin: 0.65rem 0 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.booking-client__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lime);
+  margin: 0 0 0.35rem;
+}
+.booking-client__name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 0.25rem;
+}
+.booking-client__contacts {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+.booking-client__contacts a { color: var(--lime); text-decoration: none; }
+.booking-client__contacts a:hover { text-decoration: underline; }
+.booking-client__hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.42);
+  margin: 0.5rem 0 0;
+  line-height: 1.4;
+}
+.booking-client__hint code {
+  font-size: 0.7rem;
+  word-break: break-all;
+  color: rgba(255, 255, 255, 0.55);
+}
+.booking-notes { margin-top: 0.5rem; }
+
 /* ── Status badges ── */
 .status {
   display: inline-flex;

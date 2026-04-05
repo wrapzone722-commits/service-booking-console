@@ -6,6 +6,7 @@ import { mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
+import { STUDIO_SERVICES } from './studioServicesData.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -93,16 +94,13 @@ function seedInitialData() {
 
   const now = new Date().toISOString();
 
-  // Демо-услуги
-  const services = [
-    ['1', 'Химчистка салона', 'Полная химчистка салона автомобиля', 5000, 180, 'Автоуслуги', null, 1, now],
-    ['2', 'Мойка кузова', 'Бесконтактная мойка с воском', 800, 30, 'Автоуслуги', null, 1, now],
-    ['3', 'Полировка', 'Профессиональная полировка кузова', 8000, 240, 'Автоуслуги', null, 1, now],
-    ['4', 'Полировка фар', 'Восстановление прозрачности оптики', 1500, 45, 'Детейлинг', null, 1, now],
-    ['5', 'Чистка дисков', 'Мойка и полировка дисков', 2000, 60, 'Детейлинг', null, 1, now],
-  ];
-  const insService = db.prepare('INSERT INTO services (id, name, description, price, duration, category, image_url, is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
-  for (const s of services) insService.run(...s);
+  // Услуги студии «Другое место» (как на сайте: описания, картинки /site-assets/)
+  const insService = db.prepare(
+    'INSERT INTO services (id, name, description, price, duration, category, image_url, is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?)'
+  );
+  for (const s of STUDIO_SERVICES) {
+    insService.run(s.id, s.name, s.description, s.price, s.duration, s.category, s.image_url, 1, now);
+  }
 
   // Посты
   const posts = [

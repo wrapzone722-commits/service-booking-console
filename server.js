@@ -4,6 +4,7 @@
  */
 import express from 'express';
 import cors from 'cors';
+import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from './db/index.js';
@@ -25,6 +26,15 @@ import { serveImagePreview } from './routes/imagePreview.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
+
+/** Версия в URL CSS/JS админки (сброс кэша CDN/браузера). Переопределите ASSET_VERSION в деплое при любом изменении стилей без смены версии пакета. */
+const PKG = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
+const ASSET_V = process.env.ASSET_VERSION || PKG.version || '1';
+
+const adminIndexHtml = readFileSync(join(__dirname, 'public', 'admin', 'index.html'), 'utf8').replaceAll(
+  '{{ASSET_V}}',
+  ASSET_V
+);
 
 // Важно для деплоя: вынесите SQLite на постоянный диск/volume и передайте DB_PATH
 // (например, /data/service_booking.db). Иначе при пересоздании контейнера данные пропадут.
@@ -78,19 +88,36 @@ const adminApi = express.Router();
 setupAdminRoutes(adminApi);
 app.use('/admin/api', adminApi);
 
-// === Static: Admin panel ===
-app.use(express.static(join(__dirname, 'public')));
+// === Static: Admin panel (CSS/JS без долгого кэша — иначе после деплоя остаётся старый вид) ===
+app.use(
+  express.static(join(__dirname, 'public'), {
+    setHeaders(res, filePath) {
+      const norm = filePath.replace(/\\/g, '/');
+      if (norm.includes('/admin/') && (norm.endsWith('.css') || norm.endsWith('.js'))) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    },
+  })
+);
 
 app.get('/', (req, res) => {
   res.redirect('/admin');
 });
 
+function sendAdminIndex(res) {
+  res.type('html');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.send(adminIndexHtml);
+}
+
 app.get('/admin', (req, res) => {
-  res.sendFile(join(__dirname, 'public', 'admin', 'index.html'));
+  sendAdminIndex(res);
 });
 
 app.get('/admin/*', (req, res) => {
-  res.sendFile(join(__dirname, 'public', 'admin', 'index.html'));
+  sendAdminIndex(res);
 });
 
 // === Error handler ===

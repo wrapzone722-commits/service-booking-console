@@ -4,6 +4,7 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
+import { applyBookingContactFromBookingBody } from './profile.js';
 
 export function listBookings(req, res) {
   const db = getDb();
@@ -19,7 +20,7 @@ export function listBookings(req, res) {
 }
 
 export function createBooking(req, res) {
-  const { service_id, date_time, post_id, notes } = req.body || {};
+  const { service_id, date_time, post_id, notes, first_name, phone } = req.body || {};
   if (!service_id || !date_time) {
     return res.status(400).json({ error: 'service_id и date_time обязательны' });
   }
@@ -45,10 +46,24 @@ export function createBooking(req, res) {
   const now = new Date().toISOString();
   const dtStr = date.toISOString();
 
-  db.prepare(`
+  const contactPatch =
+    typeof first_name === 'string' || typeof phone === 'string'
+      ? {
+          ...(typeof first_name === 'string' ? { first_name } : {}),
+          ...(typeof phone === 'string' ? { phone } : {}),
+        }
+      : null;
+
+  const tx = db.transaction(() => {
+    if (contactPatch) {
+      applyBookingContactFromBookingBody(req.clientId, contactPatch);
+    }
+    db.prepare(`
     INSERT INTO bookings (id, service_id, user_id, date_time, status, price, duration, notes, post_id, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
   `).run(id, service_id, req.clientId, dtStr, service.price, service.duration, notes || null, postId, now);
+  });
+  tx();
 
   const row = db.prepare('SELECT b.*, s.name as service_name FROM bookings b JOIN services s ON s.id = b.service_id WHERE b.id = ?').get(id);
   res.status(201).json(toBookingJSON(row));

@@ -89,6 +89,17 @@ async function loadBookings() {
   }
 }
 
+function bookingClientName(b) {
+  const n = `${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')}`.trim();
+  return n || '—';
+}
+
+function bookingHasContact(b) {
+  const p = b.phone && String(b.phone).trim();
+  const e = b.email && String(b.email).trim();
+  return !!(p || e);
+}
+
 function renderBookingCard(b) {
   return `
     <div class="card">
@@ -96,7 +107,13 @@ function renderBookingCard(b) {
         <h4>${escapeHtml(b.service_name)}</h4>
         <span class="status ${b.status}">${statusLabel(b.status)}</span>
       </div>
-      <p class="card-meta">${escapeHtml(b.first_name || '')} ${escapeHtml(b.last_name || '')} · ${renderContactLine(b.phone, b.email, b.social_links)}</p>
+      <div class="booking-client">
+        <div class="booking-client__label">Клиент</div>
+        <p class="booking-client__name">${bookingClientName(b)}</p>
+        <p class="booking-client__contacts">${renderContactLine(b.phone, b.email, b.social_links)}</p>
+        ${!bookingHasContact(b) ? `<p class="booking-client__hint">Телефон/e-mail в профиле не указаны · ID клиента: <code>${escapeHtml(b.user_id)}</code></p>` : ''}
+      </div>
+      ${b.notes ? `<p class="card-meta booking-notes"><strong>Комментарий клиента:</strong> ${escapeHtml(b.notes)}</p>` : ''}
       <p class="card-meta">${formatDateTime(b.date_time)} · ${b.price} ₽</p>
       <div class="btn-group">
         ${['pending','confirmed','in_progress','completed'].includes(b.status) ? `
