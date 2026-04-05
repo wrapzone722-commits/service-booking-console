@@ -95,7 +95,19 @@ export function initDatabase(dbPath = null) {
   } catch (_) {}
 
   seedInitialData();
+  syncMissingStudioServices();
   return db;
+}
+
+/** Добавить в БД строки каталога из studioServicesData, если таких id ещё нет (не трогаем существующие). */
+function syncMissingStudioServices() {
+  const now = new Date().toISOString();
+  const ins = db.prepare(
+    'INSERT OR IGNORE INTO services (id, name, description, price, duration, category, image_url, is_active, created_at) VALUES (?,?,?,?,?,?,?,?,?)'
+  );
+  for (const s of STUDIO_SERVICES) {
+    ins.run(s.id, s.name, s.description, s.price, s.duration, s.category, s.image_url, 1, now);
+  }
 }
 
 function seedInitialData() {
