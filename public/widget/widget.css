@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --wgb-bg: #0c0c0c;
+  --wgb-card: #161616;
+  --wgb-border: rgba(255, 255, 255, 0.08);
+  --wgb-text: #eee;
+  --wgb-muted: #888;
+  --wgb-accent: #c8f542;
+  --wgb-accent-dim: rgba(200, 245, 66, 0.14);
+  --wgb-radius: 12px;
+  --wgb-font: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--wgb-font);
+  background: var(--wgb-bg);
+  color: var(--wgb-text);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wgb {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 1rem;
+  min-height: 100vh;
+}
+
+.wgb-error {
+  background: rgba(255, 82, 82, 0.12);
+  border: 1px solid rgba(255, 82, 82, 0.35);
+  color: #ff8a80;
+  padding: 0.75rem 1rem;
+  border-radius: var(--wgb-radius);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.wgb-error.hidden,
+.hidden {
+  display: none !important;
+}
+
+.wgb h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+  letter-spacing: -0.02em;
+}
+
+.wgb .wgb-sub {
+  color: var(--wgb-muted);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.wgb-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  padding: 0.2rem;
+  background: var(--wgb-card);
+  border-radius: var(--wgb-radius);
+  border: 1px solid var(--wgb-border);
+}
+
+.wgb-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--wgb-muted);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.55rem 0.5rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.wgb-tab:hover {
+  color: var(--wgb-text);
+}
+
+.wgb-tab.is-active {
+  background: var(--wgb-accent-dim);
+  color: var(--wgb-accent);
+}
+
+.wgb-services {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wgb-svc {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border-radius: var(--wgb-radius);
+  border: 1px solid var(--wgb-border);
+  background: var(--wgb-card);
+  color: var(--wgb-text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.wgb-svc:hover {
+  border-color: rgba(200, 245, 66, 0.35);
+  box-shadow: 0 0 0 1px var(--wgb-accent-dim);
+}
+
+.wgb-svc-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.2rem;
+}
+
+.wgb-svc-meta {
+  font-size: 0.8rem;
+  color: var(--wgb-muted);
+}
+
+.wgb-back {
+  border: none;
+  background: transparent;
+  color: var(--wgb-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  padding: 0;
+}
+
+.wgb-back:hover {
+  color: var(--wgb-accent);
+}
+
+.wgb-field {
+  margin-bottom: 0.75rem;
+}
+
+.wgb-field label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--wgb-muted);
+  margin-bottom: 0.35rem;
+}
+
+.wgb-field input,
+.wgb-field select {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--wgb-border);
+  background: #111;
+  color: var(--wgb-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.wgb-field input:focus,
+.wgb-field select:focus {
+  outline: none;
+  border-color: rgba(200, 245, 66, 0.45);
+}
+
+.wgb-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.wgb-slot {
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(200, 245, 66, 0.35);
+  background: var(--wgb-accent-dim);
+  color: #c5e86c;
+  cursor: pointer;
+}
+
+.wgb-slot:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--wgb-border);
+  background: #1a1a1a;
+  color: var(--wgb-muted);
+}
+
+.wgb-slot.is-picked {
+  box-shadow: 0 0 0 2px var(--wgb-accent);
+}
+
+.wgb-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: var(--wgb-radius);
+  background: var(--wgb-accent);
+  color: #111;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.wgb-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wgb-success {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.wgb-success h2 {
+  color: var(--wgb-accent);
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.wgb-hint {
+  font-size: 0.78rem;
+  color: var(--wgb-muted);
+  margin-top: 1rem;
+  line-height: 1.5;
+}

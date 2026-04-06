@@ -57,11 +57,45 @@ export function getOpenclawManifest(req, res) {
       id: 'clients_list',
       method: 'GET',
       path: '/clients',
+      requires_admin_key: true,
     },
     {
       id: 'client_get',
       method: 'GET',
       path: '/clients/:id',
+      requires_admin_key: true,
+    },
+    {
+      id: 'client_crm',
+      method: 'GET',
+      path: '/clients/:id/crm',
+      requires_admin_key: true,
+      description: 'Карточка CRM: клиент, записи, история корректировок баллов',
+    },
+    {
+      id: 'client_loyalty_adjust',
+      method: 'POST',
+      path: '/clients/:id/loyalty',
+      requires_admin_key: true,
+      body: { delta: 'integer (начислить +N или списать -N)', note: 'string optional' },
+    },
+    {
+      id: 'schedule_studio_get',
+      method: 'GET',
+      path: '/schedule/studio',
+      description: 'Общие часы студии и глобально закрытые слоты (без пароля)',
+    },
+    {
+      id: 'schedule_studio_put',
+      method: 'PUT',
+      path: '/schedule/studio',
+      requires_admin_key: true,
+      body: {
+        studio_slot_start: 'HH:MM optional',
+        studio_slot_end: 'HH:MM optional',
+        studio_slot_interval_minutes: 'number optional',
+        disabled_slot_times: 'string[] HH:MM optional — закрытые слоты для постов без своего расписания',
+      },
     },
     {
       id: 'posts_list',
@@ -72,6 +106,7 @@ export function getOpenclawManifest(req, res) {
       id: 'posts_update',
       method: 'PUT',
       path: '/posts/:id',
+      requires_admin_key: true,
       body: {
         name: 'string',
         is_enabled: 'boolean',
@@ -126,6 +161,7 @@ export function getOpenclawManifest(req, res) {
       method: 'GET|PUT',
       path: '/settings',
       requires_admin_key: true,
+      description: 'GET — все ключи из БД; PUT — только api_base_url (часы студии — PUT /schedule/studio)',
     },
     {
       id: 'upload_image',

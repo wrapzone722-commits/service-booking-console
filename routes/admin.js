@@ -23,9 +23,70 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function readSetting(db, key, fallback) {
+  const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  const v = r && r.value != null ? String(r.value).trim() : '';
+  return v || fallback;
+}
+
 export function setupAdminRoutes(router) {
   // === OpenClaw: машиночитаемый манифест интеграции (только с паролем админки) ===
   router.get('/integration/openclaw', requireAdmin, getOpenclawManifest);
+
+  // Общее расписание студии (часы + закрытые слоты для постов без «своего расписания») — чтение без пароля
+  router.get('/schedule/studio', (req, res) => {
+    const db = getDb();
+    let disabled = [];
+    try {
+      const raw = readSetting(db, 'studio_disabled_slot_times', '[]');
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) {
+        disabled = [...new Set(a.map(t => normalizeSlotTimeHHMM(t)).filter(Boolean))].sort();
+      }
+    } catch (_) {
+      disabled = [];
+    }
+    res.json({
+      studio_slot_start: readSetting(db, 'studio_slot_start', '09:00'),
+      studio_slot_end: readSetting(db, 'studio_slot_end', '18:00'),
+      studio_slot_interval_minutes: readSetting(db, 'studio_slot_interval_minutes', '30'),
+      disabled_slot_times: disabled,
+    });
+  });
+
+  router.put('/schedule/studio', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const db = getDb();
+    const upd = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    if (body.studio_slot_start !== undefined) {
+      upd.run('studio_slot_start', String(body.studio_slot_start).trim() || '09:00');
+    }
+    if (body.studio_slot_end !== undefined) {
+      upd.run('studio_slot_end', String(body.studio_slot_end).trim() || '18:00');
+    }
+    if (body.studio_slot_interval_minutes !== undefined) {
+      const iv = parseInt(body.studio_slot_interval_minutes, 10);
+      upd.run('studio_slot_interval_minutes', String(Number.isFinite(iv) && iv > 0 ? iv : 30));
+    }
+    if (Array.isArray(body.disabled_slot_times)) {
+      const cleaned = [...new Set(body.disabled_slot_times.map(t => normalizeSlotTimeHHMM(t)).filter(Boolean))].sort();
+      upd.run('studio_disabled_slot_times', JSON.stringify(cleaned));
+    }
+    let disabledOut = [];
+    try {
+      const raw = readSetting(db, 'studio_disabled_slot_times', '[]');
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) {
+        disabledOut = [...new Set(a.map(t => normalizeSlotTimeHHMM(t)).filter(Boolean))].sort();
+      }
+    } catch (_) {}
+    res.json({
+      studio_slot_start: readSetting(db, 'studio_slot_start', '09:00'),
+      studio_slot_end: readSetting(db, 'studio_slot_end', '18:00'),
+      studio_slot_interval_minutes: readSetting(db, 'studio_slot_interval_minutes', '30'),
+      disabled_slot_times: disabledOut,
+    });
+  });
 
   // === Services ===
   router.get('/services', (req, res) => {
@@ -195,20 +256,95 @@ export function setupAdminRoutes(router) {
   // === Act (HTML/PDF) ===
   router.get('/bookings/:id/act', getBookingActAdmin);
 
-  // === Clients ===
-  router.get('/clients', (req, res) => {
+  // === Clients (список и карточка — только с паролем админки) ===
+  router.get('/clients', requireAdmin, (req, res) => {
     const db = getDb();
-    const rows = db.prepare('SELECT id, device_id, first_name, last_name, phone, email, social_links, loyalty_points, created_at FROM clients ORDER BY created_at DESC').all();
+    const rows = db
+      .prepare(
+        'SELECT id, device_id, first_name, last_name, phone, email, social_links, loyalty_points, created_at FROM clients ORDER BY created_at DESC'
+      )
+      .all();
     res.json(rows);
   });
 
-  router.get('/clients/:id', (req, res) => {
+  router.get('/clients/:id', requireAdmin, (req, res) => {
     const db = getDb();
     const row = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Клиент не найден' });
     let social = {};
     if (row.social_links) try { social = JSON.parse(row.social_links); } catch (_) {}
     res.json({ ...row, social_links: social });
+  });
+
+  router.get('/clients/:id/crm', requireAdmin, (req, res) => {
+    const db = getDb();
+    const client = db
+      .prepare(
+        `SELECT id, device_id, platform, first_name, last_name, phone, phone_norm, email, social_links,
+         loyalty_points, created_at, app_version
+         FROM clients WHERE id = ?`
+      )
+      .get(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Клиент не найден' });
+    let social = {};
+    if (client.social_links) try { social = JSON.parse(client.social_links); } catch (_) {}
+    const bookings = db
+      .prepare(
+        `
+      SELECT b.*, s.name AS service_name
+      FROM bookings b
+      JOIN services s ON s.id = b.service_id
+      WHERE b.user_id = ?
+      ORDER BY b.date_time DESC
+      LIMIT 200
+    `
+      )
+      .all(req.params.id);
+    const loyalty_history = db
+      .prepare(
+        `SELECT id, delta, note, created_at FROM loyalty_adjustments WHERE client_id = ? ORDER BY created_at DESC LIMIT 100`
+      )
+      .all(req.params.id);
+    res.json({
+      client: { ...client, social_links: social },
+      bookings,
+      loyalty_history,
+    });
+  });
+
+  router.post('/clients/:id/loyalty', requireAdmin, (req, res) => {
+    const { delta, note } = req.body || {};
+    const d = parseInt(delta, 10);
+    if (!Number.isFinite(d) || d === 0) {
+      return res.status(400).json({ error: 'delta — целое число баллов (не ноль)' });
+    }
+    const db = getDb();
+    const client = db.prepare('SELECT id, loyalty_points FROM clients WHERE id = ?').get(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Клиент не найден' });
+    const cur = Number(client.loyalty_points) || 0;
+    const next = cur + d;
+    if (next < 0) {
+      return res.status(400).json({ error: 'Баллы не могут стать отрицательными' });
+    }
+    const now = new Date().toISOString();
+    const adjId = uuidv4();
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE clients SET loyalty_points = ? WHERE id = ?').run(next, client.id);
+      db.prepare('INSERT INTO loyalty_adjustments (id, client_id, delta, note, created_at) VALUES (?, ?, ?, ?, ?)').run(
+        adjId,
+        client.id,
+        d,
+        typeof note === 'string' && note.trim() ? note.trim() : null,
+        now
+      );
+    });
+    try {
+      tx();
+    } catch (e) {
+      console.error('loyalty adjust:', e);
+      return res.status(500).json({ error: 'Не удалось сохранить' });
+    }
+    res.json({ loyalty_points: next, adjustment_id: adjId });
   });
 
   // === Posts ===
@@ -234,7 +370,7 @@ export function setupAdminRoutes(router) {
     );
   });
 
-  router.put('/posts/:id', (req, res) => {
+  router.put('/posts/:id', requireAdmin, (req, res) => {
     const db = getDb();
     const { name, is_enabled, use_custom_hours, start_time, end_time, interval_minutes, disabled_slot_times } =
       req.body || {};
@@ -582,12 +718,7 @@ export function setupAdminRoutes(router) {
   /** Загрузка изображения (сжатие + сохранение в /uploads/) */
   router.post('/upload/image', requireAdmin, uploadMiddleware, handleImageUpload);
 
-  const SETTINGS_KEYS = [
-    'api_base_url',
-    'studio_slot_start',
-    'studio_slot_end',
-    'studio_slot_interval_minutes',
-  ];
+  const SETTINGS_KEYS = ['api_base_url'];
 
   router.put('/settings', requireAdmin, (req, res) => {
     const db = getDb();
@@ -600,6 +731,11 @@ export function setupAdminRoutes(router) {
     const obj = {};
     for (const r of rows) obj[r.key] = r.value;
     res.json(obj);
+  });
+
+  // 404 для любого запроса, не попавшего ни в один маршрут Admin API (чтобы не попадало в catch-all HTML)
+  router.use((req, res) => {
+    res.status(404).json({ error: 'Admin API: маршрут не найден' });
   });
 }
 

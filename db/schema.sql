@@ -158,6 +158,18 @@ CREATE TABLE IF NOT EXISTS loyalty_redemptions (
   FOREIGN KEY (reward_id) REFERENCES loyalty_rewards(id)
 );
 
+-- Ручные корректировки баллов (админка)
+CREATE TABLE IF NOT EXISTS loyalty_adjustments (
+  id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL,
+  delta INTEGER NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (client_id) REFERENCES clients(id)
+);
+CREATE INDEX IF NOT EXISTS idx_loyalty_adjustments_client ON loyalty_adjustments(client_id);
+CREATE INDEX IF NOT EXISTS idx_loyalty_adjustments_created ON loyalty_adjustments(created_at);
+
 -- Настройки
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,

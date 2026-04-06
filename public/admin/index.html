@@ -135,7 +135,7 @@
 
       <div id="postsScreen" class="screen hidden">
         <div class="page-header"><h2 class="page-title">Посты и расписание</h2></div>
-        <p class="hint" style="margin-bottom:1rem">Включение поста и сетка времени: зелёные слоты доступны для записи в приложении и виджете, серые — закрыты. Интервал задаёт шаг сетки (как в «Настройках», если не своё расписание).</p>
+        <p class="hint" style="margin-bottom:1rem">Сначала настройте <strong>общее расписание студии</strong> (часы, интервал, кнопки слотов). У каждого поста — свой переключатель, сетка слотов и сохранение. Зелёный слот = можно записаться, серый = выключен. Раздел защищён паролем администратора.</p>
         <div id="postsList"></div>
       </div>
 
@@ -167,6 +167,7 @@
 
       <div id="clientsScreen" class="screen hidden">
         <div class="page-header"><h2 class="page-title">Клиенты</h2></div>
+        <p class="hint" style="margin-bottom:1rem">Хранилище клиентов: нажмите на карточку — баллы, история записей и работ. Раздел защищён паролем администратора.</p>
         <div id="clientsList"></div>
       </div>
 
@@ -201,15 +202,7 @@
         <div class="settings-form">
           <label>Базовый URL API (для QR)</label>
           <input type="url" id="apiBaseUrl" placeholder="https://your-domain.com/api/v1">
-          <p class="hint">Этот URL отображается в QR-коде для iOS-приложения.</p>
-          <h3 style="font-family:var(--ff-heading);color:#fff;font-size:1rem;margin:1.25rem 0 0.5rem">Общие часы для слотов</h3>
-          <p class="hint">Если у поста выключено «Своё расписание», интервалы записи считаются по этим значениям.</p>
-          <label>Начало дня</label>
-          <input type="text" id="studioSlotStart" placeholder="09:00">
-          <label>Конец дня</label>
-          <input type="text" id="studioSlotEnd" placeholder="18:00">
-          <label>Интервал (мин)</label>
-          <input type="number" id="studioSlotInterval" min="5" step="5" value="30">
+          <p class="hint">Этот URL отображается в QR-коде для iOS-приложения. Часы и слоты студии настраиваются в разделе «Посты и расписание».</p>
           <button class="btn btn--primary" id="btnSaveSettings" style="margin-top:0.75rem">Сохранить</button>
         </div>
         <hr>
@@ -408,6 +401,17 @@
       <div class="modal-actions">
         <button type="button" class="btn btn--primary" id="btnCloseInviteQr">Закрыть</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: карточка клиента (CRM) -->
+  <div id="clientHubModal" class="modal hidden" onclick="if (event.target === this) closeClientHubModal()">
+    <div class="modal-content modal-content--wide client-hub-modal" onclick="event.stopPropagation()">
+      <div class="client-hub-modal__bar">
+        <span class="client-hub-modal__label">Карточка клиента</span>
+        <button type="button" class="btn btn--sm" id="btnCloseClientHub">Закрыть</button>
+      </div>
+      <div id="clientHubBody" class="client-hub-body"></div>
     </div>
   </div>
 

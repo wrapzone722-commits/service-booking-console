@@ -115,6 +115,28 @@ export function initDatabase(dbPath = null) {
 
   try {
     db.exec(`
+      CREATE TABLE IF NOT EXISTS loyalty_adjustments (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        delta INTEGER NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+      )
+    `);
+  } catch (_) {}
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_loyalty_adjustments_client ON loyalty_adjustments(client_id)');
+  } catch (_) {}
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_loyalty_adjustments_created ON loyalty_adjustments(created_at)');
+  } catch (_) {}
+  try {
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_disabled_slot_times', '[]')").run();
+  } catch (_) {}
+
+  try {
+    db.exec(`
       CREATE TABLE IF NOT EXISTS invite_redemptions (
         id TEXT PRIMARY KEY,
         invite_code_id TEXT NOT NULL,
@@ -218,6 +240,7 @@ function seedInitialData() {
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_slot_start', '09:00')").run();
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_slot_end', '18:00')").run();
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_slot_interval_minutes', '30')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('studio_disabled_slot_times', '[]')").run();
 }
 
 export function getDb() {

@@ -45,7 +45,13 @@ export function getSlots(req, res) {
   const startStr = useOwn ? post.start_time || studio.start : studio.start;
   const endStr = useOwn ? post.end_time || studio.end : studio.end;
   const interval = useOwn ? post.interval_minutes || studio.interval : studio.interval;
-  const disabledSlots = parseDisabledSlotTimes(post.disabled_slot_times);
+  const studioDisabled = parseDisabledSlotTimes(settingGet(db, 'studio_disabled_slot_times', '[]'));
+  const postDisabled = parseDisabledSlotTimes(post.disabled_slot_times);
+  const disabledSlots = new Set();
+  if (!useOwn) {
+    for (const t of studioDisabled) disabledSlots.add(t);
+  }
+  for (const t of postDisabled) disabledSlots.add(t);
 
   const [startH, startM] = String(startStr || '09:00').split(':').map(Number);
   const [endH, endM] = String(endStr || '18:00').split(':').map(Number);

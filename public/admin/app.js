@@ -1,7 +1,7 @@
 const API_BASE = '/admin/api';
 let adminKey = localStorage.getItem('adminKey') || '';
 
-const PROTECTED_PAGES = new Set(['settings', 'cars', 'invites', 'openclaw']);
+const PROTECTED_PAGES = new Set(['settings', 'cars', 'invites', 'openclaw', 'posts', 'clients']);
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
@@ -16,7 +16,14 @@ async function api(path, opts = {}) {
     localStorage.removeItem('adminKey');
     throw new Error('UNAUTHORIZED');
   }
-  if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      if (j && j.error) msg = j.error;
+    } catch (_) {}
+    throw new Error(msg);
+  }
   if (res.status === 204) return null;
   return res.json();
 }
@@ -394,16 +401,17 @@ async function loadClients() {
   try {
     const list = await api('/clients');
     const html = list.map(c => `
-      <div class="card">
+      <div class="card client-card" data-client-id="${escapeAttr(c.id)}" role="button" tabindex="0">
         <div class="card-header">
           <h4>${escapeHtml(c.first_name || '')} ${escapeHtml(c.last_name || '') || 'Клиент'}</h4>
+          <span class="hint client-card__hint">Нажмите карточку — баллы и история</span>
         </div>
         <p class="card-meta">${renderContactLine(c.phone, c.email, c.social_links)}</p>
-        ${typeof c.loyalty_points === 'number' ? `<p class="hint">Баллы: ${c.loyalty_points}</p>` : ''}
+        ${typeof c.loyalty_points === 'number' ? `<p class="hint">Баллы: <strong>${c.loyalty_points}</strong></p>` : ''}
         <p class="hint">ID: ${escapeHtml(c.id)} · ${c.created_at?.slice(0,10)}</p>
         <div class="btn-group">
           ${renderContactButtons(c.phone, c.email, c.social_links)}
-          <button class="btn btn--sm" onclick="openNotify('${c.id}')">Сообщение</button>
+          <button type="button" class="btn btn--sm" onclick="event.stopPropagation(); openNotify('${escapeAttr(c.id)}')">Сообщение</button>
         </div>
       </div>
     `).join('');
@@ -412,6 +420,125 @@ async function loadClients() {
     document.getElementById('clientsList').innerHTML = errorHtml(e);
   }
 }
+
+function closeClientHubModal() {
+  document.getElementById('clientHubModal')?.classList.add('hidden');
+}
+
+async function openClientHub(clientId) {
+  const modal = document.getElementById('clientHubModal');
+  const body = document.getElementById('clientHubBody');
+  if (!modal || !body) return;
+  body.innerHTML = '<p class="hint">Загрузка…</p>';
+  modal.classList.remove('hidden');
+  try {
+    const data = await api('/clients/' + encodeURIComponent(clientId) + '/crm');
+    body.innerHTML = renderClientHubBody(data);
+    const form = document.getElementById('clientLoyaltyForm');
+    if (form) {
+      form.onsubmit = async ev => {
+        ev.preventDefault();
+        const delta = parseInt(document.getElementById('clientLoyaltyDelta').value, 10);
+        const note = document.getElementById('clientLoyaltyNote').value.trim();
+        if (!Number.isFinite(delta) || delta === 0) {
+          alert('Укажите ненулевое число баллов');
+          return;
+        }
+        try {
+          await api('/clients/' + encodeURIComponent(clientId) + '/loyalty', {
+            method: 'POST',
+            body: JSON.stringify({ delta, note: note || null }),
+          });
+          await openClientHub(clientId);
+          loadClients();
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      };
+    }
+  } catch (e) {
+    body.innerHTML = errorHtml(e);
+  }
+}
+
+function renderClientHubBody(data) {
+  const c = data.client || {};
+  const name = `${escapeHtml(c.first_name || '')} ${escapeHtml(c.last_name || '')}`.trim() || 'Клиент';
+  const pts = Number(c.loyalty_points) || 0;
+  const bookings = data.bookings || [];
+  const hist = data.loyalty_history || [];
+  const bookRows = bookings
+    .map(
+      b => `<tr>
+      <td>${escapeHtml(formatDateTime(b.date_time))}</td>
+      <td>${escapeHtml(b.service_name || '')}</td>
+      <td>${escapeHtml(b.status || '')}</td>
+      <td>${b.price != null ? escapeHtml(String(b.price)) + ' ₽' : '—'}</td>
+    </tr>`
+    )
+    .join('');
+  const histRows = hist
+    .map(
+      h => `<tr>
+      <td>${escapeHtml((h.created_at || '').slice(0, 19).replace('T', ' '))}</td>
+      <td class="${h.delta > 0 ? 'client-hub-pos' : 'client-hub-neg'}">${h.delta > 0 ? '+' : ''}${h.delta}</td>
+      <td>${escapeHtml(h.note || '—')}</td>
+    </tr>`
+    )
+    .join('');
+  return `
+    <div class="client-hub-head">
+      <div>
+        <h3 class="client-hub-title">${name}</h3>
+        <p class="hint">${renderContactLine(c.phone, c.email, c.social_links)}</p>
+        <p class="hint">Платформа: ${escapeHtml(c.platform || '—')} · с ${escapeHtml((c.created_at || '').slice(0, 10))}</p>
+      </div>
+      <div class="client-hub-points"><span class="client-hub-points__label">Баллы</span><span class="client-hub-points__val">${pts}</span></div>
+    </div>
+    <form id="clientLoyaltyForm" class="client-hub-loyalty">
+      <label>Начислить / списать баллы</label>
+      <div class="client-hub-loyalty__row">
+        <input type="number" id="clientLoyaltyDelta" required placeholder="+10 или -5" step="1">
+        <input type="text" id="clientLoyaltyNote" placeholder="Комментарий (необязательно)">
+        <button type="submit" class="btn btn--primary">Применить</button>
+      </div>
+      <p class="hint">Положительное число — начисление, отрицательное — списание.</p>
+    </form>
+    <h4 class="client-hub-section-title">Записи и работы</h4>
+    <div class="client-hub-table-wrap">
+      <table class="client-hub-table">
+        <thead><tr><th>Дата</th><th>Услуга</th><th>Статус</th><th>Цена</th></tr></thead>
+        <tbody>${bookRows || '<tr><td colspan="4" class="hint">Нет записей</td></tr>'}</tbody>
+      </table>
+    </div>
+    <h4 class="client-hub-section-title">История баллов</h4>
+    <div class="client-hub-table-wrap">
+      <table class="client-hub-table">
+        <thead><tr><th>Когда</th><th>Изменение</th><th>Комментарий</th></tr></thead>
+        <tbody>${histRows || '<tr><td colspan="3" class="hint">Только ручные операции из админки</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+document.getElementById('clientsList')?.addEventListener('click', e => {
+  const card = e.target.closest('.client-card');
+  const list = document.getElementById('clientsList');
+  if (!card || !list || !list.contains(card)) return;
+  if (e.target.closest('a, button')) return;
+  const id = card.dataset.clientId;
+  if (id) openClientHub(id);
+});
+
+document.getElementById('clientsList')?.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const card = e.target.closest('.client-card');
+  const list = document.getElementById('clientsList');
+  if (!card || !list || !list.contains(card)) return;
+  e.preventDefault();
+  const id = card.dataset.clientId;
+  if (id) openClientHub(id);
+});
 
 /* ── Пригласительные коды (QR) ── */
 function invitePublicUrl(code) {
@@ -573,9 +700,6 @@ async function loadSettings() {
   try {
     const s = await api('/settings');
     document.getElementById('apiBaseUrl').value = s.api_base_url || '';
-    document.getElementById('studioSlotStart').value = s.studio_slot_start || '09:00';
-    document.getElementById('studioSlotEnd').value = s.studio_slot_end || '18:00';
-    document.getElementById('studioSlotInterval').value = s.studio_slot_interval_minutes || '30';
     const baseUrl = s.api_base_url || (window.location.origin + '/api/v1');
     document.getElementById('localUrl').textContent = window.location.origin + '/api/v1';
     QRCode.toCanvas(document.createElement('canvas'), baseUrl, { width: 200 }, (err, canvas) => {
@@ -763,16 +887,99 @@ function postSlotsAllOff(postId) {
   });
 }
 
-async function loadPosts() {
-  let studio = { start: '09:00', end: '18:00', interval: 30 };
+function rebuildStudioGlobalChips() {
+  const wrap = document.getElementById('studioGlobalChips');
+  if (!wrap) return;
+  const st = document.getElementById('studioScheduleStart')?.value?.trim() || '09:00';
+  const en = document.getElementById('studioScheduleEnd')?.value?.trim() || '18:00';
+  const iv = parseInt(document.getElementById('studioScheduleInterval')?.value, 10) || 30;
+  const prevOff = new Set([...wrap.querySelectorAll('.post-slot-chip.is-off')].map(b => b.dataset.time));
+  const times = generateSlotTimesForPost(st, en, iv);
+  const keptOff = times.filter(t => prevOff.has(t));
+  wrap.innerHTML = renderPostSlotChipsMarkup('studio', times, keptOff);
+}
+
+window.saveStudioSchedule = async function () {
+  const wrap = document.getElementById('studioGlobalChips');
+  if (!wrap) return;
+  const disabled = [...wrap.querySelectorAll('.post-slot-chip.is-off')].map(b => b.dataset.time);
   try {
-    const st = await api('/settings');
-    studio = {
-      start: st.studio_slot_start || studio.start,
-      end: st.studio_slot_end || studio.end,
-      interval: parseInt(st.studio_slot_interval_minutes, 10) || 30,
-    };
+    await api('/schedule/studio', {
+      method: 'PUT',
+      body: JSON.stringify({
+        studio_slot_start: document.getElementById('studioScheduleStart').value.trim() || '09:00',
+        studio_slot_end: document.getElementById('studioScheduleEnd').value.trim() || '18:00',
+        studio_slot_interval_minutes: String(parseInt(document.getElementById('studioScheduleInterval').value, 10) || 30),
+        disabled_slot_times: disabled,
+      }),
+    });
+    alert('Общее расписание студии сохранено');
+    loadPosts();
+  } catch (e) {
+    alert(e.message || String(e));
+  }
+};
+
+function bindStudioScheduleInputs() {
+  ['studioScheduleStart', 'studioScheduleEnd', 'studioScheduleInterval'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', rebuildStudioGlobalChips);
+    el.addEventListener('input', rebuildStudioGlobalChips);
+  });
+}
+
+async function loadPosts() {
+  let studioData = {
+    studio_slot_start: '09:00',
+    studio_slot_end: '18:00',
+    studio_slot_interval_minutes: '30',
+    disabled_slot_times: [],
+  };
+  try {
+    studioData = await api('/schedule/studio');
   } catch (_) {}
+
+  const studio = {
+    start: studioData.studio_slot_start || '09:00',
+    end: studioData.studio_slot_end || '18:00',
+    interval: parseInt(studioData.studio_slot_interval_minutes, 10) || 30,
+  };
+  const studioDisabledArr = Array.isArray(studioData.disabled_slot_times) ? studioData.disabled_slot_times : [];
+  const studioTimes = generateSlotTimesForPost(studio.start, studio.end, studio.interval);
+  const studioChips = renderPostSlotChipsMarkup('studio', studioTimes, studioDisabledArr);
+  const ivStudio = studio.interval;
+  const intervalOptsStudio = [15, 20, 30, 45, 60]
+    .map(n => `<option value="${n}" ${ivStudio === n ? 'selected' : ''}>${n} мин</option>`)
+    .join('');
+
+  const studioBlock = `
+    <div class="card studio-schedule-card" id="studioScheduleCard">
+      <div class="studio-schedule-card__head">
+        <h3 class="services-cat-title studio-schedule-card__title">Общее расписание студии</h3>
+        <p class="hint studio-schedule-card__lead">Для постов <strong>без</strong> «своего расписания»: интервал, часы работы и закрытые слоты настраиваются здесь (не в «Настройках»).</p>
+      </div>
+      <div class="post-card__grid studio-schedule-card__grid">
+        <label>Начало дня</label>
+        <input type="text" id="studioScheduleStart" value="${escapeAttr(studio.start)}" placeholder="09:00" autocomplete="off">
+        <label>Конец дня</label>
+        <input type="text" id="studioScheduleEnd" value="${escapeAttr(studio.end)}" placeholder="18:00" autocomplete="off">
+        <label>Интервал слотов</label>
+        <select id="studioScheduleInterval">${intervalOptsStudio}</select>
+      </div>
+      <div class="post-slot-panel">
+        <div class="post-slot-panel__head">
+          <span class="post-slot-panel__title">Слоты (кнопки): зелёные — открыты, серые — выключены</span>
+          <div class="btn-group">
+            <button type="button" class="btn btn--sm" onclick="(function(){var w=document.getElementById('studioGlobalChips');if(w)w.querySelectorAll('.post-slot-chip').forEach(function(b){b.classList.remove('is-off');b.setAttribute('aria-pressed','true');});})()">Все открыть</button>
+            <button type="button" class="btn btn--sm" onclick="(function(){var w=document.getElementById('studioGlobalChips');if(w)w.querySelectorAll('.post-slot-chip').forEach(function(b){b.classList.add('is-off');b.setAttribute('aria-pressed','false');});})()">Все закрыть</button>
+          </div>
+        </div>
+        <p class="hint post-slot-legend"><span class="post-slot-legend__on">●</span> доступно &nbsp; <span class="post-slot-legend__off">●</span> закрыто</p>
+        <div class="post-slot-chips" id="studioGlobalChips">${studioChips}</div>
+      </div>
+      <button type="button" class="btn btn--primary" onclick="saveStudioSchedule()">Сохранить общее расписание</button>
+    </div>`;
 
   try {
     const list = await api('/posts');
@@ -800,7 +1007,7 @@ async function loadPosts() {
           </div>
           <label class="post-card__toggle"><input type="checkbox" data-field="is_enabled" data-rebuild-slots="1" ${p.is_enabled ? 'checked' : ''}> <span>Запись на этот пост</span></label>
         </div>
-        <p class="hint post-card__hint">Без «своего расписания» используются часы из «Настройки» (${escapeHtml(studio.start)}–${escapeHtml(studio.end)}, шаг ${studio.interval} мин).</p>
+        <p class="hint post-card__hint">Без «своего расписания» используются часы и шаг из блока <strong>«Общее расписание студии»</strong> выше; закрытые слоты суммируются (студия + пост).</p>
         <div class="post-card__grid">
           <label>Название</label>
           <input type="text" data-field="name" value="${escapeAttr(p.name)}">
@@ -830,7 +1037,8 @@ async function loadPosts() {
       </div>`;
       })
       .join('');
-    document.getElementById('postsList').innerHTML = html || emptyState('Нет постов');
+    document.getElementById('postsList').innerHTML = studioBlock + (html || emptyState('Нет постов'));
+    bindStudioScheduleInputs();
   } catch (e) {
     document.getElementById('postsList').innerHTML = errorHtml(e);
   }
@@ -1287,16 +1495,13 @@ document.getElementById('notifyForm').onsubmit = async (e) => {
 
 document.getElementById('btnCancelNotify').onclick = () => document.getElementById('notifyModal').classList.add('hidden');
 
+document.getElementById('btnCloseClientHub')?.addEventListener('click', closeClientHubModal);
+
 document.getElementById('btnSaveSettings').onclick = async () => {
   const url = document.getElementById('apiBaseUrl').value.trim();
   await api('/settings', {
     method: 'PUT',
-    body: JSON.stringify({
-      api_base_url: url,
-      studio_slot_start: document.getElementById('studioSlotStart').value.trim() || '09:00',
-      studio_slot_end: document.getElementById('studioSlotEnd').value.trim() || '18:00',
-      studio_slot_interval_minutes: String(parseInt(document.getElementById('studioSlotInterval').value, 10) || 30),
-    }),
+    body: JSON.stringify({ api_base_url: url }),
   });
   loadSettings();
 };

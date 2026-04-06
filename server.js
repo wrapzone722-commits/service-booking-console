@@ -154,5 +154,6 @@ app.listen(PORT, () => {
   ==========================
   API:      http://localhost:${PORT}/api/v1
   Admin:    http://localhost:${PORT}/admin
+  Widget:   http://localhost:${PORT}/widget/?key=CLIENT_API_KEY
   `);
 });
