@@ -1724,6 +1724,13 @@ document.getElementById('serviceForm').onsubmit = async (e) => {
 document.getElementById('btnCancelService').onclick = () => document.getElementById('serviceModal').classList.add('hidden');
 document.getElementById('filterStatus').onchange = loadBookings;
 document.getElementById('filterDate').onchange = loadBookings;
+document.getElementById('btnClearBookingFilters')?.addEventListener('click', () => {
+  const st = document.getElementById('filterStatus');
+  const dt = document.getElementById('filterDate');
+  if (st) st.value = '';
+  if (dt) dt.value = '';
+  loadBookings();
+});
 document.getElementById('filterCandidateStatus').onchange = loadCandidates;
 
 async function setStatus(bookingId, status) {

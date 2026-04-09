@@ -219,18 +219,26 @@ export function setupAdminRoutes(router) {
   router.get('/bookings', (req, res) => {
     const db = getDb();
     const { status, date, client_id } = req.query;
+    const studioOffH = parseInt(process.env.STUDIO_TZ_OFFSET_HOURS || '5', 10);
+    const hoursMod =
+      Number.isFinite(studioOffH) && studioOffH !== 0
+        ? `${studioOffH > 0 ? '+' : ''}${studioOffH} hours`
+        : '+0 hours';
     let sql = `
-      SELECT b.*, s.name as service_name,
+      SELECT b.*, COALESCE(s.name, '(услуга удалена)') as service_name,
         c.first_name, c.last_name, c.phone, c.email, c.social_links,
         c.platform AS client_platform, c.app_version AS client_app_version
       FROM bookings b
-      JOIN services s ON s.id = b.service_id
-      JOIN clients c ON c.id = b.user_id
+      LEFT JOIN services s ON s.id = b.service_id
+      LEFT JOIN clients c ON c.id = b.user_id
       WHERE 1=1
     `;
     const params = [];
     if (status) { sql += ' AND b.status = ?'; params.push(status); }
-    if (date) { sql += ' AND date(b.date_time) = date(?)'; params.push(date); }
+    if (date) {
+      sql += ` AND date(datetime(b.date_time, ?)) = date(?)`;
+      params.push(hoursMod, date);
+    }
     if (client_id) { sql += ' AND b.user_id = ?'; params.push(client_id); }
     const sortCreated = req.query.sort === 'created';
     sql += sortCreated ? ' ORDER BY b.created_at DESC' : ' ORDER BY b.date_time DESC';

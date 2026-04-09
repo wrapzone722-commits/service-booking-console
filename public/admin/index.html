@@ -100,8 +100,10 @@
             <option value="completed">Завершена</option>
             <option value="cancelled">Отменена</option>
           </select>
-          <input type="date" id="filterDate">
+          <input type="date" id="filterDate" title="Календарный день студии (как в слотах)">
+          <button type="button" class="btn btn--sm" id="btnClearBookingFilters">Сбросить фильтры</button>
         </div>
+        <p class="hint" style="margin:0 0 1rem">Пустое поле даты — все дни. День в фильтре считается в часовом поясе студии (<code>STUDIO_TZ_OFFSET_HOURS</code> в .env, как у слотов). Если записей нет: проверьте, что виджет открыт с тем же адресом API, что и эта консоль (одна база SQLite).</p>
         <div id="bookingsList"></div>
       </div>
 
