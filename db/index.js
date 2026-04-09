@@ -136,6 +136,13 @@ export function initDatabase(dbPath = null) {
   } catch (_) {}
 
   try {
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('printer_lan_enabled', '0')").run();
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('printer_lan_host', '')").run();
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('printer_lan_port', '9100')").run();
+    db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('receipt_header_line', 'ДРУГОЕ МЕСТО')").run();
+  } catch (_) {}
+
+  try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS invite_redemptions (
         id TEXT PRIMARY KEY,
@@ -159,6 +166,26 @@ export function initDatabase(dbPath = null) {
   // Миграция: APNs device token для push-уведомлений
   try {
     db.exec('ALTER TABLE clients ADD COLUMN apns_device_token TEXT');
+  } catch (_) {}
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS web_otp_challenges (
+        id TEXT PRIMARY KEY,
+        phone_norm TEXT NOT NULL,
+        code_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    `);
+  } catch (_) {}
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_web_otp_phone_created ON web_otp_challenges(phone_norm, created_at)');
+  } catch (_) {}
+
+  try {
+    db.exec('ALTER TABLE clients ADD COLUMN web_pin_hash TEXT');
   } catch (_) {}
 
   // Однократно: раньше слоты игнорировали use_custom_hours и всегда брали время с поста.

@@ -7,6 +7,7 @@ import cors from 'cors';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import process from 'node:process';
 import { initDatabase } from './db/index.js';
 import { requireAuth } from './middleware/auth.js';
 import { registerClient } from './routes/clients.js';
@@ -16,6 +17,7 @@ import { listPosts } from './routes/posts.js';
 import { getSlots } from './routes/slots.js';
 import { getProfile, updateProfile, updatePushToken } from './routes/profile.js';
 import { listNotifications, markRead } from './routes/notifications.js';
+import { listChatMessages, postChatMessage, markAdminChatRead } from './routes/chat.js';
 import { listCars } from './routes/cars.js';
 import { listNews } from './routes/news.js';
 import { getBookingAct } from './routes/act.js';
@@ -24,6 +26,7 @@ import { submitCandidate } from './routes/candidates.js';
 import { setupAdminRoutes } from './routes/admin.js';
 import { serveImagePreview } from './routes/imagePreview.js';
 import { previewInvite } from './routes/invites.js';
+import { webAuthRegisterPin, webAuthLoginPin, webAuthChangeWebPin } from './routes/webAuth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -46,6 +49,41 @@ app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.set('json spaces', 2);
 
+/**
+ * Виджет записи: полные пути на app (до Router), чтобы маршруты не терялись при любой версии Express / порядке middleware.
+ */
+app.get('/api/v1/web/health', (req, res) => {
+  res.json({ ok: true, web_auth: true, version: PKG.version });
+});
+
+app.get('/api/v1/web/public-info', (req, res) => {
+  const xf = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim();
+  const proto = xf || req.protocol || 'http';
+  const host = String(req.get('host') || '')
+    .split(',')[0]
+    .trim();
+  if (!host) {
+    return res.json({ api_base: '', admin_url: '', widget_url: '' });
+  }
+  const origin = `${proto}://${host}`;
+  const apiBase = `${origin}/api/v1`;
+  res.json({
+    api_base: apiBase,
+    admin_url: `${origin}/admin`,
+    widget_url: `${origin}/widget/`,
+    widget_with_api_param: `${origin}/widget/?api=${encodeURIComponent(apiBase)}`,
+  });
+});
+
+app.post('/api/v1/web/auth/register-pin', (req, res, next) => {
+  webAuthRegisterPin(req, res).catch(next);
+});
+app.post('/api/v1/web/auth/login-pin', (req, res, next) => {
+  webAuthLoginPin(req, res).catch(next);
+});
+
 // === API v1 (для iOS) ===
 const api = express.Router();
 
@@ -65,12 +103,17 @@ api.get('/slots', requireAuth, getSlots);
 
 api.get('/profile', requireAuth, getProfile);
 api.put('/profile', requireAuth, updateProfile);
+api.put('/profile/web-pin', requireAuth, webAuthChangeWebPin);
 api.put('/profile/push_token', requireAuth, updatePushToken);
 
 api.get('/cars', requireAuth, listCars);
 
 api.get('/notifications', requireAuth, listNotifications);
 api.patch('/notifications/:id/read', requireAuth, markRead);
+
+api.get('/chat/messages', requireAuth, listChatMessages);
+api.post('/chat/messages', requireAuth, postChatMessage);
+api.post('/chat/mark-admin-read', requireAuth, markAdminChatRead);
 
 api.get('/news', requireAuth, listNews);
 
@@ -149,11 +192,15 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
+  const health = `http://127.0.0.1:${PORT}/api/v1/web/health`;
   console.log(`
-  Service Booking Web Console
-  ==========================
-  API:      http://localhost:${PORT}/api/v1
-  Admin:    http://localhost:${PORT}/admin
-  Widget:   http://localhost:${PORT}/widget/?key=CLIENT_API_KEY
+  Service Booking Web Console  v${PKG.version}
+  ===========================================
+  Запуск из: ${process.cwd()}
+  API:       http://localhost:${PORT}/api/v1
+  Проверка:  ${health}  → должен быть JSON с "ok":true
+  Admin:     http://localhost:${PORT}/admin
+  Widget:    http://localhost:${PORT}/widget/
+  Если /web/health даёт 404 — на порту ${PORT} другой процесс. Освободите порт или: PORT=3001 npm run dev
   `);
 });

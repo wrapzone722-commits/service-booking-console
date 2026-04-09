@@ -22,6 +22,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           Записи
         </button>
+        <button class="sidebar__btn" data-page="chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Чаты
+        </button>
+        <button class="sidebar__btn" data-page="cashRegister">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Термопринтер
+        </button>
         <button class="sidebar__btn" data-page="control">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
           Контроль
@@ -95,6 +103,32 @@
           <input type="date" id="filterDate">
         </div>
         <div id="bookingsList"></div>
+      </div>
+
+      <div id="chatScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">Чаты с клиентами</h2>
+          <button type="button" class="btn" id="btnChatRefresh">Обновить</button>
+        </div>
+        <p class="hint" style="margin-bottom:1rem">Сообщения из онлайн-записи и приложения. Красный значок — непрочитанное сообщение от клиента. Раздел защищён паролем администратора.</p>
+        <div class="admin-chat-layout">
+          <div class="admin-chat-threads" id="chatThreadsList"></div>
+          <div class="admin-chat-pane">
+            <div id="chatPaneEmpty" class="admin-chat-pane__empty">Выберите диалог слева</div>
+            <div id="chatPaneActive" class="hidden">
+              <div class="admin-chat-pane__head" id="chatPaneHead"></div>
+              <div class="admin-chat-messages" id="chatMessagesList"></div>
+              <form class="admin-chat-compose" id="chatComposeForm">
+                <input type="hidden" id="chatComposeClientId" value="">
+                <label class="field" style="flex:1;margin:0">
+                  <span class="field__label">Сообщение клиенту</span>
+                  <textarea id="chatComposeBody" class="input" rows="2" placeholder="Текст…"></textarea>
+                </label>
+                <button type="submit" class="btn btn--primary">Отправить</button>
+              </form>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="controlScreen" class="screen hidden">
@@ -173,11 +207,44 @@
 
       <div id="carsScreen" class="screen hidden">
         <div class="page-header">
-          <h2 class="page-title">Типы автомобилей</h2>
-          <button class="btn btn--primary" id="btnAddCarFolder">+ Добавить</button>
+          <h2 class="page-title">Папки автомобилей</h2>
+          <button class="btn btn--primary" id="btnAddCarFolder">+ Добавить папку</button>
         </div>
-        <p class="hint" style="margin-bottom:1rem">Список для выбора в приложении (седан, кроссовер и т.д.). Нужен пароль администратора (как в «Настройках») для загрузки фото.</p>
-        <div id="carFoldersList"></div>
+        <p class="hint" style="margin-bottom:1rem">Здесь вы создаёте <strong>папки с названием и фото</strong> — они уходят в клиентское приложение по API <code>GET /api/v1/cars</code> (клиент показывает список и картинки при выборе авто). Загрузка фото на сервер требует пароль администратора.</p>
+        <div id="carFoldersList" class="car-folders-grid"></div>
+      </div>
+
+      <div id="cashRegisterScreen" class="screen hidden">
+        <div class="page-header">
+          <h2 class="page-title">Термопринтер ESC/POS (LAN)</h2>
+        </div>
+        <div class="card cash-doc cash-doc--intro">
+          <p class="hint" style="margin-bottom:0.75rem">Печать идёт <strong>с сервера Node.js</strong> на принтер по сети (обычно порт <strong>9100</strong>, RAW/JetDirect). Сервер консоли должен «видеть» IP принтера. USB с ПК администратора здесь не используется.</p>
+          <div class="post-card__grid" style="max-width:28rem">
+            <label class="field">
+              <span class="field__label">Печать по сети</span>
+              <label class="checkbox-row"><input type="checkbox" id="printerLanEnabled"> Включить отправку чеков на принтер</label>
+            </label>
+            <label class="field">
+              <span class="field__label">IP принтера</span>
+              <input type="text" id="printerLanHost" class="input" placeholder="192.168.1.50" autocomplete="off">
+            </label>
+            <label class="field">
+              <span class="field__label">Порт</span>
+              <input type="number" id="printerLanPort" class="input" min="1" max="65535" value="9100">
+            </label>
+            <label class="field">
+              <span class="field__label">Заголовок чека (одна строка)</span>
+              <input type="text" id="receiptHeaderLine" class="input" maxlength="80" placeholder="Название студии">
+            </label>
+          </div>
+          <div class="btn-group" style="margin-top:1rem">
+            <button type="button" class="btn btn--primary" id="btnSavePrinter">Сохранить</button>
+            <button type="button" class="btn" id="btnTestPrinter">Тестовая печать</button>
+            <button type="button" class="btn" id="btnCashGoBookings">К записям</button>
+          </div>
+          <p id="printerStatusLine" class="hint" style="margin-top:0.75rem"></p>
+        </div>
       </div>
 
       <div id="openclawScreen" class="screen hidden">
@@ -200,10 +267,20 @@
       <div id="settingsScreen" class="screen hidden">
         <div class="page-header"><h2 class="page-title">Настройки</h2></div>
         <div class="settings-form">
-          <label>Базовый URL API (для QR)</label>
+          <label>Базовый URL API (для QR и онлайн-записи)</label>
           <input type="url" id="apiBaseUrl" placeholder="https://your-domain.com/api/v1">
-          <p class="hint">Этот URL отображается в QR-коде для iOS-приложения. Часы и слоты студии настраиваются в разделе «Посты и расписание».</p>
-          <button class="btn btn--primary" id="btnSaveSettings" style="margin-top:0.75rem">Сохранить</button>
+          <p class="hint">Тот же сервер, где открыта эта консоль. Для публичного домена укажите полный URL с <code>/api/v1</code> — он попадёт в QR для iOS и в ссылку виджета ниже. Клиенты, зарегистрированные на сайте записи, сразу появляются в разделе «Клиенты» (источник: веб).</p>
+          <button type="button" class="btn btn--primary" id="btnSaveSettings" style="margin-top:0.75rem">Сохранить</button>
+        </div>
+        <div class="card" style="margin-top:1rem;padding:1rem 1.1rem">
+          <h3 style="font-family:var(--ff-heading);color:#fff;font-size:1rem;margin:0 0 0.5rem">Связка: консоль ↔ онлайн-запись</h3>
+          <p class="hint" style="margin-top:0">Пути по умолчанию на этом сервере (можно скопировать для встраивания на сайт).</p>
+          <label style="display:block;margin-top:0.65rem;color:var(--text-muted);font-size:0.85rem">Админка (эта панель)</label>
+          <div class="settings-copy-row"><code id="settingsAdminUrl" class="settings-copy-code">—</code><button type="button" class="btn btn--sm" id="btnCopyAdminUrl">Копировать</button></div>
+          <label style="display:block;margin-top:0.65rem;color:var(--text-muted);font-size:0.85rem">Виджет записи (страница)</label>
+          <div class="settings-copy-row"><code id="settingsWidgetUrl" class="settings-copy-code">—</code><button type="button" class="btn btn--sm" id="btnCopyWidgetUrl">Копировать</button></div>
+          <label style="display:block;margin-top:0.65rem;color:var(--text-muted);font-size:0.85rem">Виджет с явным API (iframe / другой домен)</label>
+          <div class="settings-copy-row"><code id="settingsWidgetEmbedUrl" class="settings-copy-code">—</code><button type="button" class="btn btn--sm" id="btnCopyWidgetEmbedUrl">Копировать</button></div>
         </div>
         <hr>
         <h3 style="font-family:var(--ff-heading);color:#fff;font-size:1.1rem">QR-код для подключения iOS</h3>
@@ -331,17 +408,17 @@
     </div>
   </div>
 
-  <!-- Modal: тип авто -->
+  <!-- Modal: папка авто (фото в приложении) -->
   <div id="carFolderModal" class="modal hidden">
     <div class="modal-content">
-      <h3 id="carFolderModalTitle">Тип автомобиля</h3>
+      <h3 id="carFolderModalTitle">Папка автомобиля</h3>
       <form id="carFolderForm">
         <input type="hidden" id="carFolderId">
-        <label>Название *</label>
-        <input type="text" id="carFolderName" required>
-        <label>Порядок сортировки</label>
+        <label>Название папки *</label>
+        <input type="text" id="carFolderName" required placeholder="Например: Седан">
+        <label>Порядок в списке</label>
         <input type="number" id="carFolderSort" value="0" step="1">
-        <label>Фото</label>
+        <label>Картинка для приложения</label>
         <div class="img-upload-group">
           <div class="img-upload-preview" id="carFolderImagePreview"></div>
           <div class="img-upload-controls">

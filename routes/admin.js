@@ -12,6 +12,7 @@ import { listCandidates, updateCandidateStatus, deleteCandidate } from './candid
 import { uploadMiddleware, handleImageUpload } from './uploads.js';
 import { normalizeSlotTimeHHMM } from './slots.js';
 import { getOpenclawManifest } from './openclawIntegration.js';
+import { registerPrintRoutes } from './printRoutes.js';
 
 const ADMIN_HEADER = 'x-admin-key';
 const ADMIN_PASSWORD = '2300';
@@ -28,6 +29,15 @@ function readSetting(db, key, fallback) {
   const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   const v = r && r.value != null ? String(r.value).trim() : '';
   return v || fallback;
+}
+
+/** Из URL вида https://host/api/v1 → https://host (для ссылок на /admin и /widget/). */
+function deriveSiteBaseFromApiBase(apiBaseUrl) {
+  const u = String(apiBaseUrl || '').trim().replace(/\/$/, '');
+  if (!u) return '';
+  const lower = u.toLowerCase();
+  if (lower.endsWith('/api/v1')) return u.slice(0, -'/api/v1'.length);
+  return u;
 }
 
 export function setupAdminRoutes(router) {
@@ -286,7 +296,7 @@ export function setupAdminRoutes(router) {
     const db = getDb();
     const rows = db
       .prepare(
-        'SELECT id, device_id, first_name, last_name, phone, email, social_links, loyalty_points, created_at FROM clients ORDER BY created_at DESC'
+        'SELECT id, device_id, platform, first_name, last_name, phone, email, social_links, loyalty_points, created_at FROM clients ORDER BY created_at DESC'
       )
       .all();
     res.json(rows);
@@ -306,7 +316,7 @@ export function setupAdminRoutes(router) {
     const client = db
       .prepare(
         `SELECT id, device_id, platform, first_name, last_name, phone, phone_norm, email, social_links,
-         loyalty_points, created_at, app_version
+         loyalty_points, created_at, app_version, web_pin_hash
          FROM clients WHERE id = ?`
       )
       .get(req.params.id);
@@ -330,8 +340,13 @@ export function setupAdminRoutes(router) {
         `SELECT id, delta, note, created_at FROM loyalty_adjustments WHERE client_id = ? ORDER BY created_at DESC LIMIT 100`
       )
       .all(req.params.id);
+    const { web_pin_hash, ...clientRest } = client;
     res.json({
-      client: { ...client, social_links: social },
+      client: {
+        ...clientRest,
+        social_links: social,
+        has_web_pin: !!(web_pin_hash && String(web_pin_hash).trim()),
+      },
       bookings,
       loyalty_history,
     });
@@ -370,6 +385,14 @@ export function setupAdminRoutes(router) {
       return res.status(500).json({ error: 'Не удалось сохранить' });
     }
     res.json({ loyalty_points: next, adjustment_id: adjId });
+  });
+
+  /** Сброс PIN веб-виджета: клиент снова сможет пройти «Регистрацию» с тем же номером. */
+  router.post('/clients/:id/clear-web-pin', requireAdmin, (req, res) => {
+    const db = getDb();
+    const r = db.prepare('UPDATE clients SET web_pin_hash = NULL WHERE id = ?').run(req.params.id);
+    if (!r.changes) return res.status(404).json({ error: 'Клиент не найден' });
+    res.json({ ok: true });
   });
 
   // === Posts ===
@@ -437,7 +460,7 @@ export function setupAdminRoutes(router) {
     });
   });
 
-  // === Автомобили (папки для выбора в приложении) — только с паролем админки ===
+  // === Папки автомобилей (название + фото → GET /api/v1/cars) — только с паролем админки ===
   router.get('/car-folders', requireAdmin, (req, res) => {
     const db = getDb();
     const rows = db.prepare('SELECT * FROM car_folders ORDER BY sort_order ASC, name ASC').all();
@@ -593,6 +616,82 @@ export function setupAdminRoutes(router) {
     res.status(201).json({ id, body, title, type: 'admin', created_at: now });
   });
 
+  // === Чат с клиентами (типы admin | client в notifications) ===
+  router.get('/chat/threads', requireAdmin, (req, res) => {
+    const db = getDb();
+    const rows = db
+      .prepare(
+        `
+      SELECT c.id,
+        c.first_name,
+        c.last_name,
+        c.phone,
+        (SELECT n.body FROM notifications n
+         WHERE n.client_id = c.id AND n.type IN ('admin','client')
+         ORDER BY datetime(n.created_at) DESC LIMIT 1) AS last_preview,
+        (SELECT n.created_at FROM notifications n
+         WHERE n.client_id = c.id AND n.type IN ('admin','client')
+         ORDER BY datetime(n.created_at) DESC LIMIT 1) AS last_at,
+        (SELECT COUNT(*) FROM notifications n
+         WHERE n.client_id = c.id AND n.type = 'client' AND n.read = 0) AS unread_from_client
+      FROM clients c
+      WHERE EXISTS (
+        SELECT 1 FROM notifications n
+        WHERE n.client_id = c.id AND n.type IN ('admin','client')
+      )
+      ORDER BY datetime(last_at) DESC
+    `
+      )
+      .all();
+    res.json(
+      rows.map((r) => ({
+        client_id: r.id,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        phone: r.phone,
+        last_preview: r.last_preview || '',
+        last_at: r.last_at || null,
+        unread_from_client: Number(r.unread_from_client) || 0,
+      }))
+    );
+  });
+
+  router.get('/chat/threads/:clientId/messages', requireAdmin, (req, res) => {
+    const db = getDb();
+    const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.clientId);
+    if (!client) return res.status(404).json({ error: 'Клиент не найден' });
+    const rows = db
+      .prepare(
+        `
+      SELECT * FROM notifications
+      WHERE client_id = ? AND type IN ('admin','client')
+      ORDER BY datetime(created_at) ASC
+    `
+      )
+      .all(req.params.clientId);
+    res.json(
+      rows.map((r) => ({
+        _id: r.id,
+        id: r.id,
+        body: r.body,
+        title: r.title || null,
+        type: r.type,
+        read: !!r.read,
+        created_at: r.created_at,
+      }))
+    );
+  });
+
+  router.patch('/chat/threads/:clientId/read-client', requireAdmin, (req, res) => {
+    const db = getDb();
+    const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.clientId);
+    if (!client) return res.status(404).json({ error: 'Клиент не найден' });
+    db.prepare(`UPDATE notifications SET read = 1 WHERE client_id = ? AND type = 'client' AND read = 0`).run(
+      req.params.clientId
+    );
+    res.status(204).send();
+  });
+
   function generateInviteCodeSegment() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';
@@ -734,7 +833,30 @@ export function setupAdminRoutes(router) {
     const rows = db.prepare('SELECT key, value FROM settings').all();
     const obj = {};
     for (const r of rows) obj[r.key] = r.value;
-    res.json(obj);
+    const xf = String(req.headers['x-forwarded-proto'] || '')
+      .split(',')[0]
+      .trim();
+    const proto = xf || req.protocol || 'http';
+    const host = String(req.get('host') || '')
+      .split(',')[0]
+      .trim();
+    const requestOrigin = host ? `${proto}://${host}` : '';
+    const apiFromDb = String(obj.api_base_url || '').trim().replace(/\/$/, '');
+    const effectiveApiBase = apiFromDb || (requestOrigin ? `${requestOrigin}/api/v1` : '');
+    const siteBase = deriveSiteBaseFromApiBase(effectiveApiBase) || requestOrigin;
+    const adminUrl = siteBase ? `${siteBase}/admin` : '';
+    const widgetUrl = siteBase ? `${siteBase}/widget/` : '';
+    const widgetWithApi =
+      siteBase && effectiveApiBase ? `${siteBase}/widget/?api=${encodeURIComponent(effectiveApiBase)}` : widgetUrl;
+    res.json({
+      ...obj,
+      _links: {
+        effective_api_base: effectiveApiBase,
+        admin_console_url: adminUrl,
+        widget_url: widgetUrl,
+        widget_embed_url: widgetWithApi,
+      },
+    });
   });
 
   /** Превью изображения для админки (сжатие, lazy-load в списках) */
@@ -757,6 +879,8 @@ export function setupAdminRoutes(router) {
     for (const r of rows) obj[r.key] = r.value;
     res.json(obj);
   });
+
+  registerPrintRoutes(router, requireAdmin);
 
   // 404 для любого запроса, не попавшего ни в один маршрут Admin API (чтобы не попадало в catch-all HTML)
   router.use((req, res) => {

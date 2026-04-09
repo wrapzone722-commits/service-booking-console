@@ -1,7 +1,7 @@
 const API_BASE = '/admin/api';
 let adminKey = localStorage.getItem('adminKey') || '';
 
-const PROTECTED_PAGES = new Set(['settings', 'cars', 'invites', 'openclaw', 'posts', 'clients']);
+const PROTECTED_PAGES = new Set(['settings', 'cars', 'invites', 'openclaw', 'posts', 'clients', 'cashRegister', 'chat']);
 
 function headers() {
   const h = { 'Content-Type': 'application/json' };
@@ -48,8 +48,184 @@ function showScreen(name) {
     settings: loadSettings,
     invites: loadInviteCodes,
     openclaw: loadOpenclaw,
+    cashRegister: loadCashRegister,
+    chat: loadChatScreen,
   };
   if (loaders[name]) loaders[name]();
+}
+
+async function loadCashRegister() {
+  const statusEl = document.getElementById('printerStatusLine');
+  if (statusEl) statusEl.textContent = '';
+  try {
+    const p = await api('/printer');
+    const en = document.getElementById('printerLanEnabled');
+    const host = document.getElementById('printerLanHost');
+    const port = document.getElementById('printerLanPort');
+    const head = document.getElementById('receiptHeaderLine');
+    if (en) en.checked = !!p.enabled;
+    if (host) host.value = p.host || '';
+    if (port) port.value = p.port != null ? p.port : 9100;
+    if (head) head.value = p.header_line || '';
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = errorHtml(e);
+  }
+}
+
+let chatSelectedClientId = null;
+
+function formatChatListTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  } catch (_) {
+    return iso;
+  }
+}
+
+function renderChatThreadList(threads) {
+  const listEl = document.getElementById('chatThreadsList');
+  if (!listEl) return;
+  if (!threads.length) {
+    listEl.innerHTML =
+      '<p class="hint">Пока нет диалогов — клиент может написать из виджета онлайн-записи.</p>';
+    return;
+  }
+  listEl.innerHTML = threads
+    .map((t) => {
+      const active = chatSelectedClientId === t.client_id ? ' is-active' : '';
+      const unread = t.unread_from_client ? ' admin-chat-thread--unread' : '';
+      const name = [t.first_name, t.last_name].filter(Boolean).join(' ') || 'Клиент';
+      const prev = (t.last_preview || '').slice(0, 140);
+      const badge =
+        t.unread_from_client > 0
+          ? `<span class="admin-chat-thread__badge">${t.unread_from_client > 99 ? '99+' : t.unread_from_client}</span>`
+          : '';
+      return `<button type="button" class="admin-chat-thread${active}${unread}" data-client-id="${escapeHtml(t.client_id)}">
+        <span class="admin-chat-thread__name">${escapeHtml(name)}</span>
+        <span class="admin-chat-thread__phone">${escapeHtml(t.phone || '')}</span>
+        <span class="admin-chat-thread__preview">${escapeHtml(prev)}</span>
+        ${badge}
+      </button>`;
+    })
+    .join('');
+  listEl.querySelectorAll('.admin-chat-thread').forEach((btn) => {
+    btn.onclick = () => openChatThread(btn.dataset.clientId);
+  });
+}
+
+function renderAdminChatMessages(msgs) {
+  const box = document.getElementById('chatMessagesList');
+  if (!box) return;
+  box.innerHTML = msgs
+    .map((m) => {
+      const mine = m.type === 'admin';
+      return `<div class="admin-chat-msg${mine ? ' admin-chat-msg--admin' : ' admin-chat-msg--client'}">
+        <div class="admin-chat-msg__bubble">${escapeHtml(m.body || '')}</div>
+        <div class="admin-chat-msg__meta">${escapeHtml(formatChatListTime(m.created_at))}</div>
+      </div>`;
+    })
+    .join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function loadChatScreen() {
+  chatSelectedClientId = null;
+  const empty = document.getElementById('chatPaneEmpty');
+  const active = document.getElementById('chatPaneActive');
+  if (empty) empty.classList.remove('hidden');
+  if (active) active.classList.add('hidden');
+  const hid = document.getElementById('chatComposeClientId');
+  if (hid) hid.value = '';
+  const ta = document.getElementById('chatComposeBody');
+  if (ta) ta.value = '';
+  try {
+    const threads = await api('/chat/threads');
+    renderChatThreadList(threads);
+  } catch (e) {
+    const listEl = document.getElementById('chatThreadsList');
+    if (listEl) listEl.innerHTML = errorHtml(e);
+  }
+}
+
+async function openChatThread(clientId) {
+  if (!clientId) return;
+  chatSelectedClientId = clientId;
+  const hid = document.getElementById('chatComposeClientId');
+  if (hid) hid.value = clientId;
+  const empty = document.getElementById('chatPaneEmpty');
+  const active = document.getElementById('chatPaneActive');
+  if (empty) empty.classList.add('hidden');
+  if (active) active.classList.remove('hidden');
+  try {
+    await api(`/chat/threads/${encodeURIComponent(clientId)}/read-client`, { method: 'PATCH' });
+  } catch (_) {}
+  let threads = [];
+  try {
+    threads = await api('/chat/threads');
+    renderChatThreadList(threads);
+  } catch (e) {
+    const listEl = document.getElementById('chatThreadsList');
+    if (listEl) listEl.innerHTML = errorHtml(e);
+    return;
+  }
+  const th = threads.find((x) => x.client_id === clientId);
+  const head = document.getElementById('chatPaneHead');
+  if (head && th) {
+    const nm = [th.first_name, th.last_name].filter(Boolean).join(' ') || 'Клиент';
+    head.textContent = `${nm}${th.phone ? ' · ' + th.phone : ''}`;
+  } else if (head) head.textContent = 'Диалог';
+  try {
+    const msgs = await api(`/chat/threads/${encodeURIComponent(clientId)}/messages`);
+    renderAdminChatMessages(msgs);
+  } catch (e) {
+    const box = document.getElementById('chatMessagesList');
+    if (box) box.innerHTML = errorHtml(e);
+  }
+}
+
+async function savePrinterSettings() {
+  const statusEl = document.getElementById('printerStatusLine');
+  try {
+    const body = {
+      enabled: document.getElementById('printerLanEnabled')?.checked === true,
+      host: document.getElementById('printerLanHost')?.value ?? '',
+      port: parseInt(document.getElementById('printerLanPort')?.value || '9100', 10),
+      header_line: document.getElementById('receiptHeaderLine')?.value ?? '',
+    };
+    const p = await api('/printer', { method: 'PUT', body: JSON.stringify(body) });
+    if (statusEl) statusEl.textContent = 'Сохранено.';
+    const en = document.getElementById('printerLanEnabled');
+    const host = document.getElementById('printerLanHost');
+    const port = document.getElementById('printerLanPort');
+    const head = document.getElementById('receiptHeaderLine');
+    if (en) en.checked = !!p.enabled;
+    if (host) host.value = p.host || '';
+    if (port) port.value = p.port != null ? p.port : 9100;
+    if (head) head.value = p.header_line || '';
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = errorHtml(e);
+  }
+}
+
+async function testPrinterPrint() {
+  const statusEl = document.getElementById('printerStatusLine');
+  try {
+    await api('/print/test', { method: 'POST', body: '{}' });
+    if (statusEl) statusEl.textContent = 'Тестовая полоска отправлена на принтер.';
+  } catch (e) {
+    if (statusEl) statusEl.innerHTML = errorHtml(e);
+  }
+}
+
+async function printBookingReceipt(bookingId) {
+  try {
+    await api('/print/receipt', { method: 'POST', body: JSON.stringify({ booking_id: bookingId }) });
+    alert('Чек отправлен на принтер');
+  } catch (e) {
+    alert(e.message || String(e));
+  }
 }
 
 /* ── Services (по категориям; мойка — первая в списке API) ── */
@@ -242,6 +418,7 @@ function renderBookingCard(b) {
         ` : ''}
         ${renderContactButtons(b.phone, b.email, b.social_links)}
         ${b.status === 'completed' ? `<a class="btn btn--sm" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
+        ${b.status !== 'cancelled' ? `<button type="button" class="btn btn--sm" onclick="printBookingReceipt('${escapeAttr(b.id)}')">Чек</button>` : ''}
         <button class="btn btn--sm" onclick="openNotify('${b.user_id}')">Сообщение</button>
       </div>
     </div>`;
@@ -396,6 +573,13 @@ function renderCandidateContactButtons(phone, email) {
   return btns.join('');
 }
 
+function clientSourceLabel(platform) {
+  const p = String(platform || '').toLowerCase();
+  if (p === 'web') return 'Онлайн-запись (сайт)';
+  if (p === 'ios') return 'iOS-приложение';
+  return platform ? escapeHtml(platform) : '—';
+}
+
 /* ── Clients ── */
 async function loadClients() {
   try {
@@ -407,6 +591,7 @@ async function loadClients() {
           <span class="hint client-card__hint">Нажмите карточку — баллы и история</span>
         </div>
         <p class="card-meta">${renderContactLine(c.phone, c.email, c.social_links)}</p>
+        <p class="hint">Источник: <strong>${clientSourceLabel(c.platform)}</strong></p>
         ${typeof c.loyalty_points === 'number' ? `<p class="hint">Баллы: <strong>${c.loyalty_points}</strong></p>` : ''}
         <p class="hint">ID: ${escapeHtml(c.id)} · ${c.created_at?.slice(0,10)}</p>
         <div class="btn-group">
@@ -434,6 +619,19 @@ async function openClientHub(clientId) {
   try {
     const data = await api('/clients/' + encodeURIComponent(clientId) + '/crm');
     body.innerHTML = renderClientHubBody(data);
+    const clearPinBtn = document.getElementById('clientClearWebPin');
+    if (clearPinBtn) {
+      clearPinBtn.onclick = async () => {
+        if (!confirm('Сбросить PIN онлайн-записи? Клиент сможет снова задать PIN на сайте (вкладка «Регистрация»).')) return;
+        try {
+          await api('/clients/' + encodeURIComponent(clientId) + '/clear-web-pin', { method: 'POST' });
+          await openClientHub(clientId);
+          loadClients();
+        } catch (err) {
+          alert(err.message || String(err));
+        }
+      };
+    }
     const form = document.getElementById('clientLoyaltyForm');
     if (form) {
       form.onsubmit = async ev => {
@@ -463,6 +661,7 @@ async function openClientHub(clientId) {
 
 function renderClientHubBody(data) {
   const c = data.client || {};
+  const hasWebPin = !!c.has_web_pin;
   const name = `${escapeHtml(c.first_name || '')} ${escapeHtml(c.last_name || '')}`.trim() || 'Клиент';
   const pts = Number(c.loyalty_points) || 0;
   const bookings = data.bookings || [];
@@ -491,7 +690,7 @@ function renderClientHubBody(data) {
       <div>
         <h3 class="client-hub-title">${name}</h3>
         <p class="hint">${renderContactLine(c.phone, c.email, c.social_links)}</p>
-        <p class="hint">Платформа: ${escapeHtml(c.platform || '—')} · с ${escapeHtml((c.created_at || '').slice(0, 10))}</p>
+        <p class="hint">Источник: ${clientSourceLabel(c.platform)} · с ${escapeHtml((c.created_at || '').slice(0, 10))}</p>
       </div>
       <div class="client-hub-points"><span class="client-hub-points__label">Баллы</span><span class="client-hub-points__val">${pts}</span></div>
     </div>
@@ -504,6 +703,15 @@ function renderClientHubBody(data) {
       </div>
       <p class="hint">Положительное число — начисление, отрицательное — списание.</p>
     </form>
+    <div class="client-hub-webpin">
+      <h4 class="client-hub-section-title">Вход на сайте (телефон + PIN)</h4>
+      ${
+        hasWebPin
+          ? `<p class="hint">PIN задан. Если клиент забыл PIN — сбросьте здесь; затем он задаст новый на сайте.</p>
+             <button type="button" class="btn btn--sm" id="clientClearWebPin">Сбросить PIN</button>`
+          : `<p class="hint">PIN для виджета не задан (клиент ещё не регистрировался на сайте или PIN сброшен).</p>`
+      }
+    </div>
     <h4 class="client-hub-section-title">Записи и работы</h4>
     <div class="client-hub-table-wrap">
       <table class="client-hub-table">
@@ -705,12 +913,53 @@ document.getElementById('btnCancelInvite').onclick = () => document.getElementBy
 document.getElementById('btnCloseInviteQr').onclick = () => document.getElementById('inviteQrModal').classList.add('hidden');
 
 /* ── Settings ── */
+function fillSettingsLinks(s) {
+  const links = s._links || {};
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || '—';
+  };
+  set('settingsAdminUrl', links.admin_console_url);
+  set('settingsWidgetUrl', links.widget_url);
+  set('settingsWidgetEmbedUrl', links.widget_embed_url);
+}
+
+function wireSettingsCopyButtons() {
+  const pairs = [
+    ['btnCopyAdminUrl', 'settingsAdminUrl'],
+    ['btnCopyWidgetUrl', 'settingsWidgetUrl'],
+    ['btnCopyWidgetEmbedUrl', 'settingsWidgetEmbedUrl'],
+  ];
+  for (const [btnId, codeId] of pairs) {
+    const btn = document.getElementById(btnId);
+    if (!btn || btn.dataset.wired === '1') continue;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const code = document.getElementById(codeId);
+      const text = code && code.textContent && code.textContent !== '—' ? code.textContent : '';
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const prev = btn.textContent;
+        btn.textContent = 'Скопировано';
+        setTimeout(() => {
+          btn.textContent = prev;
+        }, 1500);
+      } catch (_) {
+        alert(text);
+      }
+    });
+  }
+}
+
 async function loadSettings() {
   const qrBox = document.getElementById('qrcodeContainer');
+  wireSettingsCopyButtons();
   try {
     const s = await api('/settings');
     document.getElementById('apiBaseUrl').value = s.api_base_url || '';
-    const baseUrl = s.api_base_url || (window.location.origin + '/api/v1');
+    fillSettingsLinks(s);
+    const baseUrl = (s._links && s._links.effective_api_base) || s.api_base_url || window.location.origin + '/api/v1';
     document.getElementById('localUrl').textContent = window.location.origin + '/api/v1';
     await renderAdminQr(qrBox, baseUrl, 200);
   } catch (e) {
@@ -742,6 +991,10 @@ async function loadOpenclaw() {
   }
 }
 
+document.getElementById('btnCashGoBookings')?.addEventListener('click', () => showScreen('bookings'));
+document.getElementById('btnSavePrinter')?.addEventListener('click', () => savePrinterSettings());
+document.getElementById('btnTestPrinter')?.addEventListener('click', () => testPrinterPrint());
+
 document.getElementById('btnDownloadOpenClawManifest')?.addEventListener('click', async () => {
   try {
     const m = await api('/integration/openclaw');
@@ -756,39 +1009,40 @@ document.getElementById('btnDownloadOpenClawManifest')?.addEventListener('click'
   }
 });
 
-/* ── Car folders (типы авто в приложении) ── */
+/* ── Car folders: папки с фото → GET /api/v1/cars в приложении ── */
 async function loadCarFolders() {
+  const mount = document.getElementById('carFoldersList');
   try {
     const list = await api('/car-folders');
-    const html = list.map(c => `
-      <div class="card" data-id="${escapeAttr(c.id)}">
-        <div class="card-row">
-          ${c.image_url
-            ? `<img class="service-thumb" src="${escapeAttr(c.image_url)}" alt="" width="80" height="80" loading="lazy" decoding="async" onerror="this.style.display='none'">`
-            : '<div class="service-thumb-ph">🚗</div>'}
-          <div class="card-row-body">
-            <div class="card-header">
-              <h4>${escapeHtml(c.name)}</h4>
-            </div>
-            <p class="hint">Порядок: ${c.sort_order ?? 0}</p>
-            <div class="btn-group">
-              <button class="btn btn--sm" onclick="editCarFolder('${escapeAttr(c.id)}')">Изменить</button>
-              <button class="btn btn--sm btn--danger" onclick="deleteCarFolder('${escapeAttr(c.id)}')">Удалить</button>
-            </div>
+    const html = list.map(c => {
+      const imgUrl = c.image_url ? resolveAdminAssetUrl(c.image_url) : '';
+      const media = imgUrl
+        ? `<div class="car-folder-card__media"><img src="${escapeAttr(imgUrl)}" alt="" loading="lazy" decoding="async"></div>`
+        : `<div class="car-folder-card__media"><span class="car-folder-card__ph" aria-hidden="true">🚗</span></div>`;
+      return `
+      <div class="car-folder-card" data-id="${escapeAttr(c.id)}">
+        ${media}
+        <div class="car-folder-card__body">
+          <h4>${escapeHtml(c.name)}</h4>
+          <p class="car-folder-card__sort">Порядок: ${c.sort_order ?? 0}</p>
+          <div class="btn-group">
+            <button type="button" class="btn btn--sm" onclick="editCarFolder('${escapeAttr(c.id)}')">Изменить</button>
+            <button type="button" class="btn btn--sm btn--danger" onclick="deleteCarFolder('${escapeAttr(c.id)}')">Удалить</button>
           </div>
         </div>
-      </div>
-    `).join('');
-    document.getElementById('carFoldersList').innerHTML = html || emptyState('Нет записей');
+      </div>`;
+    }).join('');
+    mount.innerHTML = html || emptyState('Нет папок — нажмите «Добавить папку»');
   } catch (e) {
-    document.getElementById('carFoldersList').innerHTML = errorHtml(e);
+    mount.innerHTML = errorHtml(e);
   }
 }
 
 function updateCarFolderImagePreview(url) {
   const box = document.getElementById('carFolderImagePreview');
-  if (url) {
-    box.innerHTML = `<img src="${escapeAttr(url)}" alt="" onerror="this.parentNode.innerHTML='📷'">`;
+  const src = url ? resolveAdminAssetUrl(String(url).trim()) : '';
+  if (src) {
+    box.innerHTML = `<img src="${escapeAttr(src)}" alt="" onerror="this.parentNode.innerHTML='📷'">`;
   } else {
     box.innerHTML = '📷';
   }
@@ -796,7 +1050,7 @@ function updateCarFolderImagePreview(url) {
 
 function openCarFolderModal(item = null) {
   document.getElementById('carFolderId').value = item?.id || '';
-  document.getElementById('carFolderModalTitle').textContent = item ? 'Изменить тип' : 'Добавить тип автомобиля';
+  document.getElementById('carFolderModalTitle').textContent = item ? 'Изменить папку' : 'Новая папка автомобиля';
   document.getElementById('carFolderName').value = item?.name || '';
   document.getElementById('carFolderSort').value = item?.sort_order ?? 0;
   document.getElementById('carFolderImageUrl').value = item?.image_url || '';
@@ -812,7 +1066,7 @@ function editCarFolder(id) {
 }
 
 async function deleteCarFolder(id) {
-  if (!confirm('Удалить этот тип?')) return;
+  if (!confirm('Удалить эту папку? Если она выбрана у клиентов в приложении, сервер не даст удалить — сначала смените тип у клиентов.')) return;
   try {
     await api('/car-folders/' + encodeURIComponent(id), { method: 'DELETE' });
     loadCarFolders();
@@ -1500,6 +1754,25 @@ document.getElementById('notifyForm').onsubmit = async (e) => {
 
 document.getElementById('btnCancelNotify').onclick = () => document.getElementById('notifyModal').classList.add('hidden');
 
+document.getElementById('btnChatRefresh')?.addEventListener('click', async () => {
+  if (chatSelectedClientId) await openChatThread(chatSelectedClientId);
+  else await loadChatScreen();
+});
+
+document.getElementById('chatComposeForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const clientId = document.getElementById('chatComposeClientId')?.value || '';
+  const body = document.getElementById('chatComposeBody')?.value.trim() || '';
+  if (!clientId || !body) return;
+  try {
+    await api('/notifications', { method: 'POST', body: JSON.stringify({ client_id: clientId, body }) });
+    document.getElementById('chatComposeBody').value = '';
+    await openChatThread(clientId);
+  } catch (err) {
+    alert(err.message || String(err));
+  }
+});
+
 document.getElementById('btnCloseClientHub')?.addEventListener('click', closeClientHubModal);
 
 document.getElementById('btnSaveSettings').onclick = async () => {
@@ -1515,13 +1788,17 @@ document.getElementById('btnAddNews').onclick = () => openNewsModal(null);
 document.getElementById('btnAddReward').onclick = () => openRewardModal(null);
 document.getElementById('btnAddCarFolder').onclick = () => openCarFolderModal(null);
 
-document.getElementById('carFolderImageUrl').onchange = function () {
+document.getElementById('carFolderImageUrl').addEventListener('input', function () {
   updateCarFolderImagePreview(this.value.trim());
-};
+});
 
 document.getElementById('carFolderImageFile').onchange = async function () {
   const file = this.files?.[0];
   if (!file) return;
+  if (!(await ensureAdminKeyForUpload())) {
+    this.value = '';
+    return;
+  }
   const fd = new FormData();
   fd.append('image', file);
   try {
