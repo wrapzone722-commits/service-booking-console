@@ -223,9 +223,7 @@ app.use(
   })
 );
 
-app.get('/', (req, res) => {
-  res.redirect('/admin');
-});
+// Главная страница теперь отдаётся из public/index.html (через express.static)
 
 function sendAdminIndex(res) {
   res.type('html');

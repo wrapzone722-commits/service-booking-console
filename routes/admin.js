@@ -15,7 +15,7 @@ import { getOpenclawManifest } from './openclawIntegration.js';
 import { registerPrintRoutes } from './printRoutes.js';
 
 const ADMIN_HEADER = 'x-admin-key';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '2300';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '230490';
 
 function requireAdmin(req, res, next) {
   const key = req.headers[ADMIN_HEADER] || req.query.key;

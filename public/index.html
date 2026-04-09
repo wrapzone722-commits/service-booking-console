@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Автостудия — Профессиональный уход за автомобилем</title>
+  <meta name="description" content="Детейлинг, оклейка пленкой, полировка и химчистка. Запишитесь онлайн!">
+  <style>
+    :root {
+      --bg: #0c0c0c;
+      --text: #eee;
+      --accent: #c8f542;
+      --accent-hover: #b5de3b;
+      --card-bg: #161616;
+    }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    header {
+      padding: 2rem 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .logo span {
+      color: var(--accent);
+    }
+    .hero {
+      padding: 6rem 5%;
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 3.5rem;
+      line-height: 1.1;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+    .subtitle {
+      font-size: 1.2rem;
+      color: #aaa;
+      margin-bottom: 2.5rem;
+    }
+    .btn {
+      display: inline-block;
+      background-color: var(--accent);
+      color: #000;
+      padding: 1rem 2.5rem;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      text-decoration: none;
+      transition: transform 0.2s, background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: var(--accent-hover);
+      transform: translateY(-2px);
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      padding: 4rem 5%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .feature-card h3 {
+      margin-top: 0;
+      font-size: 1.3rem;
+    }
+    .feature-card p {
+      color: #aaa;
+      margin-bottom: 0;
+    }
+    footer {
+      text-align: center;
+      padding: 3rem 5%;
+      color: #666;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      margin-top: 4rem;
+    }
+    @media (max-width: 768px) {
+      h1 { font-size: 2.5rem; }
+      .hero { padding: 4rem 5%; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">Другое<span>Место</span></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Профессиональный уход за вашим автомобилем</h1>
+      <p class="subtitle">Детейлинг, оклейка защитной пленкой, полировка и химчистка премиум-класса. Доверьте свой автомобиль профессионалам.</p>
+      <a href="/widget/" class="btn">Записаться онлайн</a>
+    </section>
+
+    <section class="features">
+      <div class="feature-card">
+        <h3>Детейлинг мойка</h3>
+        <p>Безопасная мойка кузова, дисков и проемов с правильной химией и аккуратной сушкой.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Защитные пленки (PPF)</h3>
+        <p>Оклейка антигравийной пленкой зон риска или всего кузова для максимальной защиты ЛКП.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Полировка и керамика</h3>
+        <p>Восстановительная полировка и нанесение защитных составов для глубокого цвета и гидрофоба.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Автостудия «Другое Место». Все права защищены.</p>
+  </footer>
+
+</body>
+</html>
