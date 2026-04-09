@@ -94,31 +94,6 @@
   function splitServices() { const a = state.services.filter(s => s.is_active); return { wash: a.filter(isWashService), other: a.filter(s => !isWashService(s)) }; }
   function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
-  /** Пример полного URL с api и key (для подсказки на экране входа). */
-  function buildWidgetKeyExampleUrl() {
-    const apiParam = apiBase || 'https://ваш-домен/api/v1';
-    try {
-      const u = new URL(window.location.href);
-      if (u.protocol === 'http:' || u.protocol === 'https:') {
-        let p = u.pathname || '/widget/';
-        if (!p.endsWith('/')) p += '/';
-        return `${u.origin}${p}?api=${encodeURIComponent(apiParam)}&key=ВАШ_КЛЮЧ_ИЗ_ПРИЛОЖЕНИЯ`;
-      }
-    } catch (_) {}
-    return `https://ваш-домен/widget/?api=${encodeURIComponent(apiParam)}&key=ВАШ_КЛЮЧ_ИЗ_ПРИЛОЖЕНИЯ`;
-  }
-
-  function renderApiKeyHintHtml() {
-    const apiSample = apiBase || 'https://ваш-домен/api/v1';
-    const exampleUrl = buildWidgetKeyExampleUrl();
-    return `<aside class="wgb-apikey-hint" aria-label="Как указать ключ API в адресе">
-      <p class="wgb-apikey-hint__title">Нужен ключ API</p>
-      <p class="wgb-apikey-hint__text">Добавьте параметр <code>key</code> в адрес страницы (ключ клиента из приложения).</p>
-      <p class="wgb-apikey-hint__text">Укажите в адресе страницы параметры <code>api</code> (база API, например <code>${escapeHtml(apiSample)}</code>) и <code>key</code> — API-ключ клиента из приложения (тот же, что для записи с телефона).</p>
-      <p class="wgb-apikey-hint__example"><span class="wgb-apikey-hint__example-lbl">Пример URL</span><code class="wgb-apikey-hint__code">${escapeHtml(exampleUrl)}</code></p>
-    </aside>`;
-  }
-
   function resolveImageUrl(url) {
     if (!url) return '';
     const s = String(url).trim();
@@ -212,8 +187,7 @@
       <div class="wgb-field"><label for="wgb-login-pin">PIN (4 цифры)</label><input type="password" id="wgb-login-pin" class="wgb-input" inputmode="numeric" maxlength="4" pattern="[0-9]*" autocomplete="current-password" placeholder="••••"></div>
       <p class="wgb-forgot"><button type="button" class="wgb-link-btn" id="wgb-forgot-pin">Забыли PIN?</button></p>
       <button type="button" class="wgb-btn" id="wgb-login-submit">Войти</button>
-      <button type="button" class="wgb-btn wgb-btn--ghost" id="wgb-go-register">Регистрация</button>
-      ${renderApiKeyHintHtml()}`;
+      <button type="button" class="wgb-btn wgb-btn--ghost" id="wgb-go-register">Регистрация</button>`;
   }
   function renderRegisterPin() {
     return `<h1>Регистрация</h1>
@@ -222,8 +196,7 @@
       <div class="wgb-field"><label for="wgb-reg-pin">PIN (4 цифры)</label><input type="password" id="wgb-reg-pin" class="wgb-input" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></div>
       <div class="wgb-field"><label for="wgb-reg-pin2">Повторите PIN</label><input type="password" id="wgb-reg-pin2" class="wgb-input" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></div>
       <button type="button" class="wgb-btn" id="wgb-reg-submit">Продолжить</button>
-      <button type="button" class="wgb-btn wgb-btn--ghost" id="wgb-go-login">Войти</button>
-      ${renderApiKeyHintHtml()}`;
+      <button type="button" class="wgb-btn wgb-btn--ghost" id="wgb-go-login">Войти</button>`;
   }
   function renderForgotPin() {
     return `<h1>Забыли PIN?</h1><p class="wgb-sub">Сброс делается в студии по вашему номеру телефона — так аккаунт остаётся защищённым. После сброса откройте «Регистрация» и задайте новый PIN.</p><button type="button" class="wgb-btn wgb-btn--ghost" id="wgb-forgot-back">Назад к входу</button>`;
@@ -728,14 +701,7 @@
 
   /* ── Boot ── */
   async function boot() {
-    if (!apiBase) {
-      state.screen = 'login_pin';
-      paint();
-      showError(
-        'Не удалось определить адрес API. Откройте виджет по http(s) с вашего сервера или укажите в URL параметры api и при необходимости key — см. блок ниже.'
-      );
-      return;
-    }
+    if (!apiBase) { state.screen = 'login_pin'; paint(); showError('Не удалось определить адрес API. Откройте виджет по http(s) с вашего сервера или добавьте в URL: ?api=https://ваш-домен/api/v1'); return; }
     if (!accessToken) { state.screen = 'login_pin'; paint(); return; }
     state.screen = 'app';
     await loadCatalogAndProfile();
