@@ -585,27 +585,36 @@ function copyText(text, okMsg) {
   navigator.clipboard.writeText(text).then(() => alert(okMsg)).catch(() => alert('Не удалось скопировать'));
 }
 
-function openInviteQrModal(code) {
+/** QR через Admin API (пакет qrcode на сервере), работает без CDN и canvas в браузере */
+async function renderAdminQr(containerEl, text, width = 200) {
+  if (!containerEl) return;
+  containerEl.innerHTML = '<p class="hint">Генерация QR-кода…</p>';
+  try {
+    const { data_url } = await api('/qr', {
+      method: 'POST',
+      body: JSON.stringify({ text, width }),
+    });
+    containerEl.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = data_url;
+    img.width = width;
+    img.height = width;
+    img.alt = 'QR-код';
+    img.className = 'admin-qr-img';
+    img.decoding = 'async';
+    containerEl.appendChild(img);
+  } catch (e) {
+    containerEl.innerHTML = errorHtml(e);
+  }
+}
+
+async function openInviteQrModal(code) {
   const url = invitePublicUrl(code);
   document.getElementById('inviteQrModalTitle').textContent = 'QR: ' + code;
   const box = document.getElementById('inviteQrCanvasWrap');
-  box.innerHTML = '';
-  if (typeof QRCode === 'undefined') {
-    box.textContent = 'Библиотека QR не загружена';
-    document.getElementById('inviteQrModal').classList.remove('hidden');
-    return;
-  }
-  QRCode.toCanvas(document.createElement('canvas'), url, { width: 280, margin: 2 }, (err, canvas) => {
-    box.innerHTML = '';
-    if (err) {
-      box.textContent = String(err);
-      document.getElementById('inviteQrModal').classList.remove('hidden');
-      return;
-    }
-    box.appendChild(canvas);
-    document.getElementById('inviteQrLink').textContent = url;
-    document.getElementById('inviteQrModal').classList.remove('hidden');
-  });
+  document.getElementById('inviteQrLink').textContent = url;
+  document.getElementById('inviteQrModal').classList.remove('hidden');
+  await renderAdminQr(box, url, 280);
 }
 
 async function toggleInviteActive(id, nextActive) {
@@ -697,19 +706,15 @@ document.getElementById('btnCloseInviteQr').onclick = () => document.getElementB
 
 /* ── Settings ── */
 async function loadSettings() {
+  const qrBox = document.getElementById('qrcodeContainer');
   try {
     const s = await api('/settings');
     document.getElementById('apiBaseUrl').value = s.api_base_url || '';
     const baseUrl = s.api_base_url || (window.location.origin + '/api/v1');
     document.getElementById('localUrl').textContent = window.location.origin + '/api/v1';
-    QRCode.toCanvas(document.createElement('canvas'), baseUrl, { width: 200 }, (err, canvas) => {
-      if (!err) {
-        document.getElementById('qrcodeContainer').innerHTML = '';
-        document.getElementById('qrcodeContainer').appendChild(canvas);
-      }
-    });
+    await renderAdminQr(qrBox, baseUrl, 200);
   } catch (e) {
-    document.getElementById('qrcodeContainer').innerHTML = errorHtml(e);
+    if (qrBox) qrBox.innerHTML = errorHtml(e);
   }
 }
 

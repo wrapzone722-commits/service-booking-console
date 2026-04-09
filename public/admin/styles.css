@@ -864,6 +864,14 @@ body {
 }
 .settings-form input:focus { border-color: var(--lime); outline: none; }
 
+.admin-qr-img {
+  display: block;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  box-sizing: content-box;
+}
+
 #qrcodeContainer {
   margin: 1rem 0;
   padding: 1rem;

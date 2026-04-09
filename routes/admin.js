@@ -3,6 +3,7 @@
  * Пароль только для защищённых вкладок (прочие разделы).
  */
 import { v4 as uuidv4 } from 'uuid';
+import QRCode from 'qrcode';
 import { getDb } from '../db/index.js';
 import { getBookingActAdmin } from './act.js';
 import { sendPushToClient } from '../services/push.js';
@@ -32,6 +33,30 @@ function readSetting(db, key, fallback) {
 export function setupAdminRoutes(router) {
   // === OpenClaw: машиночитаемый манифест интеграции (только с паролем админки) ===
   router.get('/integration/openclaw', requireAdmin, getOpenclawManifest);
+
+  /** PNG data URL для QR (настройки iOS, приглашения) — без внешнего CDN */
+  router.post('/qr', requireAdmin, async (req, res) => {
+    const text = req.body?.text;
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'Поле text обязательно' });
+    }
+    const trimmed = text.trim();
+    if (trimmed.length > 2048) {
+      return res.status(400).json({ error: 'Текст для QR слишком длинный' });
+    }
+    const width = Math.min(512, Math.max(80, parseInt(req.body?.width, 10) || 200));
+    try {
+      const data_url = await QRCode.toDataURL(trimmed, {
+        width,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+      });
+      res.json({ data_url });
+    } catch (e) {
+      console.error('admin /qr:', e);
+      res.status(500).json({ error: 'Не удалось сгенерировать QR' });
+    }
+  });
 
   // Общее расписание студии (часы + закрытые слоты для постов без «своего расписания») — чтение без пароля
   router.get('/schedule/studio', (req, res) => {

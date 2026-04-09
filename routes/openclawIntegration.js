@@ -177,6 +177,14 @@ export function getOpenclawManifest(req, res) {
       requires_admin_key: true,
       query: { src: 'url', w: 'width px' },
     },
+    {
+      id: 'qr_png_data_url',
+      method: 'POST',
+      path: '/qr',
+      requires_admin_key: true,
+      body: { text: 'string (URL или любой текст для QR)', width: 'number px optional 80–512' },
+      description: 'Возвращает { data_url } — data:image/png;base64 для отображения в админке',
+    },
   ];
 
   res.json({
