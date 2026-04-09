@@ -68,6 +68,29 @@
       background-color: var(--accent-hover);
       transform: translateY(-2px);
     }
+    .btn-secondary {
+      display: inline-block;
+      background-color: transparent;
+      color: var(--text);
+      padding: 0.75rem 2rem;
+      border-radius: 50px;
+      font-weight: 500;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      transition: background-color 0.2s, border-color 0.2s;
+      margin-top: 1rem;
+    }
+    .btn-secondary:hover {
+      background-color: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.4);
+    }
+    .hero-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
     .features {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -122,7 +145,10 @@
     <section class="hero">
       <h1>Профессиональный уход за вашим автомобилем</h1>
       <p class="subtitle">Детейлинг, оклейка защитной пленкой, полировка и химчистка премиум-класса. Доверьте свой автомобиль профессионалам.</p>
-      <a href="/widget/" class="btn">Записаться онлайн</a>
+      <div class="hero-actions">
+        <a href="/widget/" class="btn">Записаться онлайн</a>
+        <a href="https://другоеместо.рф" class="btn-secondary" target="_blank" rel="noopener">Перейти на сайт</a>
+      </div>
     </section>
 
     <section class="features">
