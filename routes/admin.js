@@ -15,10 +15,10 @@ import { getOpenclawManifest } from './openclawIntegration.js';
 import { registerPrintRoutes } from './printRoutes.js';
 
 const ADMIN_HEADER = 'x-admin-key';
-const ADMIN_PASSWORD = '2300';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '2300';
 
 function requireAdmin(req, res, next) {
-  const key = req.headers[ADMIN_HEADER];
+  const key = req.headers[ADMIN_HEADER] || req.query.key;
   if (key !== ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'Необходима авторизация администратора' });
   }
@@ -41,6 +41,9 @@ function deriveSiteBaseFromApiBase(apiBaseUrl) {
 }
 
 export function setupAdminRoutes(router) {
+  // Защищаем ВСЕ маршруты админки
+  router.use(requireAdmin);
+
   // === OpenClaw: машиночитаемый манифест интеграции (только с паролем админки) ===
   router.get('/integration/openclaw', requireAdmin, getOpenclawManifest);
 

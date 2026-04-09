@@ -417,7 +417,7 @@ function renderBookingCard(b) {
           ${!['cancelled','completed'].includes(b.status) ? `<button class="btn btn--sm btn--danger" onclick="setStatus('${escapeAttr(b.id)}','cancelled')">Отменить</button>` : ''}
         ` : ''}
         ${renderContactButtons(b.phone, b.email, b.social_links)}
-        ${b.status === 'completed' ? `<a class="btn btn--sm" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act" target="_blank" rel="noopener">Акт</a>` : ''}
+        ${b.status === 'completed' ? `<a class="btn btn--sm" href="/admin/api/bookings/${encodeURIComponent(b.id)}/act?key=${encodeURIComponent(adminKey)}" target="_blank" rel="noopener">Акт</a>` : ''}
         ${b.status !== 'cancelled' ? `<button type="button" class="btn btn--sm" onclick="printBookingReceipt('${escapeAttr(b.id)}')">Чек</button>` : ''}
         <button class="btn btn--sm" onclick="openNotify('${b.user_id}')">Сообщение</button>
       </div>
@@ -1896,6 +1896,14 @@ document.getElementById('adminForm').onsubmit = async (e) => {
   const pass = document.getElementById('adminPass').value;
   await trySetAdminKey(pass);
   document.getElementById('adminModal').classList.add('hidden');
+  
+  // Если мы только что вошли при старте приложения
+  const cancelBtn = document.getElementById('btnCancelAdmin');
+  if (cancelBtn && cancelBtn.classList.contains('hidden')) {
+    cancelBtn.classList.remove('hidden');
+    initAdminNotifyStrip();
+    showScreen('services');
+  }
 };
 
 document.getElementById('btnCancelAdmin').onclick = () => document.getElementById('adminModal').classList.add('hidden');
@@ -2024,5 +2032,18 @@ function initAdminNotifyStrip() {
   }
 }
 
-initAdminNotifyStrip();
-showScreen('services');
+async function initApp() {
+  try {
+    if (!adminKey) throw new Error('UNAUTHORIZED');
+    await api('/settings'); // Проверяем валидность ключа
+    initAdminNotifyStrip();
+    showScreen('services');
+  } catch (e) {
+    // Если ключ неверный или отсутствует, показываем модалку входа
+    document.getElementById('adminModal').classList.remove('hidden');
+    const cancelBtn = document.getElementById('btnCancelAdmin');
+    if (cancelBtn) cancelBtn.classList.add('hidden'); // Отмена невозможна, пока не войдём
+  }
+}
+
+initApp();
