@@ -857,6 +857,7 @@ export function setupAdminRoutes(router) {
     const siteBase = deriveSiteBaseFromApiBase(effectiveApiBase) || requestOrigin;
     const adminUrl = siteBase ? `${siteBase}/admin` : '';
     const widgetUrl = siteBase ? `${siteBase}/widget/` : '';
+    const siteUrl = siteBase ? `${siteBase}/` : '';
     const widgetWithApi =
       siteBase && effectiveApiBase ? `${siteBase}/widget/?api=${encodeURIComponent(effectiveApiBase)}` : widgetUrl;
     res.json({
@@ -866,6 +867,7 @@ export function setupAdminRoutes(router) {
         admin_console_url: adminUrl,
         widget_url: widgetUrl,
         widget_embed_url: widgetWithApi,
+        site_url: siteUrl,
       },
     });
   });

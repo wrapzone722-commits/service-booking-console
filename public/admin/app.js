@@ -922,6 +922,22 @@ function fillSettingsLinks(s) {
   set('settingsAdminUrl', links.admin_console_url);
   set('settingsWidgetUrl', links.widget_url);
   set('settingsWidgetEmbedUrl', links.widget_embed_url);
+  set('settingsSiteUrl', links.site_url);
+
+  const site = String(links.site_url || '').trim();
+  const siteOk = !!site && site !== '—';
+  const openSiteL = document.getElementById('settingsSiteOpenLink');
+  if (openSiteL) {
+    if (siteOk) {
+      openSiteL.href = site;
+      openSiteL.classList.remove('settings-widget-link--off');
+      openSiteL.setAttribute('aria-disabled', 'false');
+    } else {
+      openSiteL.href = '#';
+      openSiteL.classList.add('settings-widget-link--off');
+      openSiteL.setAttribute('aria-disabled', 'true');
+    }
+  }
 
   const w = String(links.widget_url || '').trim();
   const ok = !!w && w !== '—';
@@ -943,6 +959,7 @@ function fillSettingsLinks(s) {
 
 function wireSettingsCopyButtons() {
   const pairs = [
+    ['btnCopySiteUrl', 'settingsSiteUrl'],
     ['btnCopyAdminUrl', 'settingsAdminUrl'],
     ['btnCopyWidgetUrl', 'settingsWidgetUrl'],
     ['btnCopyWidgetEmbedUrl', 'settingsWidgetEmbedUrl'],
