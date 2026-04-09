@@ -18,6 +18,12 @@
 
 * { box-sizing: border-box; }
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
 body {
   margin: 0;
   font-family: var(--wgb-font);
@@ -28,12 +34,14 @@ body {
 }
 
 .wgb {
+  width: 100%;
   max-width: 440px;
   margin: 0 auto;
   padding: 1rem 1rem calc(var(--wgb-tabbar-h) + var(--wgb-safe-b) + 0.75rem);
   min-height: 100vh;
   min-height: 100dvh;
   position: relative;
+  overflow-x: hidden;
 }
 
 /* ── Error strip ── */
