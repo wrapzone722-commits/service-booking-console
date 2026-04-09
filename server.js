@@ -180,15 +180,15 @@ app.get('/invite/:code', (req, res) => {
   res.redirect(302, `/invite.html?code=${encodeURIComponent(req.params.code)}`);
 });
 
-/** Виджет: HTML с подстановкой API той же инстанции (до static, иначе отдаётся сырой шаблон с {{WIDGET_API_INJECT}}). */
-app.get('/widget', (req, res) => {
-  res.redirect(301, '/widget/');
-});
+/** Виджет: HTML с подстановкой API (до static). Важно: сначала `/widget/`, иначе при strict routing=false маршрут `/widget` совпадает с `/widget/` и даёт бесконечный 301. */
 app.get('/widget/', (req, res) => {
   sendWidgetIndexHtml(res, req);
 });
 app.get('/widget/index.html', (req, res) => {
   sendWidgetIndexHtml(res, req);
+});
+app.get('/widget', (req, res) => {
+  res.redirect(301, '/widget/');
 });
 
 // === Admin API ===
