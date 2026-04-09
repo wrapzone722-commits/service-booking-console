@@ -1006,6 +1006,11 @@ body {
   color: var(--lime);
 }
 
+a.btn.settings-widget-link--off {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
 .admin-qr-img {
   display: block;
   border-radius: 10px;

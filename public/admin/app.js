@@ -922,6 +922,23 @@ function fillSettingsLinks(s) {
   set('settingsAdminUrl', links.admin_console_url);
   set('settingsWidgetUrl', links.widget_url);
   set('settingsWidgetEmbedUrl', links.widget_embed_url);
+
+  const w = String(links.widget_url || '').trim();
+  const ok = !!w && w !== '—';
+  const openL = document.getElementById('settingsWidgetOpenLink');
+  if (openL) {
+    if (ok) {
+      openL.href = w;
+      openL.classList.remove('settings-widget-link--off');
+      openL.setAttribute('aria-disabled', 'false');
+    } else {
+      openL.href = '#';
+      openL.classList.add('settings-widget-link--off');
+      openL.setAttribute('aria-disabled', 'true');
+    }
+  }
+  const shareBtn = document.getElementById('btnShareWidgetUrl');
+  if (shareBtn) shareBtn.disabled = !ok;
 }
 
 function wireSettingsCopyButtons() {
@@ -952,9 +969,43 @@ function wireSettingsCopyButtons() {
   }
 }
 
+function wireWidgetShareButton() {
+  const btn = document.getElementById('btnShareWidgetUrl');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    const code = document.getElementById('settingsWidgetUrl');
+    const url = code && code.textContent && code.textContent !== '—' ? code.textContent.trim() : '';
+    if (!url) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Онлайн-запись',
+          text: 'Запишитесь к нам онлайн',
+          url,
+        });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      const prev = btn.textContent;
+      btn.textContent = 'Ссылка скопирована';
+      setTimeout(() => {
+        btn.textContent = prev;
+      }, 1800);
+    } catch (_) {
+      window.prompt('Скопируйте ссылку на виджет:', url);
+    }
+  });
+}
+
 async function loadSettings() {
   const qrBox = document.getElementById('qrcodeContainer');
   wireSettingsCopyButtons();
+  wireWidgetShareButton();
   try {
     const s = await api('/settings');
     document.getElementById('apiBaseUrl').value = s.api_base_url || '';

@@ -279,9 +279,14 @@
           <p class="hint" style="margin-top:0">Пути по умолчанию на этом сервере (можно скопировать для встраивания на сайт).</p>
           <label style="display:block;margin-top:0.65rem;color:var(--text-muted);font-size:0.85rem">Админка (эта панель)</label>
           <div class="settings-copy-row"><code id="settingsAdminUrl" class="settings-copy-code">—</code><button type="button" class="btn btn--sm" id="btnCopyAdminUrl">Копировать</button></div>
-          <label style="display:block;margin-top:0.65rem;color:var(--text-muted);font-size:0.85rem">Виджет записи (страница)</label>
+          <label style="display:block;margin-top:0.85rem;color:var(--lime);font-size:0.9rem;font-weight:600">Виджет онлайн-записи — ссылка для клиентов</label>
+          <p class="hint" style="margin:0.2rem 0 0.4rem">Скопируйте адрес, отправьте через «Поделиться» (телефон / Telegram) или откройте в новой вкладке.</p>
           <div class="settings-copy-row"><code id="settingsWidgetUrl" class="settings-copy-code">—</code><button type="button" class="btn btn--sm" id="btnCopyWidgetUrl">Копировать</button></div>
-          <label style="display:block;margin-top:0.65rem;color:var(--text-muted);font-size:0.85rem">Виджет с явным API (iframe / другой домен)</label>
+          <div class="btn-group" style="margin-top:0.55rem">
+            <a class="btn btn--sm btn--primary" id="settingsWidgetOpenLink" href="#" target="_blank" rel="noopener">Открыть виджет</a>
+            <button type="button" class="btn btn--sm" id="btnShareWidgetUrl">Поделиться…</button>
+          </div>
+          <label style="display:block;margin-top:0.85rem;color:var(--text-muted);font-size:0.85rem">Виджет с явным API (iframe / другой домен)</label>
           <div class="settings-copy-row"><code id="settingsWidgetEmbedUrl" class="settings-copy-code">—</code><button type="button" class="btn btn--sm" id="btnCopyWidgetEmbedUrl">Копировать</button></div>
         </div>
         <hr>
