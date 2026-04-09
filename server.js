@@ -40,6 +40,58 @@ const adminIndexHtml = readFileSync(join(__dirname, 'public', 'admin', 'index.ht
   ASSET_V
 );
 
+const widgetIndexRaw = readFileSync(join(__dirname, 'public', 'widget', 'index.html'), 'utf8');
+
+/**
+ * Публичный базовый URL API (/api/v1) для виджета и /api/v1/web/public-info.
+ * PUBLIC_API_BASE в .env — если Host/X-Forwarded за прокси неверны (обязательно с /api/v1).
+ */
+function normalizePublicApiBaseString(raw) {
+  const s = String(raw || '').trim().replace(/\/$/, '');
+  if (!s) return '';
+  try {
+    const url = new URL(s);
+    let path = url.pathname.replace(/\/$/, '') || '';
+    if (!path) {
+      url.pathname = '/api/v1';
+      return url.toString().replace(/\/$/, '');
+    }
+    if (path.toLowerCase() === '/api') {
+      url.pathname = '/api/v1';
+      return url.toString().replace(/\/$/, '');
+    }
+    return s;
+  } catch {
+    return s;
+  }
+}
+
+function publicApiBaseFromRequest(req) {
+  const env = (process.env.PUBLIC_API_BASE || '').trim();
+  if (env) return normalizePublicApiBaseString(env);
+  const xf = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim();
+  const proto = xf || req.protocol || 'http';
+  const host = String(req.get('host') || '')
+    .split(',')[0]
+    .trim();
+  if (!host) return '';
+  return normalizePublicApiBaseString(`${proto}://${host}/api/v1`);
+}
+
+function sendWidgetIndexHtml(res, req) {
+  const apiBase = publicApiBaseFromRequest(req);
+  const inject = apiBase
+    ? `<script>window.__SERVICE_BOOKING_PUBLIC_API_BASE__=${JSON.stringify(apiBase)};</script>`
+    : '';
+  const html = widgetIndexRaw.replace('{{WIDGET_API_INJECT}}', inject);
+  res.type('html');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.send(html);
+}
+
 // Важно для деплоя: вынесите SQLite на постоянный диск/volume и передайте DB_PATH
 // (например, /data/service_booking.db). Иначе при пересоздании контейнера данные пропадут.
 initDatabase(process.env.DB_PATH || null);
@@ -57,18 +109,11 @@ app.get('/api/v1/web/health', (req, res) => {
 });
 
 app.get('/api/v1/web/public-info', (req, res) => {
-  const xf = String(req.headers['x-forwarded-proto'] || '')
-    .split(',')[0]
-    .trim();
-  const proto = xf || req.protocol || 'http';
-  const host = String(req.get('host') || '')
-    .split(',')[0]
-    .trim();
-  if (!host) {
+  const apiBase = publicApiBaseFromRequest(req);
+  if (!apiBase) {
     return res.json({ api_base: '', admin_url: '', widget_url: '' });
   }
-  const origin = `${proto}://${host}`;
-  const apiBase = `${origin}/api/v1`;
+  const origin = apiBase.replace(/\/api\/v1$/i, '');
   res.json({
     api_base: apiBase,
     admin_url: `${origin}/admin`,
@@ -133,6 +178,17 @@ app.use('/api/v1', api);
 /** Редирект с QR: открыть страницу с подсказкой установить приложение и ввести код. */
 app.get('/invite/:code', (req, res) => {
   res.redirect(302, `/invite.html?code=${encodeURIComponent(req.params.code)}`);
+});
+
+/** Виджет: HTML с подстановкой API той же инстанции (до static, иначе отдаётся сырой шаблон с {{WIDGET_API_INJECT}}). */
+app.get('/widget', (req, res) => {
+  res.redirect(301, '/widget/');
+});
+app.get('/widget/', (req, res) => {
+  sendWidgetIndexHtml(res, req);
+});
+app.get('/widget/index.html', (req, res) => {
+  sendWidgetIndexHtml(res, req);
 });
 
 // === Admin API ===

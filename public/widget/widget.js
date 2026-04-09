@@ -24,7 +24,12 @@
     } catch (_) { return u; }
   }
 
-  const apiBase = normalizeApiBase(params.get('api') || '');
+  /** Сервер подставляет канонический API (тот же, что и БД консоли). ?api= в URL имеет приоритет (встраивание на чужой домен). */
+  const injectedApi =
+    typeof window !== 'undefined' && window.__SERVICE_BOOKING_PUBLIC_API_BASE__
+      ? String(window.__SERVICE_BOOKING_PUBLIC_API_BASE__).trim()
+      : '';
+  const apiBase = normalizeApiBase(params.get('api') || injectedApi || '');
   const STORAGE_KEY = 'wgb_web_access_token';
   const urlApiKey = (params.get('key') || '').trim();
 
